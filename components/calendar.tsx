@@ -1,6 +1,7 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import React from "react"
+import { useState, useEffect, useCallback } from "react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
@@ -34,7 +35,12 @@ import { DeleteEventDialog } from "./delete-event-dialog"
 import { useEvents } from "@/lib/hooks/useEvents"
 import { useProjects } from "@/lib/hooks/useProjects"
 import { usePhotos } from "@/lib/hooks/usePhotos"
+import { supabase } from "@/lib/supabase"
+import type { Database } from "@/lib/supabase.types"
 import { toast } from "react-hot-toast"
+
+type Photo = Database['public']['Tables']['photos']['Row']
+type Event = Database['public']['Tables']['events']['Row']
 
 // Utility function to format dates consistently in local timezone
 const formatDateToLocal = (date: Date): string => {
@@ -49,26 +55,83 @@ const isSameDay = (date1: Date, date2: Date): boolean => {
   return formatDateToLocal(date1) === formatDateToLocal(date2)
 }
 
+// Photo count badge component
+interface PhotoCountBadgeProps {
+  date: Date
+  selectedProject?: string
+}
+
+const PhotoCountBadge: React.FC<PhotoCountBadgeProps> = ({ date, selectedProject = "all" }) => {
+  const [photoCount, setPhotoCount] = useState<number | null>(null)
+  
+  useEffect(() => {
+    const loadPhotoCount = async () => {
+      try {
+        let query = supabase
+          .from('photos')
+          .select('id')
+          .eq('upload_date', formatDateToLocal(date))
+        
+        if (selectedProject !== "all") {
+          query = query.eq('project_id', selectedProject)
+        }
+        
+        const { data, error } = await query
+        
+        if (error) throw error
+        setPhotoCount(data?.length || 0)
+      } catch (error) {
+        console.error('Error loading photo count:', error)
+        setPhotoCount(0)
+      }
+    }
+    
+    loadPhotoCount()
+  }, [date, selectedProject])
+  
+  if (photoCount === null || photoCount === 0) return null
+  
+  return (
+    <div className="flex items-center gap-1 bg-blue-500 text-white rounded-full px-1.5 py-0.5 text-xs">
+      <ImageIcon size={10} />
+      <span>{photoCount}</span>
+    </div>
+  )
+}
+
 export function Calendar() {  const [selectedDate, setSelectedDate] = useState(new Date())
   const [selectedProject, setSelectedProject] = useState("all")
   const [selectedDay, setSelectedDay] = useState<Date | null>(null)
   const [showDayModal, setShowDayModal] = useState(false)
   const [deleteEventId, setDeleteEventId] = useState<string | null>(null)
   const [deleteEventTitle, setDeleteEventTitle] = useState<string>("")
-  const [editingEvent, setEditingEvent] = useState<any>(null)
+  const [editingEvent, setEditingEvent] = useState<Event | null>(null)
   const [uploadFiles, setUploadFiles] = useState<File[]>([])
-  const [dayPhotos, setDayPhotos] = useState<any[]>([])
+  const [dayPhotos, setDayPhotos] = useState<Photo[]>([])
   const [photoPreview, setPhotoPreview] = useState<string | null>(null)
   const { events, loading: eventsLoading, fetchEvents } = useEvents()
   const { projects, loading: projectsLoading } = useProjects()
   const { uploadPhotos, fetchPhotosForDate, getPhotoUrl, downloadPhoto, deletePhoto, uploading, uploadProgress } = usePhotos()
+
+  // Load photos for a specific day
+  const loadDayPhotos = useCallback(async (day: Date) => {
+    const dateString = formatDateToLocal(day)
+    const photos = await fetchPhotosForDate(dateString)
+    
+    // Filter photos by selected project if not "all"
+    const filteredPhotos = selectedProject === "all" 
+      ? photos 
+      : photos.filter(photo => photo.project_id === selectedProject)
+    
+    setDayPhotos(filteredPhotos)
+  }, [fetchPhotosForDate, selectedProject])
 
   // Reload photos when project filter changes and we have a selected day
   useEffect(() => {
     if (selectedDay && showDayModal) {
       loadDayPhotos(selectedDay)
     }
-  }, [selectedProject])
+  }, [selectedProject, loadDayPhotos, selectedDay, showDayModal])
 
   const monthNames = [
     "January", "February", "March", "April", "May", "June",
@@ -127,6 +190,7 @@ export function Calendar() {  const [selectedDate, setSelectedDate] = useState(n
         return "bg-gray-100 text-gray-800"
     }
   }
+
   const navigateMonth = (direction: "prev" | "next") => {
     const newDate = new Date(selectedDate)
     if (direction === "prev") {
@@ -170,17 +234,6 @@ export function Calendar() {  const [selectedDate, setSelectedDate] = useState(n
       loadDayPhotos(day)
     }
   }
-  const loadDayPhotos = async (day: Date) => {
-    const dateString = formatDateToLocal(day)
-    const photos = await fetchPhotosForDate(dateString)
-    
-    // Filter photos by selected project if not "all"
-    const filteredPhotos = selectedProject === "all" 
-      ? photos 
-      : photos.filter(photo => photo.project_id === selectedProject)
-    
-    setDayPhotos(filteredPhotos)
-  }
 
   const handleEventCreated = () => {
     fetchEvents() // Refresh events
@@ -215,11 +268,11 @@ export function Calendar() {  const [selectedDate, setSelectedDate] = useState(n
     }
   }
 
-  const handlePhotoView = (photo: any) => {
+  const handlePhotoView = (photo: Photo) => {
     setPhotoPreview(getPhotoUrl(photo.storage_path))
   }
-  
-  const handlePhotoDownload = async (photo: any) => {
+
+  const handlePhotoDownload = async (photo: Photo) => {
     try {      await downloadPhoto(photo)
       toast.success("Photo downloaded successfully")
     } catch (error) {      console.error("Failed to download photo:", error)
@@ -227,7 +280,7 @@ export function Calendar() {  const [selectedDate, setSelectedDate] = useState(n
     }
   }
 
-  const handlePhotoDelete = async (photo: any) => {
+  const handlePhotoDelete = async (photo: Photo) => {
     // Add confirmation dialog
     if (!confirm(`Are you sure you want to delete "${photo.file_name}"?`)) {
       return
@@ -253,7 +306,7 @@ export function Calendar() {  const [selectedDate, setSelectedDate] = useState(n
     setDeleteEventTitle(eventTitle)
   }
 
-  const handleEditEvent = (event: any) => {
+  const handleEditEvent = (event: Event) => {
     setEditingEvent(event)
   }
 
@@ -479,11 +532,13 @@ export function Calendar() {  const [selectedDate, setSelectedDate] = useState(n
                   >
                     {day && (
                       <>
-                        <div className={`text-sm font-medium mb-1 ${isToday ? 'text-orange-600' : ''}`}>
-                          {day.getDate()}
+                        <div className="flex justify-between items-start mb-1">
+                          <div className={`text-sm font-medium ${isToday ? 'text-orange-600' : ''}`}>
+                            {day.getDate()}
+                          </div>
+                          <PhotoCountBadge date={day} selectedProject={selectedProject} />
                         </div>
-                        <div className="space-y-1">
-                          {dayEvents.slice(0, 3).map((event) => (
+                        <div className="space-y-1">{dayEvents.slice(0, 3).map((event) => (
                             <div
                               key={event.id}
                               className={`text-xs p-1 rounded truncate ${getEventTypeColor(event.type)}`}
@@ -513,7 +568,7 @@ export function Calendar() {  const [selectedDate, setSelectedDate] = useState(n
             <CardHeader>
               <CardTitle className="text-lg font-semibold flex items-center">
                 <CalendarIcon className="h-5 w-5 mr-2 text-orange-500" />
-                Today's Events
+                Today&apos;s Events
               </CardTitle>
             </CardHeader>
             <CardContent>

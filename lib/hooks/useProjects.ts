@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from 'react'
 import { supabase, type Project } from '@/lib/supabase'
 import { cache, CACHE_KEYS } from '@/lib/cache'
+import { withAuthErrorHandling } from '@/lib/auth-utils'
 
 export function useProjects() {
   const [projects, setProjects] = useState<Project[]>([])
@@ -21,23 +22,27 @@ export function useProjects() {
         }
       }
       
-      const { data, error } = await supabase
-        .from('projects')
-        .select('*')
-        .order('created_at', { ascending: false })
+      const result = await withAuthErrorHandling(async () => {
+        const { data, error } = await supabase
+          .from('projects')
+          .select('*')
+          .order('created_at', { ascending: false })
 
-      if (error) throw error
-      
-      const projectsData = data || [];
-      setProjects(projectsData);
-      
-      // Update cache
-      cache.set(CACHE_KEYS.PROJECTS, projectsData);
+        if (error) throw error
+        return data || [];
+      }, []);
+
+      if (result) {
+        setProjects(result);
+        // Update cache
+        cache.set(CACHE_KEYS.PROJECTS, result);
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : 'An error occurred')
     } finally {
       setLoading(false)
-    }  }, [])
+    }
+  }, [])
 
   useEffect(() => {
     fetchProjects()

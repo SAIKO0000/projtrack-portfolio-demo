@@ -26,6 +26,14 @@ export const clearAuthStorage = () => {
     }
     sessionKeysToRemove.forEach(key => sessionStorage.removeItem(key))
     
+    // Also clear any other supabase related items
+    try {
+      localStorage.removeItem('supabase.auth.token')
+      sessionStorage.removeItem('supabase.auth.token')
+    } catch {
+      // Ignore errors
+    }
+    
     console.log('Auth storage cleared')
   } catch (error) {
     console.error('Error clearing auth storage:', error)
@@ -48,7 +56,9 @@ export const handleAuthError = (error: unknown) => {
   // Handle specific auth errors
   if (errorMessage.includes('refresh_token') || 
       errorMessage.includes('Invalid refresh token') ||
-      errorMessage.includes('JWT expired')) {
+      errorMessage.includes('Refresh Token Not Found') ||
+      errorMessage.includes('JWT expired') ||
+      errorMessage.includes('refresh token not found')) {
     console.log('Token refresh failed, clearing storage')
     clearAuthStorage()
     return 'Session expired. Please sign in again.'
@@ -63,4 +73,27 @@ export const handleAuthError = (error: unknown) => {
   }
   
   return errorMessage
+}
+
+// Helper function to safely handle auth-related API calls
+export const withAuthErrorHandling = async <T>(
+  operation: () => Promise<T>,
+  fallback?: T
+): Promise<T | undefined> => {
+  try {
+    return await operation()
+  } catch (error) {
+    const friendlyError = handleAuthError(error)
+    console.error('Auth operation failed:', friendlyError)
+    
+    // If it's a session-related error, clear storage and optionally redirect
+    if (friendlyError.includes('Session expired')) {
+      clearAuthStorage()
+      if (typeof window !== 'undefined') {
+        window.location.href = '/auth/login'
+      }
+    }
+    
+    return fallback
+  }
 }

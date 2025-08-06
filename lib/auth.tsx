@@ -51,9 +51,14 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
   const router = useRouter()
 
   useEffect(() => {
+    let isMounted = true
+    
     const getSession = async () => {
       try {
         const { data: { session }, error } = await supabase.auth.getSession()
+        
+        if (!isMounted) return
+        
         if (error) {
           console.error('Session error:', error)
           // Handle token refresh errors
@@ -62,10 +67,35 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
             clearAuthStorage()
             setSession(null)
             setUser(null)
+            setLoading(false)
             return
           }
           throw error
         }
+        
+        // Validate session if it exists
+        if (session) {
+          try {
+            // Test if the session is actually valid by making a simple call
+            const { error: testError } = await supabase.auth.getUser()
+            if (testError) {
+              console.log('Session validation failed:', testError)
+              clearAuthStorage()
+              setSession(null)
+              setUser(null)
+              setLoading(false)
+              return
+            }
+          } catch (testError) {
+            console.log('Session test failed:', testError)
+            clearAuthStorage()
+            setSession(null)
+            setUser(null)
+            setLoading(false)
+            return
+          }
+        }
+        
         setSession(session)
         setUser(session?.user ?? null)
       } catch (error) {
@@ -75,7 +105,9 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
         setSession(null)
         setUser(null)
       } finally {
-        setLoading(false)
+        if (isMounted) {
+          setLoading(false)
+        }
       }
     }
 
@@ -85,6 +117,19 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
       data: { subscription },
     } = supabase.auth.onAuthStateChange(async (event, session) => {
       console.log('Auth state change:', event, session?.user?.email)
+      
+      if (!isMounted) return
+      
+      // Handle authentication errors
+      if (event === 'TOKEN_REFRESHED' && !session) {
+        console.log('Token refresh failed, clearing storage and redirecting to login')
+        clearAuthStorage()
+        setSession(null)
+        setUser(null)
+        setLoading(false)
+        router.push('/auth/login')
+        return
+      }
       
       setSession(session)
       setUser(session?.user ?? null)
@@ -110,7 +155,10 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
       }
     })
 
-    return () => subscription.unsubscribe()
+    return () => {
+      isMounted = false
+      subscription.unsubscribe()
+    }
   }, [router])
 
   const signIn = useCallback(async (email: string, password: string) => {
@@ -213,10 +261,14 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
   const signOut = useCallback(async () => {
     try {
       setLoading(true)
+      
+      // Clear auth storage first
+      clearAuthStorage()
+      
       const { error } = await supabase.auth.signOut()
       if (error) {
         console.error('SignOut error:', error)
-        // Even if signOut fails, clear local state
+        // Even if signOut fails, we've already cleared local storage
       }
       
       // Always clear local state
@@ -225,7 +277,8 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
       
     } catch (error) {
       console.error('Error signing out:', error)
-      // Always clear local state even on error
+      // Always clear local state and storage even on error
+      clearAuthStorage()
       setSession(null)
       setUser(null)
       toast.error('Error signing out. Session cleared locally.')

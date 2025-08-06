@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useMemo, useEffect } from "react"
+import { useState, useMemo, useEffect, useCallback } from "react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -8,7 +8,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Input } from "@/components/ui/input"
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
 import { useProjects } from "@/lib/hooks/useProjects"
-import { useGanttTasks, type GanttTaskWithDependencies } from "@/lib/hooks/useGanttTasks"
+import { useGanttTasks } from "@/lib/hooks/useGanttTasks"
 import { TaskFormModalOptimized } from "./task-form-modal-optimized"
 import { TaskEditModalOptimized } from "./task-edit-modal-optimized"
 import { toast } from "react-hot-toast"
@@ -30,27 +30,44 @@ import {
   Trash2,
 } from "lucide-react"
 
-interface Project {
+interface EnhancedTask {
+  // Core task properties from database
   id: string
-  name: string
+  title: string
   description: string | null
+  project_id: string | null
   start_date: string | null
   end_date: string | null
-  status: string
-  location: string | null
-  client: string | null
-  progress: number
-  team_size: number
-  created_by: string | null
-  created_at: string
-  updated_at: string
-}
-
-interface EnhancedTask extends GanttTaskWithDependencies {
+  status: string | null
+  priority: string | null
+  assignee: string | null
+  assigned_to: string | null
+  category: string | null
+  created_at: string | null
+  dependencies: string[] | null
+  due_date: string | null
+  duration: number | null
+  estimated_hours: number | null
+  gantt_position: number | null
+  name: string | null
+  phase: string | null
+  progress: number | null
+  updated_at: string | null
+  // Enhanced properties
   project_name?: string
   project_client?: string | null
   is_overdue?: boolean
   days_until_deadline?: number | null
+  dependencyTasks?: EnhancedTask[]
+}
+
+interface TimelineMonth {
+  label: string
+  date: Date
+  endDate: Date
+  quarter: number
+  year: number
+  isQuarter: boolean
 }
 
 interface GanttChartEnhancedProps {
@@ -83,7 +100,7 @@ export function GanttChartEnhanced({ selectedProjectId }: GanttChartEnhancedProp
     return new Date(year, month - 1, day) // month is 0-indexed
   }
 
-  const isOverdue = (endDate: string | null, status: string | null) => {
+  const isOverdue = useCallback((endDate: string | null, status: string | null) => {
     if (status === "completed" || !endDate) return false
     const taskEndDate = parseTaskDate(endDate)
     // Get current date in Philippines timezone properly
@@ -93,9 +110,9 @@ export function GanttChartEnhanced({ selectedProjectId }: GanttChartEnhancedProp
     const philippinesTime = new Date(now.getTime() + (localOffset + philippinesOffset) * 60000)
     const today = new Date(philippinesTime.getFullYear(), philippinesTime.getMonth(), philippinesTime.getDate())
     return taskEndDate < today
-  }
+  }, [])
 
-  const getDaysUntilDeadline = (endDate: string | null, status: string | null) => {
+  const getDaysUntilDeadline = useCallback((endDate: string | null, status: string | null) => {
     if (status === "completed" || !endDate) return null
     const taskEndDate = parseTaskDate(endDate)
     // Get current date in Philippines timezone properly
@@ -107,21 +124,22 @@ export function GanttChartEnhanced({ selectedProjectId }: GanttChartEnhancedProp
     const diffTime = taskEndDate.getTime() - today.getTime()
     const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24))
     return diffDays
-  }
+  }, [])
 
   // Transform tasks data to include project information
   const enhancedTasks: EnhancedTask[] = useMemo(() => {
     return tasks.map(task => {
-      const project = projects.find(p => p.id === task.project_id)
+      const taskData = task as EnhancedTask
+      const project = projects.find(p => p.id === taskData.project_id)
       return {
-        ...task,
+        ...taskData,
         project_name: project?.name || 'Unknown Project',
         project_client: project?.client || null,
-        is_overdue: isOverdue(task.end_date, task.status),
-        days_until_deadline: getDaysUntilDeadline(task.end_date, task.status)
+        is_overdue: isOverdue(taskData.end_date, taskData.status),
+        days_until_deadline: getDaysUntilDeadline(taskData.end_date, taskData.status)
       }
     })
-  }, [tasks, projects])
+  }, [tasks, projects, isOverdue, getDaysUntilDeadline])
 
   const getEffectiveStatus = (status: string | null, isOverdue: boolean) => {
     // If task is overdue and not completed, show as delayed
@@ -344,7 +362,7 @@ export function GanttChartEnhanced({ selectedProjectId }: GanttChartEnhancedProp
     return months
   }
 
-  const getTaskPosition = (task: EnhancedTask, timelineMonths: any[]) => {
+  const getTaskPosition = (task: EnhancedTask, timelineMonths: TimelineMonth[]) => {
     if (!task.start_date || !task.end_date) {
       return { left: "0%", width: "0%", isVisible: false, actualStart: null, actualEnd: null }
     }
@@ -454,7 +472,7 @@ export function GanttChartEnhanced({ selectedProjectId }: GanttChartEnhancedProp
     const avgProgress = total > 0 ? Math.round((completed / total) * 100) : 0
 
     return { total, completed, inProgress, delayed, avgProgress }
-  }, [filteredTasks])
+  }, [filteredTasks, isOverdue])
 
   if (projectsLoading || tasksLoading) {
     return (
@@ -1030,7 +1048,19 @@ export function GanttChartEnhanced({ selectedProjectId }: GanttChartEnhancedProp
 
       {/* Edit Task Modal */}
       <TaskEditModalOptimized
-        task={editingTask}
+        task={editingTask ? {
+          id: editingTask.id,
+          title: editingTask.title,
+          description: editingTask.description,
+          project_id: editingTask.project_id,
+          start_date: editingTask.start_date,
+          end_date: editingTask.end_date,
+          status: editingTask.status,
+          priority: editingTask.priority,
+          phase: editingTask.phase,
+          category: editingTask.category,
+          assignee: editingTask.assignee
+        } : null}
         open={isEditModalOpen}
         onOpenChange={setIsEditModalOpen}
         onTaskUpdated={handleTaskUpdated}

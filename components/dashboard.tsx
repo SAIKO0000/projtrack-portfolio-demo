@@ -569,10 +569,6 @@ export function Dashboard() {
                     <div className="flex items-center justify-between">
                       <div className="flex items-center space-x-4 text-xs text-gray-500">
                         <span className="flex items-center">
-                          <Users className="h-3 w-3 mr-1" />
-                          {project.team_size} members
-                        </span>
-                        <span className="flex items-center">
                           <Clock className="h-3 w-3 mr-1" />
                           Due {formatDate(project.end_date)}
                         </span>

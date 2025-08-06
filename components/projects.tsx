@@ -9,7 +9,6 @@ import { Progress } from "@/components/ui/progress"
 import {
   Search,
   MoreHorizontal,
-  Users,
   Calendar,
   MapPin,
   Clock,
@@ -29,6 +28,9 @@ import { ProjectFormModal } from "@/components/project-form-modal"
 import { ReportUploadModal } from "@/components/report-upload-modal"
 import { EditProjectModal } from "@/components/edit-project-modal"
 import { toast } from "react-hot-toast"
+import { Database } from "@/lib/supabase.types"
+
+type Project = Database['public']['Tables']['projects']['Row']
 
 interface ProjectsProps {
   readonly onProjectSelect?: (projectId: string) => void
@@ -39,7 +41,7 @@ export function Projects({ onProjectSelect }: ProjectsProps) {
   const { tasks, loading: tasksLoading } = useTasks()
   const [searchTerm, setSearchTerm] = useState("")
   const [statusFilter, setStatusFilter] = useState("all")
-  const [editingProject, setEditingProject] = useState<any>(null)
+  const [editingProject, setEditingProject] = useState<Project | null>(null)
 
   const handleProjectCreated = () => {
     fetchProjects() // Refresh projects list
@@ -88,7 +90,9 @@ export function Projects({ onProjectSelect }: ProjectsProps) {
     fetchProjects() // Refresh projects list
   }
 
-  const getStatusColor = (status: string) => {
+  const getStatusColor = (status: string | null) => {
+    if (!status) return "bg-gray-100 text-gray-800"
+    
     switch (status) {
       case "completed":
         return "bg-green-100 text-green-800"
@@ -103,7 +107,9 @@ export function Projects({ onProjectSelect }: ProjectsProps) {
     }
   }
 
-  const getStatusIcon = (status: string) => {
+  const getStatusIcon = (status: string | null) => {
+    if (!status) return <AlertCircle className="h-4 w-4" />
+    
     switch (status) {
       case "completed":
         return <CheckCircle className="h-4 w-4" />
@@ -130,7 +136,7 @@ export function Projects({ onProjectSelect }: ProjectsProps) {
     .filter((project) => {
       const matchesSearch =
         project.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        project.client?.toLowerCase().includes(searchTerm.toLowerCase())
+        (project.client?.toLowerCase() || "").includes(searchTerm.toLowerCase())
       const matchesStatus = statusFilter === "all" || project.status === statusFilter
       
       return matchesSearch && matchesStatus
@@ -144,16 +150,16 @@ export function Projects({ onProjectSelect }: ProjectsProps) {
         'completed': 4
       }
       
-      const statusA = statusPriority[a.status as keyof typeof statusPriority] || 5
-      const statusB = statusPriority[b.status as keyof typeof statusPriority] || 5
+      const statusA = statusPriority[(a.status || '') as keyof typeof statusPriority] || 5
+      const statusB = statusPriority[(b.status || '') as keyof typeof statusPriority] || 5
       
       if (statusA !== statusB) {
         return statusA - statusB
       }
       
       // Then sort by date (most recent first)
-      const dateA = new Date(a.end_date || a.start_date || a.created_at).getTime()
-      const dateB = new Date(b.end_date || b.start_date || b.created_at).getTime()
+      const dateA = new Date(a.end_date || a.start_date || a.created_at || '1970-01-01').getTime()
+      const dateB = new Date(b.end_date || b.start_date || b.created_at || '1970-01-01').getTime()
       
       return dateB - dateA // Most recent first
     })
@@ -285,7 +291,7 @@ export function Projects({ onProjectSelect }: ProjectsProps) {
                 <div className="flex items-center space-x-2 flex-shrink-0">
                   <Badge className={getStatusColor(project.status)}>
                     {getStatusIcon(project.status)}
-                    <span className="ml-1">{project.status.replace("-", " ")}</span>
+                    <span className="ml-1">{project.status?.replace("-", " ") || "Unknown"}</span>
                   </Badge>
                   <DropdownMenu>
                     <DropdownMenuTrigger asChild>
@@ -328,16 +334,12 @@ export function Projects({ onProjectSelect }: ProjectsProps) {
                     <span className="ml-1 font-medium">{project.client}</span>
                   </div>
                   <div>
-                    <span className="text-gray-500">Team:</span>
-                    <span className="ml-1 font-medium">{project.team_size} members</span>
+                    <span className="text-gray-500">Status:</span>
+                    <span className="ml-1 font-medium capitalize">{project.status?.replace("-", " ") || "Unknown"}</span>
                   </div>
                 </div>
 
                 <div className="flex items-center justify-between">
-                  <div className="flex items-center space-x-2">
-                    <Users className="h-4 w-4 text-gray-400" />
-                    <span className="text-sm text-gray-600">{project.team_size} team members</span>
-                  </div>
                   <div className="flex items-center space-x-2">
                     <Badge variant="outline" className="text-xs">
                       {formatDate(project.start_date)} - {formatDate(project.end_date)}

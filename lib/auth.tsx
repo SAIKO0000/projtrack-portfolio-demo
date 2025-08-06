@@ -5,6 +5,7 @@ import { createClient } from '@supabase/supabase-js'
 import { User, Session } from '@supabase/supabase-js'
 import { useRouter } from 'next/navigation'
 import { toast } from 'react-hot-toast'
+import { clearAuthStorage, handleAuthError } from './auth-utils'
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!
 const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
@@ -53,11 +54,26 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
     const getSession = async () => {
       try {
         const { data: { session }, error } = await supabase.auth.getSession()
-        if (error) throw error
+        if (error) {
+          console.error('Session error:', error)
+          // Handle token refresh errors
+          const friendlyError = handleAuthError(error)
+          if (friendlyError.includes('Session expired')) {
+            clearAuthStorage()
+            setSession(null)
+            setUser(null)
+            return
+          }
+          throw error
+        }
         setSession(session)
         setUser(session?.user ?? null)
       } catch (error) {
         console.error('Error getting session:', error)
+        // Clear any corrupt session data
+        clearAuthStorage()
+        setSession(null)
+        setUser(null)
       } finally {
         setLoading(false)
       }
@@ -68,6 +84,8 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
     const {
       data: { subscription },
     } = supabase.auth.onAuthStateChange(async (event, session) => {
+      console.log('Auth state change:', event, session?.user?.email)
+      
       setSession(session)
       setUser(session?.user ?? null)
       setLoading(false)
@@ -81,6 +99,14 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
           },
         })
         router.push('/auth/login')
+      }
+      
+      if (event === 'TOKEN_REFRESHED') {
+        console.log('Token refreshed successfully')
+      }
+      
+      if (event === 'SIGNED_IN') {
+        console.log('User signed in:', session?.user?.email)
       }
     })
 
@@ -96,7 +122,8 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
       })
 
       if (error) {
-        return { success: false, error: error.message }
+        const friendlyError = handleAuthError(error)
+        return { success: false, error: friendlyError }
       }
 
       toast.success('Welcome back! Successfully signed in.', {
@@ -110,8 +137,8 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
       router.push('/')
       return { success: true }
     } catch (error: unknown) {
-      const errorMessage = error instanceof Error ? error.message : 'An unknown error occurred'
-      return { success: false, error: errorMessage }
+      const friendlyError = handleAuthError(error)
+      return { success: false, error: friendlyError }
     } finally {
       setLoading(false)
     }
@@ -187,10 +214,21 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
     try {
       setLoading(true)
       const { error } = await supabase.auth.signOut()
-      if (error) throw error
+      if (error) {
+        console.error('SignOut error:', error)
+        // Even if signOut fails, clear local state
+      }
+      
+      // Always clear local state
+      setSession(null)
+      setUser(null)
+      
     } catch (error) {
       console.error('Error signing out:', error)
-      toast.error('Error signing out. Please try again.')
+      // Always clear local state even on error
+      setSession(null)
+      setUser(null)
+      toast.error('Error signing out. Session cleared locally.')
     } finally {
       setLoading(false)
     }

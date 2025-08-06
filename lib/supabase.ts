@@ -10,7 +10,9 @@ if (!supabaseUrl || !supabaseAnonKey) {
 
 export const supabase = createClient<Database>(supabaseUrl, supabaseAnonKey, {
   auth: {
-    persistSession: false
+    persistSession: true,
+    autoRefreshToken: true,
+    detectSessionInUrl: true
   },
   realtime: {
     params: {
@@ -32,7 +34,7 @@ const testConnection = async () => {
     
     if (error) throw error;
     console.log('✅ Connection test successful! Project count:', count);
-  } catch (err: any) {
+  } catch (err: unknown) {
     console.error('❌ Supabase connection failed:', err);
   }
 };

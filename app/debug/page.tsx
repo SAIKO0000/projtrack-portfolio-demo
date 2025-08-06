@@ -2,6 +2,18 @@
 
 import React from 'react'
 import { createClient } from '@supabase/supabase-js'
+import { clearAuthStorage } from '@/lib/auth-utils'
+
+const handleClearAuth = () => {
+  clearAuthStorage()
+  localStorage.clear()
+  sessionStorage.clear()
+  alert('All auth storage cleared! Please refresh the page.')
+}
+
+const handleRefreshPage = () => {
+  window.location.reload()
+}
 
 async function debugSupabaseConnection() {
   console.log('🔍 Starting Supabase connection debugging...')
@@ -75,6 +87,37 @@ export default function DebugPage() {
   return (
     <div className="p-8 max-w-4xl mx-auto">
       <h1 className="text-3xl font-bold mb-6">Supabase Connection Debug</h1>
+      
+      {/* Auth Storage Debug Section */}
+      <div className="bg-yellow-50 border border-yellow-200 p-4 rounded-lg mb-6">
+        <h2 className="text-xl font-semibold mb-4 text-yellow-800">Authentication Storage Debug</h2>
+        <p className="text-sm text-yellow-700 mb-4">
+          If you&apos;re experiencing the &quot;refresh_token&quot; error, use these tools to clear corrupt auth data:
+        </p>
+        
+        <div className="space-y-2">
+          <button 
+            onClick={handleClearAuth}
+            className="bg-red-500 text-white px-4 py-2 rounded hover:bg-red-600 mr-2"
+          >
+            Clear Auth Storage
+          </button>
+          
+          <button 
+            onClick={handleRefreshPage}
+            className="bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600"
+          >
+            Refresh Page
+          </button>
+        </div>
+        
+        <div className="mt-4 p-3 bg-yellow-100 rounded">
+          <h3 className="font-semibold text-sm">Current Storage Info:</h3>
+          <p className="text-xs">LocalStorage keys: {typeof window !== 'undefined' ? localStorage.length : 'N/A'}</p>
+          <p className="text-xs">SessionStorage keys: {typeof window !== 'undefined' ? sessionStorage.length : 'N/A'}</p>
+        </div>
+      </div>
+      
       <div className="bg-gray-100 p-4 rounded-lg">
         <p className="text-sm text-gray-600 mb-2">
           Check the browser console for detailed debugging information.

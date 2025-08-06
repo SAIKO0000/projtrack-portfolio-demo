@@ -1,0 +1,66 @@
+/**
+ * Authentication utility functions for handling session issues
+ */
+
+export const clearAuthStorage = () => {
+  if (typeof window === 'undefined') return
+  
+  try {
+    // Clear localStorage
+    const keysToRemove = []
+    for (let i = 0; i < localStorage.length; i++) {
+      const key = localStorage.key(i)
+      if (key && key.startsWith('supabase.auth.token')) {
+        keysToRemove.push(key)
+      }
+    }
+    keysToRemove.forEach(key => localStorage.removeItem(key))
+    
+    // Clear sessionStorage
+    const sessionKeysToRemove = []
+    for (let i = 0; i < sessionStorage.length; i++) {
+      const key = sessionStorage.key(i)
+      if (key && key.startsWith('supabase.auth.token')) {
+        sessionKeysToRemove.push(key)
+      }
+    }
+    sessionKeysToRemove.forEach(key => sessionStorage.removeItem(key))
+    
+    console.log('Auth storage cleared')
+  } catch (error) {
+    console.error('Error clearing auth storage:', error)
+  }
+}
+
+export const isTokenExpired = (token: string): boolean => {
+  try {
+    const payload = JSON.parse(atob(token.split('.')[1]))
+    const now = Math.floor(Date.now() / 1000)
+    return payload.exp < now
+  } catch {
+    return true
+  }
+}
+
+export const handleAuthError = (error: unknown) => {
+  const errorMessage = error instanceof Error ? error.message : String(error)
+  
+  // Handle specific auth errors
+  if (errorMessage.includes('refresh_token') || 
+      errorMessage.includes('Invalid refresh token') ||
+      errorMessage.includes('JWT expired')) {
+    console.log('Token refresh failed, clearing storage')
+    clearAuthStorage()
+    return 'Session expired. Please sign in again.'
+  }
+  
+  if (errorMessage.includes('Invalid login credentials')) {
+    return 'Invalid email or password. Please check your credentials.'
+  }
+  
+  if (errorMessage.includes('Email not confirmed')) {
+    return 'Please check your email and click the confirmation link.'
+  }
+  
+  return errorMessage
+}

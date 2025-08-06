@@ -38,7 +38,6 @@ import {
   MapPin,
   FileText,
   Activity,
-  Users,
   X,
   FolderPlus
 } from "lucide-react"
@@ -53,7 +52,6 @@ const projectSchema = z.object({
   client: z.string().min(1, "Client name is required").max(255, "Client name too long"),
   location: z.string().min(1, "Location is required").max(255, "Location too long"),
   status: z.enum(["planning", "in-progress", "on-hold", "completed"]),
-  team_size: z.number().min(1, "Team size must be at least 1").max(100, "Team size too large"),
   start_date: z.date().optional(),
   end_date: z.date().optional(),
   progress: z.number().min(0).max(100),
@@ -81,7 +79,6 @@ export function ProjectFormModal({ onProjectCreated }: ProjectFormModalProps) {
     defaultValues: {
       status: "planning",
       progress: 0,
-      team_size: 1,
     },
   })
   const startDate = watch("start_date")
@@ -105,6 +102,13 @@ export function ProjectFormModal({ onProjectCreated }: ProjectFormModalProps) {
         end_date: data.end_date ? formatDateToLocal(data.end_date) : null,
         description: data.description || null,
         created_by: null,
+        // Add missing optional fields
+        actual_end_date: null,
+        budget: null,
+        category: null,
+        priority: null,
+        spent: null,
+        team_size: null, // Remove team size field, set to null
       }
 
       await createProject(projectData)
@@ -234,7 +238,7 @@ export function ProjectFormModal({ onProjectCreated }: ProjectFormModalProps) {
               </Label>
               <Select
                 defaultValue="planning"
-                onValueChange={(value) => setValue("status", value as any)}
+                onValueChange={(value) => setValue("status", value as "planning" | "in-progress" | "on-hold" | "completed")}
               >
                 <SelectTrigger>
                   <SelectValue placeholder="Select status" />
@@ -266,28 +270,6 @@ export function ProjectFormModal({ onProjectCreated }: ProjectFormModalProps) {
                   </SelectItem>
                 </SelectContent>
               </Select>
-            </div>
-
-            <div className="space-y-2">
-              <Label htmlFor="team_size" className="text-sm font-medium text-gray-700 flex items-center">
-                <Users className="h-4 w-4 mr-2 text-gray-500" />
-                Team Size
-              </Label>
-              <div className="relative">
-                <Users className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
-                <Input
-                  id="team_size"
-                  type="number"
-                  min="1"
-                  max="100"
-                  {...register("team_size", { valueAsNumber: true })}
-                  placeholder="5"
-                  className="w-full pl-10"
-                />
-              </div>
-              {errors.team_size && (
-                <p className="text-sm text-red-600">{errors.team_size.message}</p>
-              )}
             </div>
           </div>
 

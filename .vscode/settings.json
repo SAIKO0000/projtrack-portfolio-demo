@@ -1,0 +1,13 @@
+{
+    "chat.mcp.serverSampling": {
+        
+        "proj_track/.vscode/mcp.json: github": {
+            "allowedModels": [
+                "github.copilot-chat/claude-3.7-sonnet",
+                "github.copilot-chat/claude-3.7-sonnet-thought",
+                "github.copilot-chat/claude-sonnet-4"
+            ]
+        }
+    },
+    "chat.mcp.discovery.enabled": true
+}

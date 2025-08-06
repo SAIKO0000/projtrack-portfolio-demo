@@ -1,0 +1,935 @@
+"use client"
+
+import { useState, useMemo, useEffect } from "react"
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { Badge } from "@/components/ui/badge"
+import { Button } from "@/components/ui/button"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { Input } from "@/components/ui/input"
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
+import { useProjects } from "@/lib/hooks/useProjects"
+import { useGanttTasks, type GanttTaskWithDependencies } from "@/lib/hooks/useGanttTasks"
+import { TaskFormModalOptimized } from "./task-form-modal-optimized"
+import { TaskEditModalOptimized } from "./task-edit-modal-optimized"
+import { toast } from "react-hot-toast"
+import {
+  BarChart3,
+  Calendar,
+  Clock,
+  AlertTriangle,
+  CheckCircle,
+  Play,
+  Pause,
+  ChevronLeft,
+  ChevronRight,
+  Users,
+  RefreshCw,
+  Search,
+  MoreVertical,
+  Edit,
+  Trash2,
+} from "lucide-react"
+
+interface Project {
+  id: string
+  name: string
+  description: string | null
+  start_date: string | null
+  end_date: string | null
+  status: string
+  location: string | null
+  client: string | null
+  progress: number
+  team_size: number
+  created_by: string | null
+  created_at: string
+  updated_at: string
+}
+
+interface EnhancedTask extends GanttTaskWithDependencies {
+  project_name?: string
+  project_client?: string | null
+  is_overdue?: boolean
+  days_until_deadline?: number | null
+}
+
+interface GanttChartEnhancedProps {
+  readonly selectedProjectId?: string | null
+}
+
+export function GanttChartEnhanced({ selectedProjectId }: GanttChartEnhancedProps) {
+  const { projects, loading: projectsLoading, error: projectsError, fetchProjects } = useProjects()
+  const { tasks, loading: tasksLoading, error: tasksError, refetch: refetchTasks, deleteTask } = useGanttTasks()
+  
+  const [statusFilter, setStatusFilter] = useState("all")
+  const [priorityFilter, setPriorityFilter] = useState("all")
+  const [projectFilter, setProjectFilter] = useState("all")
+  const [currentPeriod, setCurrentPeriod] = useState(new Date())
+  const [viewMode, setViewMode] = useState<"year" | "full">("year")
+  const [searchTerm, setSearchTerm] = useState("")
+  const [editingTask, setEditingTask] = useState<EnhancedTask | null>(null)
+  const [isEditModalOpen, setIsEditModalOpen] = useState(false)
+
+  // Set project filter when selectedProjectId changes
+  useEffect(() => {
+    if (selectedProjectId) {
+      setProjectFilter(selectedProjectId)
+    }
+  }, [selectedProjectId])
+
+  // Helper functions defined before they're used
+  const parseTaskDate = (dateString: string) => {
+    const [year, month, day] = dateString.split('T')[0].split('-').map(Number)
+    return new Date(year, month - 1, day) // month is 0-indexed
+  }
+
+  const isOverdue = (endDate: string | null, status: string | null) => {
+    if (status === "completed" || !endDate) return false
+    const taskEndDate = parseTaskDate(endDate)
+    // Get current date in Philippines timezone, normalized to start of day
+    const philippinesNow = new Date().toLocaleString("en-US", { timeZone: "Asia/Manila" })
+    const todayDate = new Date(philippinesNow)
+    const today = new Date(todayDate.getFullYear(), todayDate.getMonth(), todayDate.getDate())
+    return taskEndDate < today
+  }
+
+  const getDaysUntilDeadline = (endDate: string | null, status: string | null) => {
+    if (status === "completed" || !endDate) return null
+    const taskEndDate = parseTaskDate(endDate)
+    // Get current date in Philippines timezone, normalized to start of day
+    const philippinesNow = new Date().toLocaleString("en-US", { timeZone: "Asia/Manila" })
+    const todayDate = new Date(philippinesNow)
+    const today = new Date(todayDate.getFullYear(), todayDate.getMonth(), todayDate.getDate())
+    const diffTime = taskEndDate.getTime() - today.getTime()
+    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24))
+    return diffDays
+  }
+
+  // Transform tasks data to include project information
+  const enhancedTasks: EnhancedTask[] = useMemo(() => {
+    return tasks.map(task => {
+      const project = projects.find(p => p.id === task.project_id)
+      return {
+        ...task,
+        project_name: project?.name || 'Unknown Project',
+        project_client: project?.client || null,
+        is_overdue: isOverdue(task.end_date, task.status),
+        days_until_deadline: getDaysUntilDeadline(task.end_date, task.status)
+      }
+    })
+  }, [tasks, projects])
+
+  const getEffectiveStatus = (status: string | null, isOverdue: boolean) => {
+    // If task is overdue and not completed, show as delayed
+    if (isOverdue && status !== "completed") {
+      return "delayed"
+    }
+    return status
+  }
+
+  const getStatusColor = (status: string | null, isOverdue: boolean = false) => {
+    const effectiveStatus = getEffectiveStatus(status, isOverdue)
+    
+    switch (effectiveStatus) {
+      case "completed":
+        return "bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200"
+      case "in-progress":
+        return "bg-orange-100 text-orange-800 dark:bg-orange-900 dark:text-orange-200"
+      case "planning":
+        return "bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200"
+      case "on-hold":
+        return "bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200"
+      case "delayed":
+        return "bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200"
+      default:
+        return "bg-gray-100 text-gray-800 dark:bg-gray-800 dark:text-gray-200"
+    }
+  }
+
+  const getStatusIcon = (status: string | null, isOverdue: boolean = false) => {
+    const effectiveStatus = getEffectiveStatus(status, isOverdue)
+    
+    switch (effectiveStatus) {
+      case "completed":
+        return <CheckCircle className="h-4 w-4 text-green-500" />
+      case "in-progress":
+        return <Play className="h-4 w-4 text-orange-500" />
+      case "planning":
+        return <Clock className="h-4 w-4 text-blue-500" />
+      case "on-hold":
+        return <Pause className="h-4 w-4 text-yellow-500" />
+      case "delayed":
+        return <AlertTriangle className="h-4 w-4 text-red-500" />
+      default:
+        return <Clock className="h-4 w-4 text-gray-500" />
+    }
+  }
+
+  const getPriorityColor = (priority: string | null) => {
+    switch (priority) {
+      case "high":
+        return "bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200"
+      case "medium":
+        return "bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200"
+      case "low":
+        return "bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200"
+      default:
+        return "bg-gray-100 text-gray-800 dark:bg-gray-800 dark:text-gray-200"
+    }
+  }
+
+  const getProjectBarColor = (status: string | null, overdue: boolean) => {
+    if (overdue) return "bg-red-500 border-red-600"
+    
+    switch (status) {
+      case "completed":
+        return "bg-green-500 border-green-600"
+      case "in-progress":
+        return "bg-orange-500 border-orange-600"
+      case "on-hold":
+        return "bg-yellow-500 border-yellow-600"
+      default:
+        return "bg-blue-500 border-blue-600"
+    }
+  }
+
+  const getFullTimelineRange = () => {
+    if (enhancedTasks.length === 0) {
+      return { start: new Date(), end: new Date() }
+    }
+
+    const tasksWithDates = enhancedTasks.filter(t => t.start_date && t.end_date)
+    if (tasksWithDates.length === 0) {
+      return { start: new Date(), end: new Date() }
+    }
+
+    const startDates = tasksWithDates.map((t) => new Date(t.start_date!))
+    const endDates = tasksWithDates.map((t) => new Date(t.end_date!))
+
+    const earliestStart = new Date(Math.min(...startDates.map((d) => d.getTime())))
+    const latestEnd = new Date(Math.max(...endDates.map((d) => d.getTime())))
+
+    return { start: earliestStart, end: latestEnd }
+  }
+
+  const getTimelineMonths = () => {
+    const months = []
+
+    if (viewMode === "full") {
+      const { start, end } = getFullTimelineRange()
+      const startDate = new Date(start.getFullYear(), start.getMonth(), 1)
+      const endDate = new Date(end.getFullYear(), end.getMonth() + 1, 0)
+
+      const currentDate = new Date(startDate)
+      const totalMonths =
+        (endDate.getFullYear() - startDate.getFullYear()) * 12 + (endDate.getMonth() - startDate.getMonth()) + 1
+
+      // Dynamic granularity based on timeline length
+      if (totalMonths > 24) {
+        // For very long timelines (2+ years), show quarters only
+        const startQuarter = Math.floor(startDate.getMonth() / 3)
+        const startYear = startDate.getFullYear()
+        const endQuarter = Math.floor(endDate.getMonth() / 3)
+        const endYear = endDate.getFullYear()
+
+        let currentYear = startYear
+        let currentQuarter = startQuarter
+
+        while (currentYear < endYear || (currentYear === endYear && currentQuarter <= endQuarter)) {
+          const quarterStartMonth = currentQuarter * 3
+          const quarterEndMonth = quarterStartMonth + 2
+          const quarterStart = new Date(currentYear, quarterStartMonth, 1)
+          const quarterEnd = new Date(currentYear, quarterEndMonth + 1, 0)
+
+          months.push({
+            label: `Q${currentQuarter + 1}`,
+            date: new Date(quarterStart),
+            endDate: new Date(quarterEnd),
+            quarter: currentQuarter + 1,
+            year: currentYear,
+            isQuarter: true,
+          })
+
+          currentQuarter++
+          if (currentQuarter > 3) {
+            currentQuarter = 0
+            currentYear++
+          }
+        }
+      } else if (totalMonths > 12) {
+        // For medium timelines (1-2 years), show bi-monthly
+        while (currentDate <= endDate) {
+          const monthEnd = new Date(currentDate.getFullYear(), currentDate.getMonth() + 2, 0)
+          const actualEndDate = monthEnd > endDate ? endDate : monthEnd
+
+          months.push({
+            label: `${currentDate.toLocaleDateString("en-US", { month: "short" })}-${new Date(currentDate.getFullYear(), currentDate.getMonth() + 1, 1).toLocaleDateString("en-US", { month: "short" })}`,
+            date: new Date(currentDate),
+            endDate: new Date(actualEndDate),
+            quarter: Math.floor(currentDate.getMonth() / 3) + 1,
+            year: currentDate.getFullYear(),
+            isQuarter: false,
+          })
+
+          currentDate.setMonth(currentDate.getMonth() + 2)
+        }
+      } else {
+        // For shorter timelines (≤1 year), show monthly
+        while (currentDate <= endDate) {
+          const monthEnd = new Date(currentDate.getFullYear(), currentDate.getMonth() + 1, 0)
+
+          months.push({
+            label: currentDate.toLocaleDateString("en-US", { month: "short" }),
+            date: new Date(currentDate),
+            endDate: new Date(monthEnd),
+            quarter: Math.floor(currentDate.getMonth() / 3) + 1,
+            year: currentDate.getFullYear(),
+            isQuarter: false,
+          })
+
+          currentDate.setMonth(currentDate.getMonth() + 1)
+        }
+      }
+    } else {
+      // Existing year view logic
+      const startDate = new Date(currentPeriod)
+      startDate.setMonth(0)
+      startDate.setDate(1)
+
+      for (let i = 0; i < 12; i++) {
+        const monthDate = new Date(startDate.getFullYear(), i, 1)
+        const monthEnd = new Date(startDate.getFullYear(), i + 1, 0)
+
+        months.push({
+          label: monthDate.toLocaleDateString("en-US", { month: "short" }),
+          date: new Date(monthDate),
+          endDate: new Date(monthEnd),
+          quarter: Math.floor(i / 3) + 1,
+          year: monthDate.getFullYear(),
+          isQuarter: false,
+        })
+      }
+    }
+
+    return months
+  }
+
+  const getTaskPosition = (task: EnhancedTask, timelineMonths: any[]) => {
+    if (!task.start_date || !task.end_date) {
+      return { left: "0%", width: "0%", isVisible: false, actualStart: null, actualEnd: null }
+    }
+
+    const startDate = parseTaskDate(task.start_date)
+    const endDate = parseTaskDate(task.end_date)
+    const timelineStart = timelineMonths[0].date
+    const timelineEnd = timelineMonths[timelineMonths.length - 1].endDate ||
+      new Date(
+        timelineMonths[timelineMonths.length - 1].date.getFullYear(),
+        timelineMonths[timelineMonths.length - 1].date.getMonth() + 1,
+        0,
+      )
+
+    const totalDuration = timelineEnd.getTime() - timelineStart.getTime()
+    const taskStartOffset = Math.max(0, startDate.getTime() - timelineStart.getTime())
+    const taskStart = (taskStartOffset / totalDuration) * 100
+    const taskEndOffset = Math.min(totalDuration, endDate.getTime() - timelineStart.getTime())
+    const taskEnd = (taskEndOffset / totalDuration) * 100
+    const taskWidth = Math.max(1, taskEnd - taskStart)
+
+    return {
+      left: `${Math.max(0, Math.min(100, taskStart))}%`,
+      width: `${Math.max(1, Math.min(100 - taskStart, taskWidth))}%`,
+      isVisible: taskEnd > 0 && taskStart < 100,
+      actualStart: startDate,
+      actualEnd: endDate,
+    }
+  }
+
+  const filteredTasks = enhancedTasks.filter((task) => {
+    const taskIsOverdue = isOverdue(task.end_date, task.status)
+    const effectiveStatus = getEffectiveStatus(task.status, taskIsOverdue)
+    const matchesStatus = statusFilter === "all" || 
+      (statusFilter === "delayed" ? effectiveStatus === "delayed" : task.status === statusFilter)
+    const matchesPriority = priorityFilter === "all" || task.priority === priorityFilter
+    const matchesProject = projectFilter === "all" || task.project_id === projectFilter
+    const matchesSearch =
+      searchTerm === "" ||
+      task.title?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      task.project_name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      task.project_client?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      task.description?.toLowerCase().includes(searchTerm.toLowerCase())
+    return matchesStatus && matchesPriority && matchesProject && matchesSearch
+  })
+
+  const timelineMonths = getTimelineMonths()
+
+  const navigatePeriod = (direction: "prev" | "next") => {
+    const newPeriod = new Date(currentPeriod)
+    newPeriod.setFullYear(newPeriod.getFullYear() + (direction === "next" ? 1 : -1))
+    setCurrentPeriod(newPeriod)
+  }
+
+  const formatDate = (dateString: string | null) => {
+    if (!dateString) return "N/A"
+    // Parse date in local timezone to prevent timezone conversion issues
+    const [year, month, day] = dateString.split('T')[0].split('-').map(Number)
+    const localDate = new Date(year, month - 1, day) // month is 0-indexed
+    return localDate.toLocaleDateString("en-PH", {
+      year: "numeric",
+      month: "short",
+      day: "numeric",
+      timeZone: "Asia/Manila"
+    })
+  }
+
+  const handleEditTask = (task: EnhancedTask) => {
+    setEditingTask(task)
+    setIsEditModalOpen(true)
+  }
+
+  const handleDeleteTask = async (task: EnhancedTask) => {
+    if (window.confirm(`Are you sure you want to delete "${task.title}"?`)) {
+      try {
+        await deleteTask(task.id)
+        toast.success("Task deleted successfully!")
+      } catch (error) {
+        console.error("Error deleting task:", error)
+        toast.error("Failed to delete task. Please try again.")
+      }
+    }
+  }
+
+  const handleTaskUpdated = () => {
+    refetchTasks()
+    setEditingTask(null)
+    setIsEditModalOpen(false)
+  }
+
+  const overallStats = useMemo(() => {
+    const total = filteredTasks.length
+    const completed = filteredTasks.filter((t) => t.status === "completed").length
+    const inProgress = filteredTasks.filter((t) => t.status === "in-progress").length
+    const delayed = filteredTasks.filter((t) => {
+      const taskIsOverdue = isOverdue(t.end_date, t.status)
+      return getEffectiveStatus(t.status, taskIsOverdue) === "delayed"
+    }).length
+    const avgProgress = total > 0 ? Math.round((completed / total) * 100) : 0
+
+    return { total, completed, inProgress, delayed, avgProgress }
+  }, [filteredTasks])
+
+  if (projectsLoading || tasksLoading) {
+    return (
+      <div className="p-6 space-y-6">
+        <div className="flex items-center justify-center h-64">
+          <RefreshCw className="h-8 w-8 animate-spin" />
+          <span className="ml-2">Loading tasks...</span>
+        </div>
+      </div>
+    )
+  }
+
+  if (projectsError || tasksError) {
+    return (
+      <div className="p-6 space-y-6">
+        <Card className="border-red-200 dark:border-red-800">
+          <CardContent className="pt-6">
+            <div className="flex items-center text-red-600 dark:text-red-400">
+              <AlertTriangle className="h-5 w-5 mr-2" />
+              <span>Error loading data: {projectsError || tasksError}</span>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+    )
+  }
+
+  return (
+    <div className="p-4 md:p-6 space-y-4 overflow-y-auto h-full bg-gray-50 dark:bg-gray-950">
+      {/* Header */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+        <div>
+          <h1 className="text-xl md:text-2xl font-bold text-gray-900 dark:text-white">Task Gantt Chart</h1>
+          <p className="text-gray-600 dark:text-gray-400 text-sm">
+            Task timelines, deadlines, and progress tracking
+          </p>
+        </div>
+        <div className="flex flex-col sm:flex-row items-stretch sm:items-center space-y-2 sm:space-y-0 sm:space-x-3">
+          <TaskFormModalOptimized onTaskCreated={() => {
+            fetchProjects(true)
+            refetchTasks()
+          }} />
+        </div>
+      </div>
+
+      {/* Stats Cards */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3 md:gap-4">
+        <Card className="border-l-4 border-l-blue-500 dark:bg-gray-900 dark:border-gray-800 hover:shadow-lg transition-shadow">
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-1">
+            <CardTitle className="text-sm font-medium dark:text-white">Total Tasks</CardTitle>
+            <BarChart3 className="h-4 w-4 text-blue-500" />
+          </CardHeader>
+          <CardContent className="pb-3">
+            <div className="text-xl font-bold dark:text-white">{overallStats.total}</div>
+            <p className="text-xs text-muted-foreground dark:text-gray-400">In timeline</p>
+          </CardContent>
+        </Card>
+
+        <Card className="border-l-4 border-l-green-500 dark:bg-gray-900 dark:border-gray-800 hover:shadow-lg transition-shadow">
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-1">
+            <CardTitle className="text-sm font-medium dark:text-white">Completed</CardTitle>
+            <CheckCircle className="h-4 w-4 text-green-500" />
+          </CardHeader>
+          <CardContent className="pb-3">
+            <div className="text-xl font-bold dark:text-white">{overallStats.completed}</div>
+            <p className="text-xs text-muted-foreground dark:text-gray-400">Finished tasks</p>
+          </CardContent>
+        </Card>
+
+        <Card className="border-l-4 border-l-orange-500 dark:bg-gray-900 dark:border-gray-800 hover:shadow-lg transition-shadow">
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-1">
+            <CardTitle className="text-sm font-medium dark:text-white">In Progress</CardTitle>
+            <Play className="h-4 w-4 text-orange-500" />
+          </CardHeader>
+          <CardContent className="pb-3">
+            <div className="text-xl font-bold dark:text-white">{overallStats.inProgress}</div>
+            <p className="text-xs text-muted-foreground dark:text-gray-400">Active work</p>
+          </CardContent>
+        </Card>
+
+        <Card className="border-l-4 border-l-red-500 dark:bg-gray-900 dark:border-gray-800 hover:shadow-lg transition-shadow">
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-1">
+            <CardTitle className="text-sm font-medium dark:text-white">Delayed</CardTitle>
+            <AlertTriangle className="h-4 w-4 text-red-500" />
+          </CardHeader>
+          <CardContent className="pb-3">
+            <div className="text-xl font-bold dark:text-white">{overallStats.delayed}</div>
+            <p className="text-xs text-muted-foreground dark:text-gray-400">Need attention</p>
+          </CardContent>
+        </Card>
+
+        <Card className="border-l-4 border-l-purple-500 dark:bg-gray-900 dark:border-gray-800 hover:shadow-lg transition-shadow">
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-1">
+            <CardTitle className="text-sm font-medium dark:text-white">Avg Progress</CardTitle>
+            <BarChart3 className="h-4 w-4 text-purple-500" />
+          </CardHeader>
+          <CardContent className="pb-3">
+            <div className="text-xl font-bold dark:text-white">{overallStats.avgProgress}%</div>
+            <p className="text-xs text-muted-foreground dark:text-gray-400">Overall completion</p>
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* Filters */}
+      <Card className="dark:bg-gray-900 dark:border-gray-800">
+        <CardContent className="pt-4 pb-4">
+          <div className="flex flex-col lg:flex-row gap-3 items-start lg:items-center">
+            <div className="relative flex-1 max-w-md">
+              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-4 w-4" />
+              <Input
+                placeholder="Search tasks, projects, assignees..."
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                className="pl-10 bg-white dark:bg-gray-700 border-gray-200 dark:border-gray-600 h-10"
+              />
+            </div>
+            <div className="flex flex-col sm:flex-row gap-3 flex-1">
+              <Select value={projectFilter} onValueChange={setProjectFilter}>
+                <SelectTrigger className="w-full sm:w-36 h-10 bg-white dark:bg-gray-900">
+                  <SelectValue placeholder="All Projects" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All Projects</SelectItem>
+                  {projects.map((project) => (
+                    <SelectItem key={project.id} value={project.id}>
+                      {project.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+
+              <Select value={statusFilter} onValueChange={setStatusFilter}>
+                <SelectTrigger className="w-full sm:w-32 h-10 bg-white dark:bg-gray-900">
+                  <SelectValue placeholder="Status" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All Status</SelectItem>
+                  <SelectItem value="planning">Planning</SelectItem>
+                  <SelectItem value="in-progress">In Progress</SelectItem>
+                  <SelectItem value="on-hold">On Hold</SelectItem>
+                  <SelectItem value="delayed">Delayed</SelectItem>
+                  <SelectItem value="completed">Completed</SelectItem>
+                </SelectContent>
+              </Select>
+
+              <Select value={priorityFilter} onValueChange={setPriorityFilter}>
+                <SelectTrigger className="w-full sm:w-32 h-10 bg-white dark:bg-gray-900">
+                  <SelectValue placeholder="Priority" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All Priorities</SelectItem>
+                  <SelectItem value="high">High</SelectItem>
+                  <SelectItem value="medium">Medium</SelectItem>
+                  <SelectItem value="low">Low</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="flex items-center bg-gray-100 dark:bg-gray-800 rounded-lg p-1">
+              <Button
+                variant={viewMode === "year" ? "default" : "ghost"}
+                size="sm"
+                onClick={() => setViewMode("year")}
+                className={`h-8 ${
+                  viewMode === "year" 
+                    ? "bg-white dark:bg-gray-700 shadow-sm text-gray-900 dark:text-white border-gray-200 dark:border-gray-600 hover:bg-white dark:hover:bg-gray-700" 
+                    : "text-gray-600 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white hover:bg-gray-200 dark:hover:bg-gray-700"
+                }`}
+              >
+                Year View
+              </Button>
+              <Button
+                variant={viewMode === "full" ? "default" : "ghost"}
+                size="sm"
+                onClick={() => setViewMode("full")}
+                className={`h-8 ${
+                  viewMode === "full" 
+                    ? "bg-white dark:bg-gray-700 shadow-sm text-gray-900 dark:text-white border-gray-200 dark:border-gray-600 hover:bg-white dark:hover:bg-gray-700" 
+                    : "text-gray-600 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white hover:bg-gray-200 dark:hover:bg-gray-700"
+                }`}
+              >
+                Full Timeline
+              </Button>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Timeline Navigation */}
+      <Card className="dark:bg-gray-900 dark:border-gray-800">
+        <CardHeader className="pb-3">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center space-x-3">
+              <CardTitle className="dark:text-white text-lg">
+                {projectFilter !== "all" 
+                  ? `${projects.find(p => p.id === projectFilter)?.name || 'Unknown Project'} Task Timeline` 
+                  : `Task Timeline - ${currentPeriod.getFullYear()}`
+                }
+              </CardTitle>
+              <Badge variant="outline" className="text-xs">
+                {filteredTasks.length} tasks
+              </Badge>
+            </div>
+            <div className="flex items-center space-x-2">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => navigatePeriod("prev")}
+                className="h-10 w-10"
+              >
+                <ChevronLeft className="h-4 w-4" />
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => {
+                  const philippinesNow = new Date().toLocaleString("en-US", { timeZone: "Asia/Manila" })
+                  setCurrentPeriod(new Date(philippinesNow))
+                }}
+                className="h-10 px-3"
+                title="Go to current year (Philippines time)"
+              >
+                Today
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => navigatePeriod("next")}
+                className="h-10 w-10"
+              >
+                <ChevronRight className="h-4 w-4" />
+              </Button>
+            </div>
+          </div>
+        </CardHeader>
+        <CardContent className="pt-0">
+          {/* Timeline Header */}
+          <div className="grid grid-cols-12 gap-2 mb-3 pb-2 border-b border-gray-200 dark:border-gray-700">
+            <div className="col-span-4 text-sm font-medium text-gray-600 dark:text-gray-400">Task Details</div>
+            <div className="col-span-8">
+              {viewMode === "year" ? (
+                <>
+                  <div className="text-center text-base font-bold text-gray-800 dark:text-gray-200 mb-2">
+                    {currentPeriod.getFullYear()}
+                  </div>
+
+                  <div className="grid grid-cols-12 gap-1 mb-1">
+                    {/* Quarter headers aligned with months */}
+                    <div className="col-span-3 text-center text-xs font-semibold text-gray-600 dark:text-gray-400 border-r-2 border-gray-500 dark:border-gray-400">
+                      Q1
+                    </div>
+                    <div className="col-span-3 text-center text-xs font-semibold text-gray-600 dark:text-gray-400 border-r-2 border-gray-500 dark:border-gray-400">
+                      Q2
+                    </div>
+                    <div className="col-span-3 text-center text-xs font-semibold text-gray-600 dark:text-gray-400 border-r-2 border-gray-500 dark:border-gray-400">
+                      Q3
+                    </div>
+                    <div className="col-span-3 text-center text-xs font-semibold text-gray-600 dark:text-gray-400">Q4</div>
+                  </div>
+
+                  <div className="grid grid-cols-12 gap-1">
+                    {timelineMonths.map((month, index) => (
+                      <div key={month.label + month.date.getMonth()} className={`text-xs text-center text-gray-600 dark:text-gray-400 font-medium px-1 ${
+                        index < timelineMonths.length - 1 ? 'border-r border-gray-400 dark:border-gray-500' : ''
+                      }`}>
+                        <div className="truncate">{month.label}</div>
+                      </div>
+                    ))}
+                  </div>
+                </>
+              ) : (
+                <>
+                  <div className="text-center text-base font-bold text-gray-800 dark:text-gray-200 mb-2">
+                    Full Timeline View
+                    <span className="text-xs font-normal text-gray-500 ml-2">
+                      ({timelineMonths.length > 0 ? `${timelineMonths[0].year} - ${timelineMonths[timelineMonths.length - 1].year}` : ''})
+                    </span>
+                  </div>
+
+                  {timelineMonths.length > 0 && (
+                    <div className={`overflow-x-auto ${timelineMonths.length > 12 ? 'max-w-full' : ''}`}>
+                      {/* Year headers */}
+                      <div 
+                        className="grid gap-1 mb-1 min-w-max" 
+                        style={{ gridTemplateColumns: `repeat(${Math.min(timelineMonths.length, 24)}, minmax(50px, 1fr))` }}
+                      >
+                        {timelineMonths.reduce((acc: React.ReactElement[], month, index) => {
+                          // Show year only at the start of each new year or first month
+                          const showYear = index === 0 || month.year !== timelineMonths[index - 1].year;
+                          if (showYear) {
+                            const yearSpan = timelineMonths.filter(m => m.year === month.year).length;
+                            acc.push(
+                              <div 
+                                key={`year-${month.year}`} 
+                                className="text-xs text-center text-gray-700 dark:text-gray-300 font-bold border-r-2 border-gray-500 dark:border-gray-400 py-1"
+                                style={{ gridColumn: `span ${Math.min(yearSpan, 24)}` }}
+                              >
+                                {month.year}
+                              </div>
+                            );
+                          }
+                          return acc;
+                        }, [])}
+                      </div>
+                      
+                      {/* Month/Quarter headers */}
+                      <div 
+                        className="grid gap-1 mb-1 min-w-max" 
+                        style={{ gridTemplateColumns: `repeat(${Math.min(timelineMonths.length, 24)}, minmax(50px, 1fr))` }}
+                      >
+                        {timelineMonths.map((month, index) => (
+                          <div 
+                            key={month.label + month.date.getFullYear()} 
+                            className={`text-xs text-center text-gray-600 dark:text-gray-400 font-medium px-1 py-1 ${
+                              index < timelineMonths.length - 1 ? 'border-r border-gray-400 dark:border-gray-500' : ''
+                            }`}
+                          >
+                            <div className="truncate" title={month.label}>{month.label}</div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </>
+              )}
+            </div>
+          </div>
+
+          <div className="grid grid-cols-12 gap-2 mb-2 text-xs text-gray-400 dark:text-gray-500">
+            <div className="col-span-4"></div>
+            <div className="col-span-8">
+              {viewMode === "year" ? (
+                <div className="grid grid-cols-12 gap-1">
+                  {timelineMonths.map((month) => (
+                    <div key={month.label + month.date.getFullYear()} className="text-center">
+                      <div className="border-l border-gray-300 dark:border-gray-600 h-2 ml-auto mr-auto w-0"></div>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                timelineMonths.length > 0 && (
+                  <div className={`overflow-x-auto ${timelineMonths.length > 12 ? 'max-w-full' : ''}`}>
+                    <div 
+                      className="grid gap-1 min-w-max" 
+                      style={{ gridTemplateColumns: `repeat(${Math.min(timelineMonths.length, 24)}, minmax(50px, 1fr))` }}
+                    >
+                      {timelineMonths.map((month) => (
+                        <div key={month.label + month.date.getFullYear()} className="text-center">
+                          <div className="border-l border-gray-300 dark:border-gray-600 h-2 ml-auto mr-auto w-0"></div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )
+              )}
+            </div>
+          </div>
+
+          {/* Task Rows */}
+          <div className="space-y-4">
+            {filteredTasks.map((task, index) => {
+              const position = getTaskPosition(task, timelineMonths)
+              const daysUntilDeadline = getDaysUntilDeadline(task.end_date, task.status)
+              const overdue = isOverdue(task.end_date, task.status)
+
+              return (
+                <div
+                  key={task.id}
+                  className={`grid grid-cols-12 gap-2 items-center py-3 rounded-lg transition-colors group relative ${
+                    index % 2 === 0 
+                      ? 'bg-white dark:bg-gray-900 hover:bg-gray-50 dark:hover:bg-gray-800' 
+                      : 'bg-gray-50 dark:bg-gray-800 hover:bg-gray-100 dark:hover:bg-gray-700'
+                  }`}
+                >
+                  {/* Task Info */}
+                  <div className="col-span-4 space-y-2">
+                    <div className="flex items-start justify-between">
+                      <div className="flex-1 min-w-0">
+                        <h3 className="text-sm font-medium text-gray-900 dark:text-white truncate">{task.title}</h3>
+                        <p className="text-xs text-gray-500 dark:text-gray-400 truncate">{task.project_name}</p>
+                      </div>
+                      <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="h-8 w-8 p-0 text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200"
+                          >
+                            <MoreVertical className="h-4 w-4" />
+                            <span className="sr-only">Open menu</span>
+                          </Button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="end" className="w-48">
+                          <DropdownMenuItem onClick={() => handleEditTask(task)}>
+                            <Edit className="h-4 w-4 mr-2" />
+                            Edit Task
+                          </DropdownMenuItem>
+                          <DropdownMenuItem 
+                            onClick={() => handleDeleteTask(task)}
+                            className="text-red-600 dark:text-red-400 focus:text-red-600 dark:focus:text-red-400"
+                          >
+                            <Trash2 className="h-4 w-4 mr-2" />
+                            Delete Task
+                          </DropdownMenuItem>
+                        </DropdownMenuContent>
+                      </DropdownMenu>
+                    </div>
+
+                    <div className="flex items-center space-x-2">
+                      <Badge className={getStatusColor(task.status, overdue)}>
+                        <span className="flex items-center space-x-1">
+                          {getStatusIcon(task.status, overdue)}
+                          <span className="capitalize">
+                            {getEffectiveStatus(task.status, overdue)?.replace("-", " ") || 'Unknown'}
+                          </span>
+                        </span>
+                      </Badge>
+                      <Badge className={getPriorityColor(task.priority || 'medium')}>
+                        {task.priority || 'medium'}
+                      </Badge>
+                    </div>
+
+                    <div className="space-y-1 text-xs text-gray-500 dark:text-gray-400">
+                      <div className="flex items-center">
+                        <Calendar className="h-3 w-3 mr-1" />
+                        <span>
+                          {formatDate(task.start_date)} - {formatDate(task.end_date)}
+                        </span>
+                      </div>
+                      <div className="flex items-center">
+                        <Users className="h-3 w-3 mr-1" />
+                        <span>{task.assignee || 'Unassigned'}</span>
+                      </div>
+                      {daysUntilDeadline !== null && (
+                        <div className={`flex items-center ${overdue ? "text-red-600 dark:text-red-400" : ""}`}>
+                          <Clock className="h-3 w-3 mr-1" />
+                          <span>
+                            {overdue
+                              ? `${Math.abs(daysUntilDeadline)} days overdue`
+                              : `${daysUntilDeadline} days remaining`}
+                          </span>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Timeline */}
+                  <div className="col-span-8">
+                    <div className="relative h-8 bg-gray-100 dark:bg-gray-800 rounded-lg overflow-hidden">
+                      {position.isVisible && (
+                        <div
+                          className={`absolute top-1 bottom-1 rounded-md transition-all border ${getProjectBarColor(task.status, overdue)}`}
+                          style={{
+                            left: position.left,
+                            width: position.width,
+                          }}
+                        >
+                        </div>
+                      )}
+
+                      {/* Today line */}
+                      {(() => {
+                        // Get current date in Philippines timezone and normalize to start of day
+                        const philippinesNow = new Date().toLocaleString("en-US", { timeZone: "Asia/Manila" })
+                        const todayDate = new Date(philippinesNow)
+                        // Set to start of day to match how task dates are stored
+                        const today = new Date(todayDate.getFullYear(), todayDate.getMonth(), todayDate.getDate())
+                        
+                        const timelineStart = timelineMonths[0].date
+                        const timelineEnd = timelineMonths[timelineMonths.length - 1].endDate ||
+                          new Date(
+                            timelineMonths[timelineMonths.length - 1].date.getFullYear(),
+                            timelineMonths[timelineMonths.length - 1].date.getMonth() + 1,
+                            0,
+                          )
+
+                        const totalDuration = timelineEnd.getTime() - timelineStart.getTime()
+                        const todayOffset = today.getTime() - timelineStart.getTime()
+                        const todayPosition = (todayOffset / totalDuration) * 100
+
+                        const isTodayVisible = todayPosition >= 0 && todayPosition <= 100
+
+                        return isTodayVisible ? (
+                          <div
+                            className="absolute top-0 bottom-0 w-0.5 bg-red-600 z-30"
+                            style={{ left: `${todayPosition}%` }}
+                            title={`Today - ${today.toLocaleDateString("en-PH", { timeZone: "Asia/Manila" })}`}
+                          />
+                        ) : null
+                      })()}
+                    </div>
+                  </div>
+                </div>
+              )
+            })}
+          </div>
+
+          {filteredTasks.length === 0 && (
+            <div className="text-center py-12">
+              <BarChart3 className="h-12 w-12 text-gray-400 mx-auto mb-4" />
+              <h3 className="text-lg font-medium text-gray-900 dark:text-white mb-2">No tasks found</h3>
+              <p className="text-gray-600 dark:text-gray-400">Try adjusting your filters to see task timelines</p>
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* Edit Task Modal */}
+      <TaskEditModalOptimized
+        task={editingTask}
+        open={isEditModalOpen}
+        onOpenChange={setIsEditModalOpen}
+        onTaskUpdated={handleTaskUpdated}
+      />
+    </div>
+  )
+}

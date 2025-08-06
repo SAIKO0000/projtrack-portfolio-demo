@@ -6,6 +6,7 @@ import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Progress } from "@/components/ui/progress"
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import {
   Search,
   MoreHorizontal,
@@ -24,6 +25,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
 import { useProjects } from "@/lib/hooks/useProjects"
 import { useTasks } from "@/lib/hooks/useTasks"
+import { useReports } from "@/lib/hooks/useReports"
+import { useAuth } from "@/lib/auth"
 import { ProjectFormModal } from "@/components/project-form-modal"
 import { ReportUploadModal } from "@/components/report-upload-modal"
 import { EditProjectModal } from "@/components/edit-project-modal"
@@ -39,12 +42,50 @@ interface ProjectsProps {
 export function Projects({ onProjectSelect }: ProjectsProps) {
   const { projects, loading, fetchProjects, deleteProject } = useProjects()
   const { tasks, loading: tasksLoading } = useTasks()
+  const { reports, loading: reportsLoading, updateReport } = useReports()
+  const { user } = useAuth()
   const [searchTerm, setSearchTerm] = useState("")
   const [statusFilter, setStatusFilter] = useState("all")
   const [editingProject, setEditingProject] = useState<Project | null>(null)
+  const [viewingReports, setViewingReports] = useState<{ projectId: string; projectName: string } | null>(null)
+
+  // Get project reports
+  const getProjectReports = (projectId: string) => {
+    return reports.filter(report => report.project_id === projectId)
+  }
+
+  // Get user position
+  const userPosition = user?.user_metadata?.position || "Team Member"
+  const isAdmin = userPosition === "Project Manager" || userPosition === "Senior Electrical Engineer"
+
+  // Get report status color
+  const getReportStatusColor = (status: string | null) => {
+    switch (status) {
+      case "approved":
+        return "bg-green-100 text-green-800"
+      case "revision":
+        return "bg-yellow-100 text-yellow-800"
+      case "rejected":
+        return "bg-red-100 text-red-800"
+      case "pending":
+      default:
+        return "bg-gray-100 text-gray-800"
+    }
+  }
 
   const handleProjectCreated = () => {
     fetchProjects() // Refresh projects list
+  }
+
+  // Handle report status update
+  const handleUpdateReportStatus = async (reportId: string, status: string) => {
+    try {
+      await updateReport(reportId, { status })
+      toast.success(`Report status updated to ${status}`)
+    } catch (error) {
+      console.error("Update error:", error)
+      toast.error("Failed to update report status")
+    }
   }
 
   // Calculate task-based progress for a project
@@ -88,6 +129,16 @@ export function Projects({ onProjectSelect }: ProjectsProps) {
   const handleProjectUpdated = () => {
     setEditingProject(null)
     fetchProjects() // Refresh projects list
+  }
+
+  const handleReportStatusUpdate = async (reportId: string, status: string) => {
+    try {
+      await updateReport(reportId, { status })
+      toast.success(`Report status updated to ${status}`)
+    } catch (error) {
+      console.error("Error updating report status:", error)
+      toast.error("Failed to update report status")
+    }
   }
 
   const getStatusColor = (status: string | null) => {
@@ -164,7 +215,7 @@ export function Projects({ onProjectSelect }: ProjectsProps) {
       return dateB - dateA // Most recent first
     })
 
-  if (loading || tasksLoading) {
+  if (loading || tasksLoading || reportsLoading) {
     return (
       <div className="flex items-center justify-center h-full">
         <div className="text-center">
@@ -176,9 +227,9 @@ export function Projects({ onProjectSelect }: ProjectsProps) {
   }
 
   return (
-    <div className="p-6 space-y-6 overflow-y-auto h-full">
+    <div className="p-4 sm:p-6 space-y-6 overflow-y-auto h-full max-w-full">
       {/* Header */}
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
           <h1 className="text-2xl font-bold text-gray-900">Projects</h1>
           <p className="text-gray-600">Manage and track all your electrical engineering projects</p>
@@ -266,29 +317,30 @@ export function Projects({ onProjectSelect }: ProjectsProps) {
           </CardContent>
         </Card>
       </div>      {/* Projects Grid */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 max-w-full">
+      <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-6">
         {filteredProjects.map((project) => (
           <Card
             key={project.id}
-            className="border-l-4 border-l-orange-500 hover:shadow-lg transition-shadow overflow-hidden max-w-full"
-          >            <CardHeader>
-              <div className="flex items-start justify-between gap-4">
-                <div className="flex-1 min-w-0 max-w-[calc(100%-12rem)] overflow-hidden">
-                  <CardTitle className="text-lg mb-2 break-words">{project.name}</CardTitle><CardDescription className="text-sm mb-3 text-gray-600 line-clamp-2 break-all max-w-full">
+            className="border-l-4 border-l-orange-500 hover:shadow-lg transition-shadow overflow-hidden w-full min-h-[400px] flex flex-col"
+          >            <CardHeader className="pb-4">
+              <div className="flex items-start justify-between gap-3">
+                <div className="flex-1 min-w-0">
+                  <CardTitle className="text-lg mb-2 break-words leading-tight">{project.name}</CardTitle>
+                  <CardDescription className="text-sm mb-3 text-gray-600 line-clamp-3">
                     {project.description}
                   </CardDescription>
-                  <div className="flex items-center space-x-4 text-sm text-gray-500">
-                    <span className="flex items-center">
-                      <MapPin className="h-3 w-3 mr-1" />
+                  <div className="flex flex-wrap items-center gap-3 text-sm text-gray-500">
+                    <span className="flex items-center min-w-0">
+                      <MapPin className="h-3 w-3 mr-1 flex-shrink-0" />
                       <span className="truncate">{project.location}</span>
                     </span>
-                    <span className="flex items-center">
+                    <span className="flex items-center flex-shrink-0">
                       <Calendar className="h-3 w-3 mr-1" />
                       {formatDate(project.end_date)}
                     </span>
                   </div>
                 </div>
-                <div className="flex items-center space-x-2 flex-shrink-0">
+                <div className="flex items-start flex-col gap-2 flex-shrink-0">
                   <Badge className={getStatusColor(project.status)}>
                     {getStatusIcon(project.status)}
                     <span className="ml-1">{project.status?.replace("-", " ") || "Unknown"}</span>
@@ -316,8 +368,8 @@ export function Projects({ onProjectSelect }: ProjectsProps) {
                 </div>
               </div>
             </CardHeader>
-            <CardContent>
-              <div className="space-y-4">
+            <CardContent className="pt-0 flex-grow flex flex-col">
+              <div className="space-y-4 flex-grow">
                 <div>
                   <div className="flex items-center justify-between mb-2">
                     <span className="text-sm font-medium">Task Progress</span>
@@ -328,10 +380,10 @@ export function Projects({ onProjectSelect }: ProjectsProps) {
                   <Progress value={getProjectTaskProgress(project.id)} className="h-2" />
                 </div>
 
-                <div className="flex items-center justify-between text-sm">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-sm">
                   <div>
                     <span className="text-gray-500">Client:</span>
-                    <span className="ml-1 font-medium">{project.client}</span>
+                    <span className="ml-1 font-medium break-words">{project.client}</span>
                   </div>
                   <div>
                     <span className="text-gray-500">Status:</span>
@@ -339,23 +391,112 @@ export function Projects({ onProjectSelect }: ProjectsProps) {
                   </div>
                 </div>
 
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center space-x-2">
-                    <Badge variant="outline" className="text-xs">
-                      {formatDate(project.start_date)} - {formatDate(project.end_date)}
-                    </Badge>
+                <div className="flex items-center justify-center">
+                  <Badge variant="outline" className="text-xs">
+                    {formatDate(project.start_date)} - {formatDate(project.end_date)}
+                  </Badge>
+                </div>
+
+                {/* Reports Section */}
+                {getProjectReports(project.id).length > 0 && (
+                  <div className="space-y-3 flex-grow">
+                    <div className="flex items-center justify-between">
+                      <h4 className="text-sm font-medium text-gray-900 flex items-center">
+                        <FileText className="h-4 w-4 mr-2" />
+                        Attached Reports ({getProjectReports(project.id).length})
+                      </h4>
+                    </div>
+                    <div className="space-y-2 max-h-32 overflow-y-auto">
+                      {getProjectReports(project.id).slice(0, 2).map((report) => (
+                        <div key={report.id} className="bg-gray-50 rounded-lg p-3 border">
+                          <div className="flex flex-col gap-2">
+                            <div className="flex items-center justify-between">
+                              <p className="text-sm font-medium text-gray-900 truncate flex-1">
+                                {report.file_name}
+                              </p>
+                              <Badge 
+                                className={`text-xs ${getReportStatusColor(report.status)} ml-2`}
+                                variant="secondary"
+                              >
+                                {report.status || 'pending'}
+                              </Badge>
+                            </div>
+                            <div className="flex items-center justify-between">
+                              <p className="text-xs text-gray-500">{report.category}</p>
+                              {report.uploaded_by && (
+                                <p className="text-xs text-gray-400">
+                                  By: {report.uploaded_by.slice(0, 8)}...
+                                </p>
+                              )}
+                            </div>
+                            
+                            {/* Status Control Buttons for Admins */}
+                            {isAdmin && report.status !== 'approved' && (
+                              <div className="flex gap-1 mt-2">
+                                {report.status !== 'approved' && (
+                                  <Button
+                                    size="sm"
+                                    variant="outline"
+                                    className="h-5 px-2 text-xs bg-green-50 border-green-200 text-green-700 hover:bg-green-100"
+                                    onClick={() => handleUpdateReportStatus(report.id, 'approved')}
+                                  >
+                                    ✓
+                                  </Button>
+                                )}
+                                {report.status !== 'revision' && (
+                                  <Button
+                                    size="sm"
+                                    variant="outline"
+                                    className="h-5 px-2 text-xs bg-yellow-50 border-yellow-200 text-yellow-700 hover:bg-yellow-100"
+                                    onClick={() => handleUpdateReportStatus(report.id, 'revision')}
+                                  >
+                                    ↺
+                                  </Button>
+                                )}
+                                {report.status !== 'rejected' && (
+                                  <Button
+                                    size="sm"
+                                    variant="outline"
+                                    className="h-5 px-2 text-xs bg-red-50 border-red-200 text-red-700 hover:bg-red-100"
+                                    onClick={() => handleUpdateReportStatus(report.id, 'rejected')}
+                                  >
+                                    ✗
+                                  </Button>
+                                )}
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      ))}
+                      
+                      {/* Show "View All" if more than 2 reports */}
+                      {getProjectReports(project.id).length > 2 && (
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="w-full text-xs text-gray-500 hover:text-gray-700 h-6"
+                          onClick={() => setViewingReports({ projectId: project.id, projectName: project.name })}
+                        >
+                          View All {getProjectReports(project.id).length} Reports →
+                        </Button>
+                      )}
+                    </div>
                   </div>
-                </div>                <div className="flex items-center space-x-2 pt-2">
+                )}
+
+                {/* Action buttons - always at bottom */}
+                <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 pt-3 mt-auto">
                   <Button
                     size="sm"
-                    className="bg-gradient-to-r from-orange-500 to-orange-600 hover:from-orange-600 hover:to-orange-700"
+                    className="bg-gradient-to-r from-orange-500 to-orange-600 hover:from-orange-600 hover:to-orange-700 flex-1 sm:flex-none"
                     onClick={() => onProjectSelect?.(project.id)}
                   >
                     View Details
-                  </Button>                  <ReportUploadModal 
+                  </Button>
+                  <ReportUploadModal 
                     preselectedProjectId={project.id}
                   >
-                    <Button variant="outline" size="sm">
+                    <Button variant="outline" size="sm" className="flex-1 sm:flex-none">
                       <FileText className="h-4 w-4 mr-2" />
                       Attach Report
                     </Button>
@@ -384,6 +525,88 @@ export function Projects({ onProjectSelect }: ProjectsProps) {
         onOpenChange={(open) => !open && setEditingProject(null)}
         onProjectUpdated={handleProjectUpdated}
       />
+
+      {/* Reports Modal */}
+      <Dialog open={!!viewingReports} onOpenChange={(open) => !open && setViewingReports(null)}>
+        <DialogContent className="sm:max-w-[600px] max-h-[80vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="text-xl font-bold text-gray-900">
+              Project Reports
+            </DialogTitle>
+            <DialogDescription className="text-gray-600">
+              {viewingReports && (
+                `All reports for ${viewingReports.projectName}`
+              )}
+            </DialogDescription>
+          </DialogHeader>
+          
+          <div className="space-y-4">
+            {viewingReports && getProjectReports(viewingReports.projectId).map((report) => (
+              <div key={report.id} className="flex items-center justify-between p-4 bg-gray-50 rounded-lg">
+                <div className="flex-1 min-w-0">
+                  <h4 className="font-medium truncate">{report.file_name}</h4>
+                  <p className="text-sm text-gray-600 mt-1">
+                    <span className="font-medium">Category:</span> {report.category}
+                  </p>
+                  <p className="text-sm text-gray-600">
+                    <span className="font-medium">Uploaded:</span> {new Date(report.uploaded_at || '').toLocaleDateString()}
+                    {report.uploaded_by && (
+                      <span className="ml-2">
+                        • <span className="font-medium">By:</span> {report.uploaded_by.slice(0, 8)}...
+                      </span>
+                    )}
+                  </p>
+                  {report.description && (
+                    <p className="text-sm text-gray-600 mt-1">
+                      <span className="font-medium">Description:</span> {report.description}
+                    </p>
+                  )}
+                </div>
+                <div className="ml-4 text-right">
+                  <Badge className={`${getReportStatusColor(report.status)} mb-2`}>
+                    {report.status || 'pending'}
+                  </Badge>
+                  {isAdmin && report.status === 'pending' && (
+                    <div className="flex flex-col space-y-1">
+                      <Button 
+                        size="sm" 
+                        variant="outline" 
+                        className="text-xs h-6 text-green-600 hover:bg-green-50"
+                        onClick={() => handleReportStatusUpdate(report.id, 'approved')}
+                      >
+                        Approve
+                      </Button>
+                      <Button 
+                        size="sm" 
+                        variant="outline" 
+                        className="text-xs h-6 text-yellow-600 hover:bg-yellow-50"
+                        onClick={() => handleReportStatusUpdate(report.id, 'revision')}
+                      >
+                        Request Revision
+                      </Button>
+                      <Button 
+                        size="sm" 
+                        variant="outline" 
+                        className="text-xs h-6 text-red-600 hover:bg-red-50"
+                        onClick={() => handleReportStatusUpdate(report.id, 'rejected')}
+                      >
+                        Reject
+                      </Button>
+                    </div>
+                  )}
+                </div>
+              </div>
+            ))}
+            
+            {viewingReports && getProjectReports(viewingReports.projectId).length === 0 && (
+              <div className="text-center py-8">
+                <FileText className="h-12 w-12 text-gray-400 mx-auto mb-4" />
+                <p className="text-gray-500">No reports uploaded for this project yet.</p>
+              </div>
+            )}
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }

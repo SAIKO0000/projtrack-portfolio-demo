@@ -44,11 +44,11 @@ export function Sidebar({ activeTab, onTabChangeAction }: SidebarProps) {
 
   const menuItems = useMemo(() => [
     { id: "dashboard", label: "Dashboard", icon: LayoutDashboard },
-    { id: "projects", label: "Projects", icon: FolderOpen, badge: "12" },
+    { id: "projects", label: "Projects", icon: FolderOpen, badge: "" },
     { id: "gantt", label: "Gantt Chart", icon: BarChart3 },
     { id: "calendar", label: "Calendar", icon: Calendar },
     { id: "team", label: "Team", icon: Users },
-    { id: "notifications", label: "Notifications", icon: Bell, badge: "5" },
+    { id: "notifications", label: "Notifications", icon: Bell, badge: "" },
     { id: "reports", label: "Reports", icon: FileText },
   ], [])
 

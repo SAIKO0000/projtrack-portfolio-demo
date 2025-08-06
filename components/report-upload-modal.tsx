@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -11,6 +11,7 @@ import { Progress } from "@/components/ui/progress"
 import { Upload, X, FileText, FolderOpen, Tag, Clock, FileType, File, FileSpreadsheet, FileImage, Archive, Layers, Video, Music, FileCode } from "lucide-react"
 import { useReports } from "@/lib/hooks/useReports"
 import { useProjects } from "@/lib/hooks/useProjects"
+import { useAuth } from "@/lib/auth"
 import { toast } from "react-hot-toast"
 
 interface ReportUploadModalProps {
@@ -29,6 +30,18 @@ export function ReportUploadModal({ children, onUploadComplete, preselectedProje
 
   const { uploadReport, uploading, uploadProgress } = useReports()
   const { projects } = useProjects()
+  const { user } = useAuth()
+
+  // Get user position from user metadata
+  const userPosition = user?.user_metadata?.position || "Team Member"
+  const isProjectManager = userPosition === "Project Manager"
+
+  // Set initial status when modal opens
+  useEffect(() => {
+    if (open && !isProjectManager) {
+      setStatus("pending")
+    }
+  }, [open, isProjectManager])
 
   const categories = [
     "Progress Report",
@@ -45,9 +58,11 @@ export function ReportUploadModal({ children, onUploadComplete, preselectedProje
 
   const statuses = [
     { value: "pending", label: "Pending Review" },
-    { value: "approved", label: "Approved" },
-    { value: "revision", label: "Needs Revision" },
-    { value: "rejected", label: "Rejected" }
+    ...(isProjectManager ? [
+      { value: "approved", label: "Approved" },
+      { value: "revision", label: "Needs Revision" },
+      { value: "rejected", label: "Rejected" }
+    ] : [])
   ]
   const handleFileSelect = (event: React.ChangeEvent<HTMLInputElement>) => {
     const files = event.target.files
@@ -91,7 +106,7 @@ export function ReportUploadModal({ children, onUploadComplete, preselectedProje
       setSelectedFile(null)
       setProjectId(preselectedProjectId || "")
       setCategory("")
-      setStatus("pending")
+      setStatus("pending") // Reset to default, will be overridden by useEffect for non-managers
       setDescription("")
       setOpen(false)
       
@@ -315,10 +330,13 @@ export function ReportUploadModal({ children, onUploadComplete, preselectedProje
             <Label className="text-sm font-medium text-gray-700 flex items-center">
               <Clock className="h-4 w-4 mr-2 text-gray-500" />
               Status *
+              {!isProjectManager && (
+                <span className="ml-2 text-xs text-gray-500">(Auto-set to Pending)</span>
+              )}
             </Label>
             <div className="relative">
               <Clock className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
-              <Select value={status} onValueChange={setStatus}>
+              <Select value={status} onValueChange={setStatus} disabled={!isProjectManager}>
                 <SelectTrigger className="w-full pl-10">
                   <SelectValue placeholder="Select status" />                </SelectTrigger>
                 <SelectContent>

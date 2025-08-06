@@ -2,136 +2,24 @@
 
 import { useState } from "react"
 import { Card, CardContent, CardHeader } from "@/components/ui/card"
-import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
-import { Progress } from "@/components/ui/progress"
-import { Search, Plus, Mail, Phone, MoreHorizontal, Users, UserCheck, Clock, Briefcase } from "lucide-react"
+import { Search, Plus, Mail, Phone, Users, Briefcase } from "lucide-react"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { usePersonnel } from "@/lib/hooks/usePersonnel"
+import { ProfileModal } from "./profile-modal"
+import type { Database } from "@/lib/supabase.types"
 
-const teamMembers = [
-  {
-    id: 1,
-    name: "John Doe",
-    position: "Senior Electrical Engineer",
-    department: "Engineering",
-    email: "john.doe@gygpower.com",
-    phone: "+63 917 123 4567",
-    prcLicense: "EE-12345",
-    yearsExperience: 8,
-    currentProjects: ["CSA Makati Building", "Victory Distribution Center"],
-    workload: 85,
-    avatar: "/placeholder.svg?height=40&width=40",
-    status: "active",
-    skills: ["Power Systems", "AutoCAD", "Project Management"],
-    joinDate: "2019-03-15",
-  },
-  {
-    id: 2,
-    name: "Maria Santos",
-    position: "Project Manager",
-    department: "Project Management",
-    email: "maria.santos@gygpower.com",
-    phone: "+63 917 234 5678",
-    prcLicense: "PM-67890",
-    yearsExperience: 12,
-    currentProjects: ["Assumption Sports Complex", "CSA Makati Building"],
-    workload: 75,
-    avatar: "/placeholder.svg?height=40&width=40",
-    status: "active",
-    skills: ["Project Management", "Team Leadership", "Risk Management"],
-    joinDate: "2017-01-20",
-  },
-  {
-    id: 3,
-    name: "Carlos Rivera",
-    position: "Electrical Technician",
-    department: "Field Operations",
-    email: "carlos.rivera@gygpower.com",
-    phone: "+63 917 345 6789",
-    prcLicense: "ET-11111",
-    yearsExperience: 5,
-    currentProjects: ["Victory Distribution Center"],
-    workload: 60,
-    avatar: "/placeholder.svg?height=40&width=40",
-    status: "active",
-    skills: ["Installation", "Troubleshooting", "Safety Protocols"],
-    joinDate: "2021-06-10",
-  },
-  {
-    id: 4,
-    name: "Ana Garcia",
-    position: "Quality Assurance Engineer",
-    department: "Quality Control",
-    email: "ana.garcia@gygpower.com",
-    phone: "+63 917 456 7890",
-    prcLicense: "QA-22222",
-    yearsExperience: 6,
-    currentProjects: ["Assumption Sports Complex"],
-    workload: 45,
-    avatar: "/placeholder.svg?height=40&width=40",
-    status: "active",
-    skills: ["Quality Control", "Testing", "Documentation"],
-    joinDate: "2020-09-05",
-  },
-  {
-    id: 5,
-    name: "Robert Chen",
-    position: "Senior Project Engineer",
-    department: "Engineering",
-    email: "robert.chen@gygpower.com",
-    phone: "+63 917 567 8901",
-    prcLicense: "EE-33333",
-    yearsExperience: 10,
-    currentProjects: ["CSA Makati Building", "Unitop Mall"],
-    workload: 90,
-    avatar: "/placeholder.svg?height=40&width=40",
-    status: "active",
-    skills: ["Electrical Design", "Code Compliance", "Team Leadership"],
-    joinDate: "2018-04-12",
-  },
-  {
-    id: 6,
-    name: "Elena Rodriguez",
-    position: "Site Supervisor",
-    department: "Field Operations",
-    email: "elena.rodriguez@gygpower.com",
-    phone: "+63 917 678 9012",
-    prcLicense: "SS-44444",
-    yearsExperience: 7,
-    currentProjects: ["Unitop Mall"],
-    workload: 70,
-    avatar: "/placeholder.svg?height=40&width=40",
-    status: "on-leave",
-    skills: ["Site Management", "Safety", "Coordination"],
-    joinDate: "2019-11-08",
-  },
-]
+type Personnel = Database['public']['Tables']['personnel']['Row']
 
 export function Team() {
   const [searchTerm, setSearchTerm] = useState("")
   const [departmentFilter, setDepartmentFilter] = useState("all")
-  const [statusFilter, setStatusFilter] = useState("all")
-
-  const getStatusColor = (status: string) => {
-    switch (status) {
-      case "active":
-        return "bg-green-100 text-green-800"
-      case "on-leave":
-        return "bg-yellow-100 text-yellow-800"
-      case "inactive":
-        return "bg-gray-100 text-gray-800"
-      default:
-        return "bg-gray-100 text-gray-800"
-    }
-  }
-
-  const getWorkloadColor = (workload: number) => {
-    if (workload >= 80) return "text-red-600"
-    if (workload >= 60) return "text-yellow-600"
-    return "text-green-600"
-  }
+  const [selectedPersonnel, setSelectedPersonnel] = useState<Personnel | null>(null)
+  const [isProfileModalOpen, setIsProfileModalOpen] = useState(false)
+  
+  const { personnel, loading, error } = usePersonnel()
 
   const getInitials = (name: string) => {
     return name
@@ -141,20 +29,44 @@ export function Team() {
       .toUpperCase()
   }
 
-  const filteredMembers = teamMembers.filter((member) => {
+  const filteredMembers = personnel.filter((member) => {
     const matchesSearch =
       member.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      member.position.toLowerCase().includes(searchTerm.toLowerCase())
+      (member.position && member.position.toLowerCase().includes(searchTerm.toLowerCase()))
     const matchesDepartment = departmentFilter === "all" || member.department === departmentFilter
-    const matchesStatus = statusFilter === "all" || member.status === statusFilter
 
-    return matchesSearch && matchesDepartment && matchesStatus
+    return matchesSearch && matchesDepartment
   })
 
-  const departments = [...new Set(teamMembers.map((member) => member.department))]
-  const totalMembers = teamMembers.length
-  const activeMembers = teamMembers.filter((m) => m.status === "active").length
-  const averageWorkload = Math.round(teamMembers.reduce((sum, m) => sum + m.workload, 0) / totalMembers)
+  const departments = [...new Set(personnel.map((member) => member.department).filter(Boolean))]
+  const totalMembers = personnel.length
+
+  const handleViewProfile = (member: Personnel) => {
+    setSelectedPersonnel(member)
+    setIsProfileModalOpen(true)
+  }
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center h-full">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-orange-500 mx-auto mb-4"></div>
+          <p className="text-gray-600">Loading team members...</p>
+        </div>
+      </div>
+    )
+  }
+
+  if (error) {
+    return (
+      <div className="flex items-center justify-center h-full">
+        <div className="text-center">
+          <p className="text-red-600 mb-4">Error loading team members: {error}</p>
+          <Button onClick={() => window.location.reload()}>Retry</Button>
+        </div>
+      </div>
+    )
+  }
 
   return (
     <div className="p-6 space-y-6 overflow-y-auto h-full">
@@ -171,7 +83,7 @@ export function Team() {
       </div>
 
       {/* Team Stats */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
         <Card>
           <CardContent className="p-4">
             <div className="flex items-center justify-between">
@@ -189,37 +101,28 @@ export function Team() {
           <CardContent className="p-4">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-sm text-gray-600">Active Members</p>
-                <p className="text-2xl font-bold">{activeMembers}</p>
-              </div>
-              <div className="w-8 h-8 bg-green-100 rounded-full flex items-center justify-center">
-                <UserCheck className="h-4 w-4 text-green-600" />
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="p-4">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm text-gray-600">Avg. Workload</p>
-                <p className="text-2xl font-bold">{averageWorkload}%</p>
-              </div>
-              <div className="w-8 h-8 bg-orange-100 rounded-full flex items-center justify-center">
-                <Clock className="h-4 w-4 text-orange-600" />
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="p-4">
-            <div className="flex items-center justify-between">
-              <div>
                 <p className="text-sm text-gray-600">Departments</p>
                 <p className="text-2xl font-bold">{departments.length}</p>
               </div>
               <div className="w-8 h-8 bg-purple-100 rounded-full flex items-center justify-center">
                 <Briefcase className="h-4 w-4 text-purple-600" />
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardContent className="p-4">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm text-gray-600">Avg. Experience</p>
+                <p className="text-2xl font-bold">
+                  {personnel.length > 0 
+                    ? Math.round(personnel.reduce((sum, m) => sum + (m.years_experience || 0), 0) / personnel.length)
+                    : 0} yrs
+                </p>
+              </div>
+              <div className="w-8 h-8 bg-green-100 rounded-full flex items-center justify-center">
+                <Briefcase className="h-4 w-4 text-green-600" />
               </div>
             </div>
           </CardContent>
@@ -244,21 +147,10 @@ export function Team() {
           <SelectContent>
             <SelectItem value="all">All Departments</SelectItem>
             {departments.map((dept) => (
-              <SelectItem key={dept} value={dept}>
+              <SelectItem key={dept} value={dept || ""}>
                 {dept}
               </SelectItem>
             ))}
-          </SelectContent>
-        </Select>
-        <Select value={statusFilter} onValueChange={setStatusFilter}>
-          <SelectTrigger className="w-full sm:w-48">
-            <SelectValue placeholder="Filter by status" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">All Status</SelectItem>
-            <SelectItem value="active">Active</SelectItem>
-            <SelectItem value="on-leave">On Leave</SelectItem>
-            <SelectItem value="inactive">Inactive</SelectItem>
           </SelectContent>
         </Select>
       </div>
@@ -271,22 +163,16 @@ export function Team() {
               <div className="flex items-start justify-between">
                 <div className="flex items-center space-x-3">
                   <Avatar className="h-12 w-12">
-                    <AvatarImage src={member.avatar || "/placeholder.svg"} alt={member.name} />
+                    <AvatarImage src={member.avatar_url || ""} alt={member.name} />
                     <AvatarFallback className="bg-gradient-to-r from-orange-500 to-orange-600 text-white">
                       {getInitials(member.name)}
                     </AvatarFallback>
                   </Avatar>
                   <div>
                     <h3 className="font-semibold text-gray-900">{member.name}</h3>
-                    <p className="text-sm text-gray-600">{member.position}</p>
-                    <Badge className={getStatusColor(member.status)} size="sm">
-                      {member.status.replace("-", " ")}
-                    </Badge>
+                    <p className="text-sm text-gray-600">{member.position || "Not specified"}</p>
                   </div>
                 </div>
-                <Button variant="ghost" size="sm">
-                  <MoreHorizontal className="h-4 w-4" />
-                </Button>
               </div>
             </CardHeader>
             <CardContent>
@@ -294,59 +180,38 @@ export function Team() {
                 <div className="grid grid-cols-2 gap-4 text-sm">
                   <div>
                     <span className="text-gray-500">Department:</span>
-                    <p className="font-medium">{member.department}</p>
+                    <p className="font-medium">{member.department || "Not specified"}</p>
                   </div>
                   <div>
                     <span className="text-gray-500">Experience:</span>
-                    <p className="font-medium">{member.yearsExperience} years</p>
+                    <p className="font-medium">{member.years_experience || 0} years</p>
                   </div>
                 </div>
 
-                <div>
-                  <div className="flex items-center justify-between mb-2">
-                    <span className="text-sm text-gray-500">Current Workload</span>
-                    <span className={`text-sm font-medium ${getWorkloadColor(member.workload)}`}>
-                      {member.workload}%
-                    </span>
+                {member.prc_license && (
+                  <div>
+                    <span className="text-sm text-gray-500">PRC License:</span>
+                    <p className="text-sm font-medium">{member.prc_license}</p>
                   </div>
-                  <Progress value={member.workload} className="h-2" />
-                </div>
-
-                <div>
-                  <span className="text-sm text-gray-500">Current Projects:</span>
-                  <div className="flex flex-wrap gap-1 mt-1">
-                    {member.currentProjects.map((project, index) => (
-                      <Badge key={index} variant="outline" className="text-xs">
-                        {project}
-                      </Badge>
-                    ))}
-                  </div>
-                </div>
-
-                <div>
-                  <span className="text-sm text-gray-500">Skills:</span>
-                  <div className="flex flex-wrap gap-1 mt-1">
-                    {member.skills.map((skill, index) => (
-                      <Badge key={index} variant="secondary" className="text-xs">
-                        {skill}
-                      </Badge>
-                    ))}
-                  </div>
-                </div>
+                )}
 
                 <div className="flex items-center justify-between pt-2 border-t">
                   <div className="flex items-center space-x-4 text-xs text-gray-500">
-                    <span className="flex items-center">
-                      <Mail className="h-3 w-3 mr-1" />
-                      Email
-                    </span>
-                    <span className="flex items-center">
-                      <Phone className="h-3 w-3 mr-1" />
-                      Call
-                    </span>
+                    {member.email && (
+                      <span className="flex items-center">
+                        <Mail className="h-3 w-3 mr-1" />
+                        Email
+                      </span>
+                    )}
+                    {member.phone && (
+                      <span className="flex items-center">
+                        <Phone className="h-3 w-3 mr-1" />
+                        Call
+                      </span>
+                    )}
                   </div>
                   <div className="flex items-center space-x-2">
-                    <Button size="sm" variant="outline">
+                    <Button size="sm" variant="outline" onClick={() => handleViewProfile(member)}>
                       View Profile
                     </Button>
                   </div>
@@ -365,6 +230,18 @@ export function Team() {
           <h3 className="text-lg font-medium text-gray-900 mb-2">No team members found</h3>
           <p className="text-gray-500">Try adjusting your search or filter criteria</p>
         </div>
+      )}
+
+      {/* Profile Modal */}
+      {selectedPersonnel && (
+        <ProfileModal 
+          isOpen={isProfileModalOpen} 
+          onClose={() => {
+            setIsProfileModalOpen(false)
+            setSelectedPersonnel(null)
+          }}
+          personnel={selectedPersonnel}
+        />
       )}
     </div>
   )

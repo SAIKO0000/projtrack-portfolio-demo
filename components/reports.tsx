@@ -54,9 +54,19 @@ export function Reports() {
   const { reports, loading, fetchReports, downloadReport, deleteReport } = useReports()
   const { projects } = useProjects()
 
+  // Capitalize first letter of each word for formal display
+  const capitalizeWords = (text: string | null | undefined): string => {
+    if (!text) return "Unknown"
+    return text
+      .replace(/-/g, " ") // Replace hyphens with spaces
+      .split(" ")
+      .map(word => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase())
+      .join(" ")
+  }
+
   useEffect(() => {
     fetchReports()
-  }, [])
+  }, [fetchReports])
 
   const handleUploadComplete = () => {
     fetchReports()
@@ -261,8 +271,8 @@ export function Reports() {
   }
 
   return (
-    <div className="p-6 space-y-6 overflow-y-auto h-full">
-      <div className="flex items-center justify-between">
+    <div className="p-4 sm:p-6 space-y-6 overflow-y-auto h-full max-w-full">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
           <h1 className="text-2xl font-bold text-gray-900">Reports & Documents</h1>
           <p className="text-gray-600">Manage project documents, reports, and files</p>
@@ -332,7 +342,7 @@ export function Reports() {
         </Card>
       </div>
 
-      <div className="flex flex-col lg:flex-row gap-4">
+      <div className="flex flex-col sm:flex-row gap-4">
         <div className="relative flex-1">
           <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
           <Input
@@ -342,44 +352,46 @@ export function Reports() {
             className="pl-10"
           />
         </div>
-        <Select value={projectFilter} onValueChange={setProjectFilter}>
-          <SelectTrigger className="w-full lg:w-64">
-            <SelectValue placeholder="Filter by project" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">All Projects</SelectItem>
-            {uniqueProjects.map((projectName) => (
-              <SelectItem key={projectName} value={projectName}>
-                {projectName}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-        <Select value={categoryFilter} onValueChange={setCategoryFilter}>
-          <SelectTrigger className="w-full lg:w-48">
-            <SelectValue placeholder="Filter by category" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">All Categories</SelectItem>
-            {uniqueCategories.map((category) => (
-              <SelectItem key={category} value={category || ""}>
-                {category}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-        <Select value={statusFilter} onValueChange={setStatusFilter}>
-          <SelectTrigger className="w-full lg:w-40">
-            <SelectValue placeholder="Filter by status" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">All Status</SelectItem>
-            <SelectItem value="approved">Approved</SelectItem>
-            <SelectItem value="pending">Pending</SelectItem>
-            <SelectItem value="revision">Revision</SelectItem>
-            <SelectItem value="rejected">Rejected</SelectItem>
-          </SelectContent>
-        </Select>
+        <div className="flex flex-col sm:flex-row gap-3 sm:gap-4">
+          <Select value={projectFilter} onValueChange={setProjectFilter}>
+            <SelectTrigger className="w-full sm:w-48">
+              <SelectValue placeholder="Filter by project" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All Projects</SelectItem>
+              {uniqueProjects.map((projectName) => (
+                <SelectItem key={projectName} value={projectName}>
+                  {projectName}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          <Select value={categoryFilter} onValueChange={setCategoryFilter}>
+            <SelectTrigger className="w-full sm:w-40">
+              <SelectValue placeholder="Filter by category" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All Categories</SelectItem>
+              {uniqueCategories.map((category) => (
+                <SelectItem key={category} value={category || ""}>
+                  {category}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          <Select value={statusFilter} onValueChange={setStatusFilter}>
+            <SelectTrigger className="w-full sm:w-36">
+              <SelectValue placeholder="Filter by status" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All Status</SelectItem>
+              <SelectItem value="approved">Approved</SelectItem>
+              <SelectItem value="pending">Pending</SelectItem>
+              <SelectItem value="revision">Revision</SelectItem>
+              <SelectItem value="rejected">Rejected</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
       </div>
 
       <Card>
@@ -387,7 +399,7 @@ export function Reports() {
           <CardTitle>Documents</CardTitle>
           <CardDescription>All project documents and reports</CardDescription>
         </CardHeader>
-        <CardContent>
+        <CardContent className="p-0">
           {loading ? (
             <div className="text-center py-12">
               <div className="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-4">
@@ -396,27 +408,33 @@ export function Reports() {
               <p className="text-gray-500">Loading documents...</p>
             </div>
           ) : (
-            <div className="space-y-4">
-              {filteredReports.map((report) => (
+            <div className="space-y-1">
+              {filteredReports.map((report, index) => (
                 <div
                   key={report.id}
-                  className="flex items-center space-x-4 p-4 bg-gray-50 rounded-lg hover:bg-gray-100 transition-colors"
+                  className={`flex flex-col sm:flex-row sm:items-center space-y-3 sm:space-y-0 sm:space-x-4 p-4 hover:bg-gray-50 transition-colors border-b last:border-b-0 ${
+                    index % 2 === 0 ? 'bg-white' : 'bg-gray-50/50'
+                  }`}
                 >
-                  <div className="flex-shrink-0">{getFileIcon(report.file_type, report.file_name)}</div>
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center justify-between mb-2">
-                      <h3 className="text-sm font-medium text-gray-900 truncate">{report.file_name}</h3>
-                      <div className="flex items-center space-x-2">
+                  <div className="flex-shrink-0 self-start sm:self-center">
+                    {getFileIcon(report.file_type, report.file_name)}
+                  </div>
+                  <div className="flex-1 min-w-0 space-y-2">
+                    <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-2">
+                      <h3 className="text-sm font-medium text-gray-900 break-words leading-tight">
+                        {report.file_name}
+                      </h3>
+                      <div className="flex flex-wrap items-center gap-2">
                         <Badge className={getStatusColor(report.status || "pending")}>
-                          {report.status || "pending"}
+                          {capitalizeWords(report.status) || "Pending"}
                         </Badge>
                         <Badge className={getCategoryColor(report.category || "Other")}>
                           {report.category || "Other"}
                         </Badge>
                       </div>
                     </div>
-                    <p className="text-sm text-gray-600 mb-2 truncate">{report.projectName}</p>
-                    <div className="flex items-center space-x-4 text-xs text-gray-500">
+                    <p className="text-sm text-gray-600 font-medium">{report.projectName}</p>
+                    <div className="flex flex-wrap items-center gap-4 text-xs text-gray-500">
                       <span className="flex items-center">
                         <User className="h-3 w-3 mr-1" />
                         {report.uploaded_by || "Unknown"}
@@ -425,15 +443,15 @@ export function Reports() {
                         <Calendar className="h-3 w-3 mr-1" />
                         {formatDate(report.uploaded_at)}
                       </span>
-                      <span>{report.file_size_mb}</span>
+                      <span className="font-medium">{report.file_size_mb}</span>
                     </div>
                   </div>
-                  <div className="flex items-center space-x-1">
+                  <div className="flex flex-row sm:flex-col lg:flex-row items-start sm:items-center gap-1">
                     <Button 
                       variant="ghost" 
                       size="sm" 
                       onClick={() => handleView(report)}
-                      className="h-8 w-8 p-0 hover:bg-blue-100 hover:text-blue-600 transition-all duration-200 group"
+                      className="h-8 px-2 hover:bg-blue-100 hover:text-blue-600 transition-all duration-200 group"
                       title="View file"
                     >
                       <Eye className="h-4 w-4 group-hover:scale-110 transition-transform duration-200" />
@@ -442,7 +460,7 @@ export function Reports() {
                       variant="ghost" 
                       size="sm" 
                       onClick={() => handleEdit(report)}
-                      className="h-8 w-8 p-0 hover:bg-orange-100 hover:text-orange-600 transition-all duration-200 group"
+                      className="h-8 px-2 hover:bg-orange-100 hover:text-orange-600 transition-all duration-200 group"
                       title="Edit document"
                     >
                       <Edit className="h-4 w-4 group-hover:scale-110 transition-transform duration-200" />
@@ -451,7 +469,7 @@ export function Reports() {
                       variant="ghost" 
                       size="sm" 
                       onClick={() => handleDownload(report)}
-                      className="h-8 w-8 p-0 hover:bg-green-100 hover:text-green-600 transition-all duration-200 group"
+                      className="h-8 px-2 hover:bg-green-100 hover:text-green-600 transition-all duration-200 group"
                       title="Download file"
                     >
                       <Download className="h-4 w-4 group-hover:scale-110 transition-transform duration-200" />
@@ -459,7 +477,7 @@ export function Reports() {
                     <Button 
                       variant="ghost" 
                       size="sm"
-                      className="h-8 w-8 p-0 hover:bg-purple-100 hover:text-purple-600 transition-all duration-200 group"
+                      className="h-8 px-2 hover:bg-purple-100 hover:text-purple-600 transition-all duration-200 group"
                       title="Share file"
                     >
                       <Share className="h-4 w-4 group-hover:scale-110 transition-transform duration-200" />
@@ -468,7 +486,7 @@ export function Reports() {
                       variant="ghost" 
                       size="sm" 
                       onClick={() => handleDelete(report)}
-                      className="h-8 w-8 p-0 hover:bg-red-100 hover:text-red-600 transition-all duration-200 group"
+                      className="h-8 px-2 hover:bg-red-100 hover:text-red-600 transition-all duration-200 group"
                       title="Delete document"
                     >
                       <Trash2 className="h-4 w-4 group-hover:scale-110 transition-transform duration-200" />
@@ -485,7 +503,7 @@ export function Reports() {
                 <FileText className="h-6 w-6 text-gray-400" />
               </div>
               <h3 className="text-lg font-medium text-gray-900 mb-2">No documents found</h3>
-              <p className="text-gray-500">Try adjusting your search or filter criteria</p>
+              <p className="text-gray-500 mb-4">Try adjusting your search or filter criteria</p>
             </div>
           )}
         </CardContent>

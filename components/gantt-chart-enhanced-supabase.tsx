@@ -65,7 +65,7 @@ export function GanttChartEnhanced({ selectedProjectId }: GanttChartEnhancedProp
   const [priorityFilter, setPriorityFilter] = useState("all")
   const [projectFilter, setProjectFilter] = useState("all")
   const [currentPeriod, setCurrentPeriod] = useState(new Date())
-  const [viewMode, setViewMode] = useState<"year" | "full">("year")
+  const [viewMode, setViewMode] = useState<"daily" | "weekly" | "full">("weekly")
   const [searchTerm, setSearchTerm] = useState("")
   const [editingTask, setEditingTask] = useState<EnhancedTask | null>(null)
   const [isEditModalOpen, setIsEditModalOpen] = useState(false)
@@ -86,20 +86,24 @@ export function GanttChartEnhanced({ selectedProjectId }: GanttChartEnhancedProp
   const isOverdue = (endDate: string | null, status: string | null) => {
     if (status === "completed" || !endDate) return false
     const taskEndDate = parseTaskDate(endDate)
-    // Get current date in Philippines timezone, normalized to start of day
-    const philippinesNow = new Date().toLocaleString("en-US", { timeZone: "Asia/Manila" })
-    const todayDate = new Date(philippinesNow)
-    const today = new Date(todayDate.getFullYear(), todayDate.getMonth(), todayDate.getDate())
+    // Get current date in Philippines timezone properly
+    const now = new Date()
+    const philippinesOffset = 8 * 60 // Philippines is UTC+8
+    const localOffset = now.getTimezoneOffset()
+    const philippinesTime = new Date(now.getTime() + (localOffset + philippinesOffset) * 60000)
+    const today = new Date(philippinesTime.getFullYear(), philippinesTime.getMonth(), philippinesTime.getDate())
     return taskEndDate < today
   }
 
   const getDaysUntilDeadline = (endDate: string | null, status: string | null) => {
     if (status === "completed" || !endDate) return null
     const taskEndDate = parseTaskDate(endDate)
-    // Get current date in Philippines timezone, normalized to start of day
-    const philippinesNow = new Date().toLocaleString("en-US", { timeZone: "Asia/Manila" })
-    const todayDate = new Date(philippinesNow)
-    const today = new Date(todayDate.getFullYear(), todayDate.getMonth(), todayDate.getDate())
+    // Get current date in Philippines timezone properly
+    const now = new Date()
+    const philippinesOffset = 8 * 60 // Philippines is UTC+8
+    const localOffset = now.getTimezoneOffset()
+    const philippinesTime = new Date(now.getTime() + (localOffset + philippinesOffset) * 60000)
+    const today = new Date(philippinesTime.getFullYear(), philippinesTime.getMonth(), philippinesTime.getDate())
     const diffTime = taskEndDate.getTime() - today.getTime()
     const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24))
     return diffDays
@@ -290,22 +294,48 @@ export function GanttChartEnhanced({ selectedProjectId }: GanttChartEnhancedProp
           currentDate.setMonth(currentDate.getMonth() + 1)
         }
       }
-    } else {
-      // Existing year view logic
-      const startDate = new Date(currentPeriod)
-      startDate.setMonth(0)
-      startDate.setDate(1)
-
-      for (let i = 0; i < 12; i++) {
-        const monthDate = new Date(startDate.getFullYear(), i, 1)
-        const monthEnd = new Date(startDate.getFullYear(), i + 1, 0)
-
+    } else if (viewMode === "weekly") {
+      // Weekly view - show 4 weeks around current period
+      const startOfWeek = new Date(currentPeriod)
+      // Go back 1 week from current period to center it
+      startOfWeek.setDate(currentPeriod.getDate() - 7)
+      // Find the Sunday of that week
+      startOfWeek.setDate(startOfWeek.getDate() - startOfWeek.getDay())
+      
+      for (let weekNum = 1; weekNum <= 4; weekNum++) {
+        const weekStart = new Date(startOfWeek)
+        weekStart.setDate(startOfWeek.getDate() + (weekNum - 1) * 7)
+        weekStart.setHours(0, 0, 0, 0)
+        
+        const weekEnd = new Date(weekStart)
+        weekEnd.setDate(weekStart.getDate() + 6)
+        weekEnd.setHours(23, 59, 59, 999)
+        
         months.push({
-          label: monthDate.toLocaleDateString("en-US", { month: "short" }),
-          date: new Date(monthDate),
-          endDate: new Date(monthEnd),
-          quarter: Math.floor(i / 3) + 1,
-          year: monthDate.getFullYear(),
+          label: `Week ${weekNum}`,
+          date: new Date(weekStart),
+          endDate: new Date(weekEnd),
+          quarter: 1,
+          year: weekStart.getFullYear(),
+          isQuarter: false,
+        })
+      }
+    } else if (viewMode === "daily") {
+      // Daily view - show 14 days (2 weeks) around current period
+      const startDate = new Date(currentPeriod)
+      startDate.setDate(startDate.getDate() - 7) // 1 week before current date
+      startDate.setHours(0, 0, 0, 0)
+      
+      for (let i = 0; i < 14; i++) { // Show 14 days
+        const dayDate = new Date(startDate)
+        dayDate.setDate(startDate.getDate() + i)
+        
+        months.push({
+          label: dayDate.toLocaleDateString("en-US", { month: "short", day: "numeric" }),
+          date: new Date(dayDate),
+          endDate: new Date(dayDate.getFullYear(), dayDate.getMonth(), dayDate.getDate(), 23, 59, 59),
+          quarter: 1,
+          year: dayDate.getFullYear(),
           isQuarter: false,
         })
       }
@@ -365,7 +395,15 @@ export function GanttChartEnhanced({ selectedProjectId }: GanttChartEnhancedProp
 
   const navigatePeriod = (direction: "prev" | "next") => {
     const newPeriod = new Date(currentPeriod)
-    newPeriod.setFullYear(newPeriod.getFullYear() + (direction === "next" ? 1 : -1))
+    
+    if (viewMode === "daily") {
+      newPeriod.setDate(newPeriod.getDate() + (direction === "next" ? 1 : -1))
+    } else if (viewMode === "weekly") {
+      // Navigate by 4 weeks (28 days) to show the next/previous set of 4 weeks
+      newPeriod.setDate(newPeriod.getDate() + (direction === "next" ? 28 : -28))
+    }
+    // For "full" mode, navigation is not applicable as it shows entire timeline
+    
     setCurrentPeriod(newPeriod)
   }
 
@@ -576,16 +614,28 @@ export function GanttChartEnhanced({ selectedProjectId }: GanttChartEnhancedProp
             </div>
             <div className="flex items-center bg-gray-100 dark:bg-gray-800 rounded-lg p-1">
               <Button
-                variant={viewMode === "year" ? "default" : "ghost"}
+                variant={viewMode === "daily" ? "default" : "ghost"}
                 size="sm"
-                onClick={() => setViewMode("year")}
+                onClick={() => setViewMode("daily")}
                 className={`h-8 ${
-                  viewMode === "year" 
+                  viewMode === "daily" 
                     ? "bg-white dark:bg-gray-700 shadow-sm text-gray-900 dark:text-white border-gray-200 dark:border-gray-600 hover:bg-white dark:hover:bg-gray-700" 
                     : "text-gray-600 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white hover:bg-gray-200 dark:hover:bg-gray-700"
                 }`}
               >
-                Year View
+                Daily View
+              </Button>
+              <Button
+                variant={viewMode === "weekly" ? "default" : "ghost"}
+                size="sm"
+                onClick={() => setViewMode("weekly")}
+                className={`h-8 ${
+                  viewMode === "weekly" 
+                    ? "bg-white dark:bg-gray-700 shadow-sm text-gray-900 dark:text-white border-gray-200 dark:border-gray-600 hover:bg-white dark:hover:bg-gray-700" 
+                    : "text-gray-600 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white hover:bg-gray-200 dark:hover:bg-gray-700"
+                }`}
+              >
+                Weekly View
               </Button>
               <Button
                 variant={viewMode === "full" ? "default" : "ghost"}
@@ -612,7 +662,11 @@ export function GanttChartEnhanced({ selectedProjectId }: GanttChartEnhancedProp
               <CardTitle className="dark:text-white text-lg">
                 {projectFilter !== "all" 
                   ? `${projects.find(p => p.id === projectFilter)?.name || 'Unknown Project'} Task Timeline` 
-                  : `Task Timeline - ${currentPeriod.getFullYear()}`
+                  : viewMode === "daily" 
+                    ? `Daily View - ${currentPeriod.toLocaleDateString("en-PH", { weekday: "long", year: "numeric", month: "long", day: "numeric" })}`
+                    : viewMode === "weekly"
+                      ? `Weekly View - ${currentPeriod.toLocaleDateString("en-PH", { year: "numeric", month: "long", day: "numeric" })}`
+                      : "Full Timeline View"
                 }
               </CardTitle>
               <Badge variant="outline" className="text-xs">
@@ -620,34 +674,42 @@ export function GanttChartEnhanced({ selectedProjectId }: GanttChartEnhancedProp
               </Badge>
             </div>
             <div className="flex items-center space-x-2">
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => navigatePeriod("prev")}
-                className="h-10 w-10"
-              >
-                <ChevronLeft className="h-4 w-4" />
-              </Button>
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => {
-                  const philippinesNow = new Date().toLocaleString("en-US", { timeZone: "Asia/Manila" })
-                  setCurrentPeriod(new Date(philippinesNow))
-                }}
-                className="h-10 px-3"
-                title="Go to current year (Philippines time)"
-              >
-                Today
-              </Button>
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => navigatePeriod("next")}
-                className="h-10 w-10"
-              >
-                <ChevronRight className="h-4 w-4" />
-              </Button>
+              {viewMode !== "full" && (
+                <>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => navigatePeriod("prev")}
+                    className="h-10 w-10"
+                  >
+                    <ChevronLeft className="h-4 w-4" />
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => {
+                      // Get current date in Philippines timezone properly
+                      const now = new Date()
+                      const philippinesOffset = 8 * 60 // Philippines is UTC+8
+                      const localOffset = now.getTimezoneOffset()
+                      const philippinesTime = new Date(now.getTime() + (localOffset + philippinesOffset) * 60000)
+                      setCurrentPeriod(philippinesTime)
+                    }}
+                    className="h-10 px-3"
+                    title="Go to current period (Philippines time)"
+                  >
+                    Today
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => navigatePeriod("next")}
+                    className="h-10 w-10"
+                  >
+                    <ChevronRight className="h-4 w-4" />
+                  </Button>
+                </>
+              )}
             </div>
           </div>
         </CardHeader>
@@ -656,34 +718,38 @@ export function GanttChartEnhanced({ selectedProjectId }: GanttChartEnhancedProp
           <div className="grid grid-cols-12 gap-2 mb-3 pb-2 border-b border-gray-200 dark:border-gray-700">
             <div className="col-span-4 text-sm font-medium text-gray-600 dark:text-gray-400">Task Details</div>
             <div className="col-span-8">
-              {viewMode === "year" ? (
+              {viewMode === "daily" ? (
                 <>
                   <div className="text-center text-base font-bold text-gray-800 dark:text-gray-200 mb-2">
-                    {currentPeriod.getFullYear()}
+                    Daily View - {currentPeriod.toLocaleDateString("en-PH", { year: "numeric", month: "long" })}
                   </div>
-
-                  <div className="grid grid-cols-12 gap-1 mb-1">
-                    {/* Quarter headers aligned with months */}
-                    <div className="col-span-3 text-center text-xs font-semibold text-gray-600 dark:text-gray-400 border-r-2 border-gray-500 dark:border-gray-400">
-                      Q1
+                  <div className="overflow-x-auto">
+                    <div className="grid grid-cols-14 gap-1 min-w-max" style={{ minWidth: '800px' }}>
+                      {timelineMonths.map((day, index) => (
+                        <div key={day.label + index} className={`text-xs text-center text-gray-600 dark:text-gray-400 font-medium px-1 ${
+                          index < timelineMonths.length - 1 ? 'border-r border-gray-400 dark:border-gray-500' : ''
+                        }`} style={{ minWidth: '55px' }}>
+                          <div className="truncate">{day.label}</div>
+                        </div>
+                      ))}
                     </div>
-                    <div className="col-span-3 text-center text-xs font-semibold text-gray-600 dark:text-gray-400 border-r-2 border-gray-500 dark:border-gray-400">
-                      Q2
-                    </div>
-                    <div className="col-span-3 text-center text-xs font-semibold text-gray-600 dark:text-gray-400 border-r-2 border-gray-500 dark:border-gray-400">
-                      Q3
-                    </div>
-                    <div className="col-span-3 text-center text-xs font-semibold text-gray-600 dark:text-gray-400">Q4</div>
                   </div>
-
-                  <div className="grid grid-cols-12 gap-1">
-                    {timelineMonths.map((month, index) => (
-                      <div key={month.label + month.date.getMonth()} className={`text-xs text-center text-gray-600 dark:text-gray-400 font-medium px-1 ${
-                        index < timelineMonths.length - 1 ? 'border-r border-gray-400 dark:border-gray-500' : ''
-                      }`}>
-                        <div className="truncate">{month.label}</div>
-                      </div>
-                    ))}
+                </>
+              ) : viewMode === "weekly" ? (
+                <>
+                  <div className="text-center text-base font-bold text-gray-800 dark:text-gray-200 mb-2">
+                    Weekly View - {currentPeriod.toLocaleDateString("en-PH", { year: "numeric", month: "long" })}
+                  </div>
+                  <div className="overflow-x-auto">
+                    <div className="grid grid-cols-4 gap-1 min-w-max" style={{ minWidth: '600px' }}>
+                      {timelineMonths.map((week, index) => (
+                        <div key={week.label + index} className={`text-xs text-center text-gray-600 dark:text-gray-400 font-medium px-1 ${
+                          index < timelineMonths.length - 1 ? 'border-r border-gray-400 dark:border-gray-500' : ''
+                        }`} style={{ minWidth: '140px' }}>
+                          <div className="truncate">{week.label}</div>
+                        </div>
+                      ))}
+                    </div>
                   </div>
                 </>
               ) : (
@@ -696,11 +762,11 @@ export function GanttChartEnhanced({ selectedProjectId }: GanttChartEnhancedProp
                   </div>
 
                   {timelineMonths.length > 0 && (
-                    <div className={`overflow-x-auto ${timelineMonths.length > 12 ? 'max-w-full' : ''}`}>
+                    <div className="overflow-x-auto">
                       {/* Year headers */}
                       <div 
                         className="grid gap-1 mb-1 min-w-max" 
-                        style={{ gridTemplateColumns: `repeat(${Math.min(timelineMonths.length, 24)}, minmax(50px, 1fr))` }}
+                        style={{ gridTemplateColumns: `repeat(${timelineMonths.length}, minmax(60px, 1fr))`, minWidth: `${timelineMonths.length * 60}px` }}
                       >
                         {timelineMonths.reduce((acc: React.ReactElement[], month, index) => {
                           // Show year only at the start of each new year or first month
@@ -711,7 +777,7 @@ export function GanttChartEnhanced({ selectedProjectId }: GanttChartEnhancedProp
                               <div 
                                 key={`year-${month.year}`} 
                                 className="text-xs text-center text-gray-700 dark:text-gray-300 font-bold border-r-2 border-gray-500 dark:border-gray-400 py-1"
-                                style={{ gridColumn: `span ${Math.min(yearSpan, 24)}` }}
+                                style={{ gridColumn: `span ${yearSpan}` }}
                               >
                                 {month.year}
                               </div>
@@ -724,7 +790,7 @@ export function GanttChartEnhanced({ selectedProjectId }: GanttChartEnhancedProp
                       {/* Month/Quarter headers */}
                       <div 
                         className="grid gap-1 mb-1 min-w-max" 
-                        style={{ gridTemplateColumns: `repeat(${Math.min(timelineMonths.length, 24)}, minmax(50px, 1fr))` }}
+                        style={{ gridTemplateColumns: `repeat(${timelineMonths.length}, minmax(60px, 1fr))`, minWidth: `${timelineMonths.length * 60}px` }}
                       >
                         {timelineMonths.map((month, index) => (
                           <div 
@@ -747,29 +813,33 @@ export function GanttChartEnhanced({ selectedProjectId }: GanttChartEnhancedProp
           <div className="grid grid-cols-12 gap-2 mb-2 text-xs text-gray-400 dark:text-gray-500">
             <div className="col-span-4"></div>
             <div className="col-span-8">
-              {viewMode === "year" ? (
-                <div className="grid grid-cols-12 gap-1">
-                  {timelineMonths.map((month) => (
-                    <div key={month.label + month.date.getFullYear()} className="text-center">
-                      <div className="border-l border-gray-300 dark:border-gray-600 h-2 ml-auto mr-auto w-0"></div>
-                    </div>
-                  ))}
+              {viewMode === "daily" ? (
+                <div className="overflow-x-auto">
+                  <div className="grid grid-cols-14 gap-1 min-w-max" style={{ minWidth: '800px' }}>
+                    {timelineMonths.map((day, index) => (
+                      <div key={day.label + index} className="h-4 border-l border-gray-300 dark:border-gray-600 opacity-30" style={{ minWidth: '55px' }}></div>
+                    ))}
+                  </div>
+                </div>
+              ) : viewMode === "weekly" ? (
+                <div className="overflow-x-auto">
+                  <div className="grid grid-cols-4 gap-1 min-w-max" style={{ minWidth: '600px' }}>
+                    {timelineMonths.map((week, index) => (
+                      <div key={week.label + index} className="h-4 border-l border-gray-300 dark:border-gray-600 opacity-30" style={{ minWidth: '140px' }}></div>
+                    ))}
+                  </div>
                 </div>
               ) : (
-                timelineMonths.length > 0 && (
-                  <div className={`overflow-x-auto ${timelineMonths.length > 12 ? 'max-w-full' : ''}`}>
-                    <div 
-                      className="grid gap-1 min-w-max" 
-                      style={{ gridTemplateColumns: `repeat(${Math.min(timelineMonths.length, 24)}, minmax(50px, 1fr))` }}
-                    >
-                      {timelineMonths.map((month) => (
-                        <div key={month.label + month.date.getFullYear()} className="text-center">
-                          <div className="border-l border-gray-300 dark:border-gray-600 h-2 ml-auto mr-auto w-0"></div>
-                        </div>
-                      ))}
-                    </div>
+                <div className="overflow-x-auto">
+                  <div 
+                    className="grid gap-1 min-w-max"
+                    style={{ gridTemplateColumns: `repeat(${timelineMonths.length}, minmax(60px, 1fr))`, minWidth: `${timelineMonths.length * 60}px` }}
+                  >
+                    {timelineMonths.map((_, index) => (
+                      <div key={index} className="h-4 border-l border-gray-300 dark:border-gray-600 opacity-30"></div>
+                    ))}
                   </div>
-                )
+                </div>
               )}
             </div>
           </div>
@@ -864,48 +934,83 @@ export function GanttChartEnhanced({ selectedProjectId }: GanttChartEnhancedProp
 
                   {/* Timeline */}
                   <div className="col-span-8">
-                    <div className="relative h-8 bg-gray-100 dark:bg-gray-800 rounded-lg overflow-hidden">
-                      {position.isVisible && (
-                        <div
-                          className={`absolute top-1 bottom-1 rounded-md transition-all border ${getProjectBarColor(task.status, overdue)}`}
-                          style={{
-                            left: position.left,
-                            width: position.width,
-                          }}
-                        >
-                        </div>
-                      )}
-
-                      {/* Today line */}
-                      {(() => {
-                        // Get current date in Philippines timezone and normalize to start of day
-                        const philippinesNow = new Date().toLocaleString("en-US", { timeZone: "Asia/Manila" })
-                        const todayDate = new Date(philippinesNow)
-                        // Set to start of day to match how task dates are stored
-                        const today = new Date(todayDate.getFullYear(), todayDate.getMonth(), todayDate.getDate())
-                        
-                        const timelineStart = timelineMonths[0].date
-                        const timelineEnd = timelineMonths[timelineMonths.length - 1].endDate ||
-                          new Date(
-                            timelineMonths[timelineMonths.length - 1].date.getFullYear(),
-                            timelineMonths[timelineMonths.length - 1].date.getMonth() + 1,
-                            0,
-                          )
-
-                        const totalDuration = timelineEnd.getTime() - timelineStart.getTime()
-                        const todayOffset = today.getTime() - timelineStart.getTime()
-                        const todayPosition = (todayOffset / totalDuration) * 100
-
-                        const isTodayVisible = todayPosition >= 0 && todayPosition <= 100
-
-                        return isTodayVisible ? (
+                    <div className="overflow-x-auto">
+                      <div className="relative h-8 bg-gray-100 dark:bg-gray-800 rounded-lg overflow-hidden" 
+                           style={{ 
+                             minWidth: viewMode === "daily" ? '800px' : 
+                                      viewMode === "weekly" ? '600px' : 
+                                      `${timelineMonths.length * 60}px` 
+                           }}>
+                        {position.isVisible && (
                           <div
-                            className="absolute top-0 bottom-0 w-0.5 bg-red-600 z-30"
-                            style={{ left: `${todayPosition}%` }}
-                            title={`Today - ${today.toLocaleDateString("en-PH", { timeZone: "Asia/Manila" })}`}
-                          />
-                        ) : null
-                      })()}
+                            className={`absolute top-1 bottom-1 rounded-md transition-all border ${getProjectBarColor(task.status, overdue)}`}
+                            style={{
+                              left: position.left,
+                              width: position.width,
+                            }}
+                          >
+                          </div>
+                        )}
+
+                        {/* Today line */}
+                        {(() => {
+                          // Get current date in Philippines timezone properly
+                          const now = new Date()
+                          const philippinesOffset = 8 * 60 // Philippines is UTC+8
+                          const localOffset = now.getTimezoneOffset()
+                          const philippinesTime = new Date(now.getTime() + (localOffset + philippinesOffset) * 60000)
+                          
+                          // Set to start of day to match how task dates are stored
+                          const today = new Date(philippinesTime.getFullYear(), philippinesTime.getMonth(), philippinesTime.getDate())
+                          
+                          let todayPosition = 0
+                          let isTodayVisible = false
+
+                          if (viewMode === "weekly") {
+                            // For weekly view, find which week contains today
+                            for (let i = 0; i < timelineMonths.length; i++) {
+                              const weekStart = new Date(timelineMonths[i].date)
+                              weekStart.setHours(0, 0, 0, 0) // Start of day
+                              const weekEnd = new Date(timelineMonths[i].endDate)
+                              weekEnd.setHours(23, 59, 59, 999) // End of day
+                              
+                              // Check if today falls within this week
+                              if (today >= weekStart && today <= weekEnd) {
+                                // Today is in this week, position it in the center of the week column
+                                const weekColumnWidth = 100 / timelineMonths.length // Each week takes up equal width
+                                const weekStartPosition = i * weekColumnWidth
+                                const weekCenterPosition = weekStartPosition + (weekColumnWidth / 2)
+                                
+                                todayPosition = weekCenterPosition
+                                isTodayVisible = true
+                                break
+                              }
+                            }
+                          } else {
+                            // For daily and full timeline views, use the original logic
+                            const timelineStart = timelineMonths[0].date
+                            const timelineEnd = timelineMonths[timelineMonths.length - 1].endDate ||
+                              new Date(
+                                timelineMonths[timelineMonths.length - 1].date.getFullYear(),
+                                timelineMonths[timelineMonths.length - 1].date.getMonth() + 1,
+                                0,
+                              )
+
+                            const totalDuration = timelineEnd.getTime() - timelineStart.getTime()
+                            const todayOffset = today.getTime() - timelineStart.getTime()
+                            todayPosition = (todayOffset / totalDuration) * 100
+                            isTodayVisible = todayPosition >= 0 && todayPosition <= 100
+                          }
+
+                          return isTodayVisible ? (
+                            <div
+                              className="absolute top-0 bottom-0 w-0.5 bg-red-600 z-30"
+                              style={{ left: `${todayPosition}%` }}
+                              title={`Today - ${today.toLocaleDateString("en-PH")}`}
+                            />
+                          ) : null
+                        })()}
+                      </div>
                     </div>
                   </div>
                 </div>

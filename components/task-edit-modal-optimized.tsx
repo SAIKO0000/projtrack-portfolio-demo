@@ -126,6 +126,20 @@ export function TaskEditModalOptimized({ task, open, onOpenChange, onTaskUpdated
       return
     }
 
+    // Check if task start date is not before project start date
+    const selectedProject = projects.find(p => p.id === formData.project_id)
+    if (selectedProject?.start_date) {
+      const projectStartDate = new Date(selectedProject.start_date)
+      // Normalize to just date comparison (ignore time)
+      const projectStart = new Date(projectStartDate.getFullYear(), projectStartDate.getMonth(), projectStartDate.getDate())
+      const taskStart = new Date(formData.start_date.getFullYear(), formData.start_date.getMonth(), formData.start_date.getDate())
+      
+      if (taskStart < projectStart) {
+        toast.error(`Task start date cannot be before project start date (${projectStartDate.toLocaleDateString("en-PH")})`)
+        return
+      }
+    }
+
     try {
       setLoading(true)
       
@@ -242,6 +256,17 @@ export function TaskEditModalOptimized({ task, open, onOpenChange, onTaskUpdated
                     mode="single"
                     selected={formData.start_date}
                     onSelect={(date) => handleInputChange('start_date', date)}
+                    disabled={(date) => {
+                      // Get selected project's start date
+                      const selectedProject = projects.find(p => p.id === formData.project_id)
+                      if (selectedProject?.start_date) {
+                        const projectStartDate = new Date(selectedProject.start_date)
+                        const projectStart = new Date(projectStartDate.getFullYear(), projectStartDate.getMonth(), projectStartDate.getDate())
+                        const checkDate = new Date(date.getFullYear(), date.getMonth(), date.getDate())
+                        return checkDate < projectStart
+                      }
+                      return false
+                    }}
                     initialFocus
                   />
                 </PopoverContent>
@@ -268,7 +293,23 @@ export function TaskEditModalOptimized({ task, open, onOpenChange, onTaskUpdated
                     mode="single"
                     selected={formData.end_date}
                     onSelect={(date) => handleInputChange('end_date', date)}
-                    disabled={(date) => formData.start_date ? date < formData.start_date : false}
+                    disabled={(date) => {
+                      // End date cannot be before start date
+                      if (formData.start_date && date < formData.start_date) {
+                        return true
+                      }
+                      
+                      // End date cannot be before project start date
+                      const selectedProject = projects.find(p => p.id === formData.project_id)
+                      if (selectedProject?.start_date) {
+                        const projectStartDate = new Date(selectedProject.start_date)
+                        const projectStart = new Date(projectStartDate.getFullYear(), projectStartDate.getMonth(), projectStartDate.getDate())
+                        const checkDate = new Date(date.getFullYear(), date.getMonth(), date.getDate())
+                        return checkDate < projectStart
+                      }
+                      
+                      return false
+                    }}
                     initialFocus
                   />
                 </PopoverContent>

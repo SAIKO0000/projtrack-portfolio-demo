@@ -296,6 +296,122 @@ export function useReports() {
     }
   }
 
+  const replaceReport = async (
+    reportId: string,
+    file: File,
+    category?: string,
+    status: string = 'pending',
+    description?: string
+  ) => {
+    try {
+      setUploading(true)
+      setUploadProgress(0)
+
+      // Get the existing report to find project ID
+      const { data: existingReport, error: fetchError } = await supabase
+        .from('reports')
+        .select('*')
+        .eq('id', reportId)
+        .single()
+
+      if (fetchError) throw fetchError
+
+      const projectId = existingReport.project_id
+
+      // Delete old file from storage if it exists
+      if (existingReport.file_path) {
+        const { error: deleteError } = await supabase.storage
+          .from('project-reports')
+          .remove([existingReport.file_path])
+        
+        if (deleteError) {
+          console.warn('Could not delete old file:', deleteError)
+        }
+      }
+
+      // Generate unique filename for new file
+      const fileExt = file.name.split('.').pop()
+      const timestamp = Date.now()
+      const randomId = Math.random().toString(36).substring(2)
+      const fileName = `${projectId}_${timestamp}_${randomId}.${fileExt}`
+      const filePath = `reports/${projectId}/${fileName}`
+
+      // Normalize MIME type for better compatibility
+      const normalizedMimeType = normalizeMimeType(file)
+      
+      // Create a new File object with normalized MIME type if needed
+      const fileToUpload = file.type !== normalizedMimeType 
+        ? new File([file], file.name, { type: normalizedMimeType })
+        : file
+
+      setUploadProgress(25)
+
+      // Upload new file to Supabase Storage
+      const { error: uploadError } = await supabase.storage
+        .from('project-reports')
+        .upload(filePath, fileToUpload, {
+          contentType: normalizedMimeType,
+          upsert: false
+        })
+
+      if (uploadError) {
+        console.error('Upload error details:', uploadError)
+        throw new Error(`Storage upload failed: ${uploadError.message}`)
+      }
+
+      setUploadProgress(75)
+
+      // Truncate fields to match database constraints
+      const truncatedFileName = file.name.length > 255 ? file.name.substring(0, 255) : file.name
+      const truncatedFileType = normalizedMimeType && normalizedMimeType.length > 50 ? normalizedMimeType.substring(0, 50) : normalizedMimeType
+      const truncatedCategory = category && category.length > 50 ? category.substring(0, 50) : category
+      const truncatedStatus = status.length > 50 ? status.substring(0, 50) : status
+      const truncatedDescription = description && description.length > 1000 ? description.substring(0, 1000) : description
+
+      // Update report metadata in database
+      const updateData: Partial<ReportInsert> = {
+        file_name: truncatedFileName,
+        file_path: filePath,
+        file_type: truncatedFileType,
+        file_size: file.size,
+        status: truncatedStatus,
+        uploaded_at: new Date().toISOString()
+      }
+
+      // Only update category and description if provided
+      if (category) updateData.category = truncatedCategory
+      if (description !== undefined) updateData.description = truncatedDescription
+
+      const { data, error } = await supabase
+        .from('reports')
+        .update(updateData)
+        .eq('id', reportId)
+        .select()
+        .single()
+
+      if (error) {
+        console.error('Database error:', error)
+        throw error
+      }
+
+      setUploadProgress(100)
+
+      // Update local state
+      setReports(prev => prev.map(r => 
+        r.id === reportId ? data : r
+      ))
+
+      return data
+      
+    } catch (error) {
+      console.error('Error replacing report:', error)
+      throw error
+    } finally {
+      setUploading(false)
+      setUploadProgress(0)
+    }
+  }
+
   useEffect(() => {
     fetchReports()
   }, [])
@@ -307,6 +423,7 @@ export function useReports() {
     uploadProgress,
     fetchReports,
     uploadReport,
+    replaceReport,
     getReportUrl,
     downloadReport,
     deleteReport,

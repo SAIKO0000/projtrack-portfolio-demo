@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useState, useMemo } from "react"
+import { useEffect, useState, useMemo, useCallback } from "react"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -10,7 +10,7 @@ import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContaine
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
 import { useProjects } from "@/lib/hooks/useProjects"
 import { useTasks } from "@/lib/hooks/useTasks"
-import { supabase, type Personnel } from "@/lib/supabase"
+import { supabase, type Personnel, type Project, type Task } from "@/lib/supabase"
 import { ProjectFormModal } from "@/components/project-form-modal"
 import { EditProjectModal } from "@/components/edit-project-modal"
 import { ContentSkeleton } from "@/components/ui/content-skeleton"
@@ -21,7 +21,17 @@ export function Dashboard() {
   const { tasks, loading: tasksLoading } = useTasks()
   const [personnel, setPersonnel] = useState<Personnel[]>([])
   const [personnelLoading, setPersonnelLoading] = useState(true)
-  const [editingProject, setEditingProject] = useState<any>(null)
+  const [editingProject, setEditingProject] = useState<Project | null>(null)
+
+  // Capitalize first letter of each word for formal display
+  const capitalizeWords = (text: string | null | undefined): string => {
+    if (!text) return "Unknown"
+    return text
+      .replace(/-/g, " ") // Replace hyphens with spaces
+      .split(" ")
+      .map(word => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase())
+      .join(" ")
+  }
 
   useEffect(() => {
     fetchData()
@@ -69,23 +79,23 @@ export function Dashboard() {
   }
 
   // Calculate task-based progress for a project
-  const getProjectTaskProgress = (projectId: string) => {
+  const getProjectTaskProgress = useCallback((projectId: string) => {
     const projectTasks = tasks.filter(task => task.project_id === projectId)
     if (projectTasks.length === 0) return 0
     
     const completedTasks = projectTasks.filter(task => task.status === 'completed')
     return Math.round((completedTasks.length / projectTasks.length) * 100)
-  }
+  }, [tasks])
 
   // Get task counts for a project
-  const getProjectTaskCounts = (projectId: string) => {
+  const getProjectTaskCounts = useCallback((projectId: string) => {
     const projectTasks = tasks.filter(task => task.project_id === projectId)
     const completedTasks = projectTasks.filter(task => task.status === 'completed')
     return {
       total: projectTasks.length,
       completed: completedTasks.length
     }
-  }
+  }, [tasks])
   
   // Calculate statistics with optimized performance
   const stats = useMemo(() => {
@@ -140,7 +150,7 @@ export function Dashboard() {
     }
 
     return analytics
-  }, [projects, tasks, getProjectTaskProgress])
+  }, [projects, getProjectTaskProgress])
   
   // Show loading only if all major data is still loading
   const isLoading = projectsLoading && tasksLoading && personnelLoading
@@ -167,7 +177,7 @@ export function Dashboard() {
     }
 
     // Helper function to get completion month for a project
-    const getCompletionMonth = (project: any) => {
+    const getCompletionMonth = (project: Project) => {
       // Priority: end_date > updated_at > created_at > current month
       if (project.end_date) {
         return new Date(project.end_date).toLocaleDateString('en-US', { year: 'numeric', month: 'short' })
@@ -354,7 +364,7 @@ export function Dashboard() {
 
   const upcomingTasks = getUpcomingTasks()
 
-  const getTaskUrgencyBadge = (task: any) => {
+  const getTaskUrgencyBadge = (task: Task & { isOverdue?: boolean; isToday?: boolean; isTomorrow?: boolean; priority?: string }) => {
     if (task.isOverdue) {
       return <Badge className="bg-red-100 text-red-800">Overdue</Badge>
     }
@@ -403,7 +413,7 @@ export function Dashboard() {
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold text-gray-900">Dashboard</h1>
-          <p className="text-gray-600">Welcome back! Here's what's happening with your projects.</p>
+          <p className="text-gray-600">Welcome back! Here&apos;s what&apos;s happening with your projects.</p>
         </div>
         <div className="flex items-center space-x-3">
           <ProjectFormModal onProjectCreated={handleProjectCreated} />
@@ -561,8 +571,8 @@ export function Dashboard() {
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center justify-between mb-2">
                       <h3 className="text-sm font-medium text-gray-900 truncate">{project.name}</h3>
-                      <Badge className={getStatusColor(project.status)}>
-                        {project.status.replace("-", " ")}
+                      <Badge className={getStatusColor(project.status || 'unknown')}>
+                        {(project.status || 'unknown').replace("-", " ")}
                       </Badge>
                     </div>
                     <p className="text-xs text-gray-500 mb-2">{project.client}</p>
@@ -630,7 +640,7 @@ export function Dashboard() {
                         {formatTaskDate(task.due_date)}
                       </span>
                       <Badge className={`text-xs ${task.status === 'in-progress' ? 'bg-blue-100 text-blue-800' : 'bg-gray-100 text-gray-800'}`}>
-                        {task.status?.replace('-', ' ') || 'pending'}
+                        {capitalizeWords(task.status) || 'Pending'}
                       </Badge>
                     </div>
                   </div>

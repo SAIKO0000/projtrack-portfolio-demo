@@ -18,9 +18,10 @@ interface ReportUploadModalProps {
   readonly children?: React.ReactNode
   readonly onUploadComplete?: () => void
   readonly preselectedProjectId?: string
+  readonly replacingReportId?: string
 }
 
-export function ReportUploadModal({ children, onUploadComplete, preselectedProjectId }: ReportUploadModalProps) {
+export function ReportUploadModal({ children, onUploadComplete, preselectedProjectId, replacingReportId }: ReportUploadModalProps) {
   const [open, setOpen] = useState(false)
   const [selectedFile, setSelectedFile] = useState<File | null>(null)
   const [projectId, setProjectId] = useState(preselectedProjectId || "")
@@ -28,20 +29,22 @@ export function ReportUploadModal({ children, onUploadComplete, preselectedProje
   const [status, setStatus] = useState("pending")
   const [description, setDescription] = useState("")
 
-  const { uploadReport, uploading, uploadProgress } = useReports()
+  const { uploadReport, uploading, uploadProgress, replaceReport } = useReports()
   const { projects } = useProjects()
   const { user } = useAuth()
 
-  // Get user position from user metadata
-  const userPosition = user?.user_metadata?.position || "Team Member"
-  const isProjectManager = userPosition === "Project Manager"
+  // Get user position from auth context
+  const userPosition = (user as { position?: string })?.position || ""
+  
+  // Check if user is authorized to set status (expanded from just Project Managers)
+  const isAuthorizedReviewer = ["Project Manager", "Senior Electrical Engineer", "Field Engineer", "Design Engineer"].includes(userPosition)
 
   // Set initial status when modal opens
   useEffect(() => {
-    if (open && !isProjectManager) {
+    if (open && !isAuthorizedReviewer) {
       setStatus("pending")
     }
-  }, [open, isProjectManager])
+  }, [open, isAuthorizedReviewer])
 
   const categories = [
     "Progress Report",
@@ -58,7 +61,7 @@ export function ReportUploadModal({ children, onUploadComplete, preselectedProje
 
   const statuses = [
     { value: "pending", label: "Pending Review" },
-    ...(isProjectManager ? [
+    ...(isAuthorizedReviewer ? [
       { value: "approved", label: "Approved" },
       { value: "revision", label: "Needs Revision" },
       { value: "rejected", label: "Rejected" }
@@ -91,7 +94,7 @@ export function ReportUploadModal({ children, onUploadComplete, preselectedProje
       return
     }
 
-    if (!projectId) {
+    if (!replacingReportId && !projectId) {
       toast.error("Please select a project")
       return
     }
@@ -100,9 +103,17 @@ export function ReportUploadModal({ children, onUploadComplete, preselectedProje
       toast.error("Please select a category")
       return
     }    try {
-      await uploadReport(selectedFile, projectId, category, status, description)
-      toast.success("Report uploaded successfully!")
-        // Reset form
+      if (replacingReportId) {
+        // Replace existing report
+        await replaceReport(replacingReportId, selectedFile, category, status, description)
+        toast.success("Report replaced successfully!")
+      } else {
+        // Upload new report
+        await uploadReport(selectedFile, projectId, category, status, description)
+        toast.success("Report uploaded successfully!")
+      }
+      
+      // Reset form
       setSelectedFile(null)
       setProjectId(preselectedProjectId || "")
       setCategory("")
@@ -115,7 +126,7 @@ export function ReportUploadModal({ children, onUploadComplete, preselectedProje
       }
     } catch (error) {
       console.error("Upload error:", error)
-      toast.error("Failed to upload report")
+      toast.error(replacingReportId ? "Failed to replace report" : "Failed to upload report")
     }
   }
 
@@ -233,10 +244,10 @@ export function ReportUploadModal({ children, onUploadComplete, preselectedProje
             <div className="w-10 h-10 rounded-lg bg-orange-90 flex items-center justify-center mr-3 shadow-sm">
               <Upload className="h-5 w-5 text-black-500" />
             </div>
-            Upload Document
+            {replacingReportId ? "Replace Document" : "Upload Document"}
           </DialogTitle>
           <DialogDescription className="text-gray-600 ml-13">
-            Upload a new document or report to the project
+            {replacingReportId ? "Replace the existing document with a new version" : "Upload a new document or report to the project"}
           </DialogDescription>
         </DialogHeader>
 
@@ -285,27 +296,29 @@ export function ReportUploadModal({ children, onUploadComplete, preselectedProje
                 </Button>
               </div>
             )}
-          </div>          {/* Project Selection */}
-          <div className="space-y-2">
-            <Label className="text-sm font-medium text-gray-700 flex items-center">
-              <FolderOpen className="h-4 w-4 mr-2 text-gray-500" />
-              Project *
-            </Label>
-            <div className="relative">
-              <FolderOpen className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
-              <Select value={projectId} onValueChange={setProjectId}>
-                <SelectTrigger className="w-full pl-10">
-                  <SelectValue placeholder="Select a project" />                </SelectTrigger>
-                <SelectContent>
-                  {projects.map((project) => (
-                    <SelectItem key={project.id} value={project.id}>
-                      {project.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+          </div>          {/* Project Selection - Hidden when replacing */}
+          {!replacingReportId && (
+            <div className="space-y-2">
+              <Label className="text-sm font-medium text-gray-700 flex items-center">
+                <FolderOpen className="h-4 w-4 mr-2 text-gray-500" />
+                Project *
+              </Label>
+              <div className="relative">
+                <FolderOpen className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
+                <Select value={projectId} onValueChange={setProjectId}>
+                  <SelectTrigger className="w-full pl-10">
+                    <SelectValue placeholder="Select a project" />                  </SelectTrigger>
+                  <SelectContent>
+                    {projects.map((project) => (
+                      <SelectItem key={project.id} value={project.id}>
+                        {project.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
             </div>
-          </div>          {/* Category Selection */}
+          )}          {/* Category Selection */}
           <div className="space-y-2">
             <Label className="text-sm font-medium text-gray-700 flex items-center">
               <Tag className="h-4 w-4 mr-2 text-gray-500" />
@@ -330,13 +343,13 @@ export function ReportUploadModal({ children, onUploadComplete, preselectedProje
             <Label className="text-sm font-medium text-gray-700 flex items-center">
               <Clock className="h-4 w-4 mr-2 text-gray-500" />
               Status *
-              {!isProjectManager && (
+              {!isAuthorizedReviewer && (
                 <span className="ml-2 text-xs text-gray-500">(Auto-set to Pending)</span>
               )}
             </Label>
             <div className="relative">
               <Clock className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
-              <Select value={status} onValueChange={setStatus} disabled={!isProjectManager}>
+              <Select value={status} onValueChange={setStatus} disabled={!isAuthorizedReviewer}>
                 <SelectTrigger className="w-full pl-10">
                   <SelectValue placeholder="Select status" />                </SelectTrigger>
                 <SelectContent>
@@ -393,12 +406,12 @@ export function ReportUploadModal({ children, onUploadComplete, preselectedProje
               {uploading ? (
                 <>
                   <Upload className="mr-2 h-4 w-4 animate-pulse" />
-                  Uploading...
+                  {replacingReportId ? "Replacing..." : "Uploading..."}
                 </>
               ) : (
                 <>
                   <Upload className="mr-2 h-4 w-4" />
-                  Upload Document
+                  {replacingReportId ? "Replace Document" : "Upload Document"}
                 </>
               )}
             </Button>

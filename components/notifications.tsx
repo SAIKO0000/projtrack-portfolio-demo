@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect, useCallback } from "react"
+import { useState, useMemo, useEffect } from "react"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -23,9 +23,7 @@ import {
 } from "lucide-react"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Switch } from "@/components/ui/switch"
-import { supabase } from "@/lib/supabase"
-import { useProjects } from "@/lib/hooks/useProjects"
-import { usePersonnel } from "@/lib/hooks/usePersonnel"
+import { useNotificationsQuery } from "@/lib/hooks/useNotificationsOptimized"
 import { toast } from "react-hot-toast"
 
 // Types for system notifications
@@ -61,144 +59,76 @@ export function Notifications() {
   const [priorityFilter, setPriorityFilter] = useState("all")
   const [showSettings, setShowSettings] = useState(false)
   const [settings, setSettings] = useState(notificationSettings)
-  const [notifications, setNotifications] = useState<SystemNotification[]>([])
-  const [loading, setLoading] = useState(true)
-  const [refreshing, setRefreshing] = useState(false)
 
-  const { projects } = useProjects()
-  const { personnel } = usePersonnel()
+  // Use optimized notifications hook - replaces all the manual fetching logic
+  const { 
+    notifications: systemNotifications, 
+    isLoading: loading, 
+    isFetching: refreshing,
+    refetch: handleRefresh,
+    error 
+  } = useNotificationsQuery()
 
-  // Fetch system notifications from database
-  const fetchNotifications = useCallback(async () => {
-    try {
-      setRefreshing(true)
-      const systemNotifications: SystemNotification[] = []
-
-      // Get recent photos (last 30 days)
-      const thirtyDaysAgo = new Date()
-      thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30)
-      
-      const { data: photos } = await supabase
-        .from('photos')
-        .select('*')
-        .gte('created_at', thirtyDaysAgo.toISOString())
-        .order('created_at', { ascending: false })
-        .limit(20)
-
-      photos?.forEach(photo => {
-        const project = projects.find(p => p.id === photo.project_id)
-        systemNotifications.push({
-          id: `photo-${photo.id}`,
-          type: 'photo',
-          title: 'Photo Uploaded',
-          message: `New photo "${photo.file_name}" was uploaded${project ? ` to ${project.name}` : ''}`,
-          project_id: photo.project_id || undefined,
-          project_name: project?.name,
-          timestamp: photo.created_at,
-          priority: 'low',
-          metadata: {
-            file_name: photo.file_name
-          }
-        })
-      })
-
-      // Get recent reports (last 30 days)
-      const { data: reports } = await supabase
-        .from('reports')
-        .select('*')
-        .gte('uploaded_at', thirtyDaysAgo.toISOString())
-        .order('uploaded_at', { ascending: false })
-        .limit(20)
-
-      reports?.forEach(report => {
-        const project = projects.find(p => p.id === report.project_id)
-        systemNotifications.push({
-          id: `report-${report.id}`,
-          type: 'report',
-          title: 'Report Uploaded',
-          message: `New report "${report.file_name}" was uploaded${project ? ` for ${project.name}` : ''}`,
-          project_id: report.project_id || undefined,
-          project_name: project?.name,
-          timestamp: report.uploaded_at || '',
-          priority: 'medium',
-          metadata: {
-            file_name: report.file_name
-          }
-        })
-      })
-
-      // Get recent tasks (last 30 days)
-      const { data: tasks } = await supabase
-        .from('tasks')
-        .select('*')
-        .gte('created_at', thirtyDaysAgo.toISOString())
-        .order('created_at', { ascending: false })
-        .limit(20)
-
-      tasks?.forEach(task => {
-        const project = projects.find(p => p.id === task.project_id)
-        const assignee = personnel.find(p => p.id === task.assigned_to)
-        
-        systemNotifications.push({
-          id: `task-${task.id}`,
-          type: 'task',
-          title: task.status === 'completed' ? 'Task Completed' : 'New Task Created',
-          message: `Task "${task.title}" ${task.status === 'completed' ? 'was completed' : 'was created'}${project ? ` in ${project.name}` : ''}${assignee ? ` for ${assignee.name}` : ''}`,
-          project_id: task.project_id || undefined,
-          project_name: project?.name,
-          timestamp: task.status === 'completed' ? (task.updated_at || task.created_at || '') : (task.created_at || ''),
-          priority: task.priority === 'high' ? 'high' : task.priority === 'medium' ? 'medium' : 'low',
-          metadata: {
-            task_title: task.title,
-            status: task.status || undefined,
-            user_name: assignee?.name
-          }
-        })
-      })
-
-      // Get recent events (last 30 days)
-      const { data: events } = await supabase
-        .from('events')
-        .select('*')
-        .gte('created_at', thirtyDaysAgo.toISOString())
-        .order('created_at', { ascending: false })
-        .limit(20)
-
-      events?.forEach(event => {
-        const project = projects.find(p => p.id === event.project_id)
-        systemNotifications.push({
-          id: `event-${event.id}`,
-          type: 'event',
-          title: 'Event Scheduled',
-          message: `New event "${event.title}" was scheduled${project ? ` for ${project.name}` : ''} on ${new Date(event.date).toLocaleDateString()}`,
-          project_id: event.project_id || undefined,
-          project_name: project?.name,
-          timestamp: event.created_at || event.date,
-          priority: 'medium',
-          metadata: {
-            event_title: event.title
-          }
-        })
-      })
-
-      // Sort all notifications by timestamp (newest first)
-      systemNotifications.sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime())
-      
-      setNotifications(systemNotifications)
-    } catch (error) {
-      console.error('Error fetching notifications:', error)
-      toast.error('Failed to load notifications')
-    } finally {
-      setLoading(false)
-      setRefreshing(false)
-    }
-  }, [projects, personnel])
-
+  // Handle error with useEffect to avoid setState during render
   useEffect(() => {
-    if (projects.length > 0 && personnel.length > 0) {
-      fetchNotifications()
+    if (error) {
+      console.error('Notifications error:', error)
+      toast.error('Failed to load notifications')
     }
-  }, [fetchNotifications, projects.length, personnel.length])
+  }, [error])
+
+  // Convert optimized notifications to match the old interface for filtering
+  const notifications = systemNotifications.map(notif => ({
+    id: notif.id,
+    type: notif.type,
+    title: notif.title,
+    message: notif.title, // Use title as message for consistency
+    project_id: notif.projectId,
+    project_name: notif.project,
+    timestamp: notif.timestamp,
+    priority: notif.priority || 'medium',
+    metadata: {
+      file_name: notif.description,
+      status: notif.status,
+      user_name: notif.description
+    }
+  }))
+
+  // Memoized filtering logic
+  const filteredNotifications = useMemo(() => {
+    return notifications.filter((notification) => {
+      const matchesSearch =
+        notification.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        notification.message.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        (notification.project_name && notification.project_name.toLowerCase().includes(searchTerm.toLowerCase()))
+      const matchesType = typeFilter === "all" || notification.type === typeFilter
+      const matchesPriority = priorityFilter === "all" || notification.priority === priorityFilter
+
+      return matchesSearch && matchesType && matchesPriority
+    })
+  }, [notifications, searchTerm, typeFilter, priorityFilter])
+
+  // Memoized stats calculations
+  const { totalCount, highPriorityCount, recentCount } = useMemo(() => {
+    const total = notifications.length
+    const highPriority = notifications.filter((n) => n.priority === "high").length
+    const recent = notifications.filter((n) => {
+      const notificationTime = new Date(n.timestamp)
+      const oneDayAgo = new Date()
+      oneDayAgo.setDate(oneDayAgo.getDate() - 1)
+      return notificationTime > oneDayAgo
+    }).length
+
+    return {
+      totalCount: total,
+      highPriorityCount: highPriority,
+      recentCount: recent
+    }
+  }, [notifications])
+
+  const toggleSetting = (id: string) => {
+    setSettings(settings.map((setting) => (setting.id === id ? { ...setting, enabled: !setting.enabled } : setting)))
+  }
 
   const getNotificationIcon = (type: string) => {
     switch (type) {
@@ -246,34 +176,6 @@ export function Notifications() {
     if (diffInWeeks === 1) return "1 week ago"
     if (diffInWeeks < 4) return `${diffInWeeks} weeks ago`
     return new Date(timestamp).toLocaleDateString()
-  }
-
-  const filteredNotifications = notifications.filter((notification) => {
-    const matchesSearch =
-      notification.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      notification.message.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      (notification.project_name && notification.project_name.toLowerCase().includes(searchTerm.toLowerCase()))
-    const matchesType = typeFilter === "all" || notification.type === typeFilter
-    const matchesPriority = priorityFilter === "all" || notification.priority === priorityFilter
-
-    return matchesSearch && matchesType && matchesPriority
-  })
-
-  const totalCount = notifications.length
-  const highPriorityCount = notifications.filter((n) => n.priority === "high").length
-  const recentCount = notifications.filter((n) => {
-    const notificationTime = new Date(n.timestamp)
-    const oneDayAgo = new Date()
-    oneDayAgo.setDate(oneDayAgo.getDate() - 1)
-    return notificationTime > oneDayAgo
-  }).length
-
-  const toggleSetting = (id: string) => {
-    setSettings(settings.map((setting) => (setting.id === id ? { ...setting, enabled: !setting.enabled } : setting)))
-  }
-
-  const handleRefresh = () => {
-    fetchNotifications()
   }
 
   return (
@@ -358,7 +260,7 @@ export function Notifications() {
                 <div className="flex items-center justify-between">
                   <div>
                     <p className="text-sm text-gray-600">Projects Active</p>
-                    <p className="text-2xl font-bold">{projects.length}</p>
+                    <p className="text-2xl font-bold">{notifications.filter(n => n.type === 'project').length}</p>
                   </div>
                   <div className="w-8 h-8 bg-purple-100 rounded-full flex items-center justify-center">
                     <Users className="h-4 w-4 text-purple-600" />

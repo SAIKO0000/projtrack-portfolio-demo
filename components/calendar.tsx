@@ -1,7 +1,7 @@
 "use client"
 
 import React from "react"
-import { useState, useEffect, useCallback } from "react"
+import { useState } from "react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
@@ -33,9 +33,8 @@ import {
 import { EventFormModal } from "./event-form-modal"
 import { DeleteEventDialog } from "./delete-event-dialog"
 import { useEvents } from "@/lib/hooks/useEvents"
-import { useProjects } from "@/lib/hooks/useProjects"
-import { usePhotos } from "@/lib/hooks/usePhotos"
-import { supabase } from "@/lib/supabase"
+import { useProjectsQuery } from "@/lib/hooks/useProjectsOptimized"
+import { usePhotosOptimized, usePhotoCountsByDate, usePhotosForDate, usePhotoOperations } from "@/lib/hooks/usePhotosOptimized"
 import type { Database } from "@/lib/supabase.types"
 import { toast } from "react-hot-toast"
 
@@ -55,41 +54,17 @@ const isSameDay = (date1: Date, date2: Date): boolean => {
   return formatDateToLocal(date1) === formatDateToLocal(date2)
 }
 
-// Photo count badge component
+// Optimized Photo count badge component - uses cached data
 interface PhotoCountBadgeProps {
   date: Date
-  selectedProject?: string
+  photoCounts: Record<string, number>
 }
 
-const PhotoCountBadge: React.FC<PhotoCountBadgeProps> = ({ date, selectedProject = "all" }) => {
-  const [photoCount, setPhotoCount] = useState<number | null>(null)
+const PhotoCountBadge: React.FC<PhotoCountBadgeProps> = ({ date, photoCounts }) => {
+  const dateString = formatDateToLocal(date)
+  const photoCount = photoCounts[dateString] || 0
   
-  useEffect(() => {
-    const loadPhotoCount = async () => {
-      try {
-        let query = supabase
-          .from('photos')
-          .select('id')
-          .eq('upload_date', formatDateToLocal(date))
-        
-        if (selectedProject !== "all") {
-          query = query.eq('project_id', selectedProject)
-        }
-        
-        const { data, error } = await query
-        
-        if (error) throw error
-        setPhotoCount(data?.length || 0)
-      } catch (error) {
-        console.error('Error loading photo count:', error)
-        setPhotoCount(0)
-      }
-    }
-    
-    loadPhotoCount()
-  }, [date, selectedProject])
-  
-  if (photoCount === null || photoCount === 0) return null
+  if (photoCount === 0) return null
   
   return (
     <div className="flex items-center gap-1 bg-blue-500 text-white rounded-full px-1.5 py-0.5 text-xs">
@@ -99,7 +74,8 @@ const PhotoCountBadge: React.FC<PhotoCountBadgeProps> = ({ date, selectedProject
   )
 }
 
-export function Calendar() {  const [selectedDate, setSelectedDate] = useState(new Date())
+export function Calendar() {
+  const [selectedDate, setSelectedDate] = useState(new Date())
   const [selectedProject, setSelectedProject] = useState("all")
   const [selectedDay, setSelectedDay] = useState<Date | null>(null)
   const [showDayModal, setShowDayModal] = useState(false)
@@ -107,31 +83,20 @@ export function Calendar() {  const [selectedDate, setSelectedDate] = useState(n
   const [deleteEventTitle, setDeleteEventTitle] = useState<string>("")
   const [editingEvent, setEditingEvent] = useState<Event | null>(null)
   const [uploadFiles, setUploadFiles] = useState<File[]>([])
-  const [dayPhotos, setDayPhotos] = useState<Photo[]>([])
   const [photoPreview, setPhotoPreview] = useState<string | null>(null)
+  
+  // Use optimized hooks - single data fetch instead of hundreds of requests
   const { events, loading: eventsLoading, fetchEvents } = useEvents()
-  const { projects, loading: projectsLoading } = useProjects()
-  const { uploadPhotos, fetchPhotosForDate, getPhotoUrl, downloadPhoto, deletePhoto, uploading, uploadProgress } = usePhotos()
-
-  // Load photos for a specific day
-  const loadDayPhotos = useCallback(async (day: Date) => {
-    const dateString = formatDateToLocal(day)
-    const photos = await fetchPhotosForDate(dateString)
-    
-    // Filter photos by selected project if not "all"
-    const filteredPhotos = selectedProject === "all" 
-      ? photos 
-      : photos.filter(photo => photo.project_id === selectedProject)
-    
-    setDayPhotos(filteredPhotos)
-  }, [fetchPhotosForDate, selectedProject])
-
-  // Reload photos when project filter changes and we have a selected day
-  useEffect(() => {
-    if (selectedDay && showDayModal) {
-      loadDayPhotos(selectedDay)
-    }
-  }, [selectedProject, loadDayPhotos, selectedDay, showDayModal])
+  const { data: projects = [], isLoading: projectsLoading } = useProjectsQuery()
+  const { data: photos = [] } = usePhotosOptimized(selectedProject)
+  const { uploadPhotos, getPhotoUrl, downloadPhoto, deletePhoto, uploading, uploadProgress } = usePhotoOperations()
+  
+  // Get photo counts for all dates at once
+  const photoCounts = usePhotoCountsByDate(photos, selectedProject)
+  
+  // Get photos for selected day - always call the hook
+  const dayPhotosFromHook = usePhotosForDate(photos, selectedDay || new Date(), selectedProject)
+  const dayPhotos = selectedDay ? dayPhotosFromHook : []
 
   const monthNames = [
     "January", "February", "March", "April", "May", "June",
@@ -230,8 +195,7 @@ export function Calendar() {  const [selectedDate, setSelectedDate] = useState(n
     if (day) {
       setSelectedDay(day)
       setShowDayModal(true)
-      // Load photos for the selected day
-      loadDayPhotos(day)
+      // Photos for the selected day will be automatically loaded from cache
     }
   }
 
@@ -260,7 +224,7 @@ export function Calendar() {  const [selectedDate, setSelectedDate] = useState(n
       const dateString = formatDateToLocal(selectedDay)
       await uploadPhotos(uploadFiles, dateString, selectedProject !== "all" ? selectedProject : undefined)
       setUploadFiles([])
-      await loadDayPhotos(selectedDay) // Refresh photos
+      // Photos will be automatically refreshed via React Query invalidation
       toast.success(`Successfully uploaded ${uploadFiles.length} photos`)
     } catch (error) {
       console.error("Upload error:", error)
@@ -289,11 +253,7 @@ export function Calendar() {  const [selectedDate, setSelectedDate] = useState(n
     try {
       await deletePhoto(photo.id)
       
-      // Refresh photos for the current day
-      if (selectedDay) {
-        await loadDayPhotos(selectedDay)
-      }
-      
+      // Photos will be automatically refreshed via React Query invalidation
       toast.success("Photo deleted successfully")
     } catch (error) {
       console.error("Failed to delete photo:", error)
@@ -372,7 +332,7 @@ export function Calendar() {  const [selectedDate, setSelectedDate] = useState(n
     setSelectedDate(new Date(date.getFullYear(), date.getMonth(), 1)) // Set to first day of month for proper navigation
     setSelectedDay(date)
     setShowDayModal(true)
-    loadDayPhotos(date)
+    // Photos for the selected day will be automatically loaded from cache
   }
   // Helper function to get relative date description
   const getRelativeDateDescription = (eventDate: Date) => {
@@ -536,7 +496,7 @@ export function Calendar() {  const [selectedDate, setSelectedDate] = useState(n
                           <div className={`text-sm font-medium ${isToday ? 'text-orange-600' : ''}`}>
                             {day.getDate()}
                           </div>
-                          <PhotoCountBadge date={day} selectedProject={selectedProject} />
+                          <PhotoCountBadge date={day} photoCounts={photoCounts} />
                         </div>
                         <div className="space-y-1">{dayEvents.slice(0, 3).map((event) => (
                             <div

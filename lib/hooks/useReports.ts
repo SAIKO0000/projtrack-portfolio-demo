@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { supabase } from '../supabase'
 import type { Database } from '../supabase.types'
 
@@ -11,7 +11,8 @@ export function useReports() {
   const [loading, setLoading] = useState(true)
   const [uploading, setUploading] = useState(false)
   const [uploadProgress, setUploadProgress] = useState(0)
-  const fetchReports = async () => {
+  
+  const fetchReports = useCallback(async () => {
     try {
       setLoading(true)
       
@@ -27,10 +28,11 @@ export function useReports() {
       
       setReports(data || [])
     } catch (error) {
-      console.error('Error fetching reports:', error)    } finally {
+      console.error('Error fetching reports:', error)
+    } finally {
       setLoading(false)
     }
-  }
+  }, [])
 
   // Normalize MIME types for better Supabase compatibility
   const normalizeMimeType = (file: File): string => {
@@ -414,7 +416,7 @@ export function useReports() {
 
   useEffect(() => {
     fetchReports()
-  }, [])
+  }, [fetchReports])
 
   return {
     reports,

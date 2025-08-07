@@ -32,13 +32,12 @@ import {
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { ReportUploadModal } from "./report-upload-modal"
 import { EditReportModal } from "./edit-report-modal"
-import { useReports } from "@/lib/hooks/useReports"
+import { useReports, type ReportWithUploader } from "@/lib/hooks/useReports"
 import { useProjects } from "@/lib/hooks/useProjects"
 import { toast } from "react-hot-toast"
 import { supabase } from "@/lib/supabase"
-import type { Report } from "@/lib/supabase"
 
-type EnhancedReport = Report & {
+type EnhancedReport = ReportWithUploader & {
   projectName: string
   file_size_mb: string
 }
@@ -437,7 +436,10 @@ export function Reports() {
                     <div className="flex flex-wrap items-center gap-4 text-xs text-gray-500">
                       <span className="flex items-center">
                         <User className="h-3 w-3 mr-1" />
-                        {report.uploaded_by || "Unknown"}
+                        <div className="flex flex-col">
+                          <span className="text-xs font-medium">{report.uploader_name || "Unknown"}</span>
+                          <span className="text-xs text-gray-400">{report.uploader_position || "Unknown Position"}</span>
+                        </div>
                       </span>
                       <span className="flex items-center">
                         <Calendar className="h-3 w-3 mr-1" />

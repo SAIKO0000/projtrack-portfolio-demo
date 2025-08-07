@@ -58,6 +58,15 @@ export function Projects({ onProjectSelect }: ProjectsProps) {
   const userPosition = user?.user_metadata?.position || "Team Member"
   const isAdmin = ["Project Manager", "Senior Electrical Engineer", "Field Engineer", "Design Engineer"].includes(userPosition)
 
+  // Helper function to get uploader name and position
+  const getUploaderInfo = (report: typeof reports[0]): { name: string; position: string } => {
+    const reportWithInfo = report as typeof report & { uploader_name?: string; uploader_position?: string }
+    return {
+      name: reportWithInfo.uploader_name || (report.uploaded_by ? `${report.uploaded_by.slice(0, 10)}...` : 'Unknown'),
+      position: reportWithInfo.uploader_position || 'Unknown Position'
+    }
+  }
+
   // Capitalize first letter of each word for formal display
   const capitalizeWords = (text: string | null | undefined): string => {
     if (!text) return "Unknown"
@@ -439,9 +448,12 @@ export function Projects({ onProjectSelect }: ProjectsProps) {
                             <div className="flex items-center justify-between">
                               <p className="text-xs text-gray-500">{report.category}</p>
                               {report.uploaded_by && (
-                                <p className="text-xs text-gray-400">
-                                  By: {report.uploaded_by.slice(0, 10)}...
-                                </p>
+                                <div className="text-xs text-gray-400">
+                                  <span className="text-xs text-gray-500">
+                                    By: {getUploaderInfo(report).name}
+                                    <span className="ml-1 text-gray-400">({getUploaderInfo(report).position})</span>
+                                  </span>
+                                </div>
                               )}
                             </div>
                             
@@ -588,7 +600,8 @@ export function Projects({ onProjectSelect }: ProjectsProps) {
                     </p>
                     {report.uploaded_by && (
                       <p className="col-span-1 md:col-span-2">
-                        <span className="font-medium">By:</span> {report.uploaded_by.slice(0, 20)}...
+                        <span className="font-medium">By:</span> {getUploaderInfo(report).name}
+                        <span className="ml-1 text-gray-500 text-sm">({getUploaderInfo(report).position})</span>
                       </p>
                     )}
                   </div>

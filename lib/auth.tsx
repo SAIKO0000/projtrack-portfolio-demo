@@ -217,10 +217,11 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
       // Try to create a personnel record (optional - don't fail signup if this fails)
       if (data.user) {
         try {
+          console.log('Creating personnel record for:', userData)
           const { error: personnelError } = await supabase
             .from('personnel')
             .insert({
-              id: data.user.id,
+              // Don't set id - let it auto-increment
               name: userData.name,
               email: email,
               position: userData.position,
@@ -233,6 +234,8 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
           if (personnelError) {
             console.warn('Personnel record creation failed (non-critical):', personnelError)
             // Don't throw - this is optional and shouldn't block signup
+          } else {
+            console.log('Personnel record created successfully')
           }
         } catch (personnelCreateError) {
           console.warn('Personnel table may not exist or have different schema:', personnelCreateError)

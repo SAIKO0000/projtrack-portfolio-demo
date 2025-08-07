@@ -6,8 +6,14 @@ type Tables<T extends keyof Database['public']['Tables']> = Database['public']['
 type Report = Database['public']['Tables']['reports']['Row']
 type ReportInsert = Database['public']['Tables']['reports']['Insert']
 
+// Extended report type with uploader name and position
+export interface ReportWithUploader extends Report {
+  uploader_name?: string
+  uploader_position?: string
+}
+
 export function useReports() {
-  const [reports, setReports] = useState<Report[]>([])
+  const [reports, setReports] = useState<ReportWithUploader[]>([])
   const [loading, setLoading] = useState(true)
   const [uploading, setUploading] = useState(false)
   const [uploadProgress, setUploadProgress] = useState(0)
@@ -16,19 +22,87 @@ export function useReports() {
     try {
       setLoading(true)
       
-      const { data, error } = await supabase
+      // Fetch reports first
+      const { data: reportsData, error: reportsError } = await supabase
         .from('reports')
         .select('*')
         .order('uploaded_at', { ascending: false })
 
-      if (error) {
-        console.error('Database error:', error)
-        throw error
+      if (reportsError) {
+        throw reportsError
       }
+
+      // Get current user to check if any reports belong to them
+      const { data: { user: currentUser } } = await supabase.auth.getUser()
       
-      setReports(data || [])
+      // Get all personnel data to map by email
+      const { data: personnelData } = await supabase
+        .from('personnel')
+        .select('id, name, email, position')
+
+      // Map reports with uploader names and positions
+      const reportsWithNames = (reportsData || []).map(report => {
+        let uploaderName = 'Unknown User'
+        let uploaderPosition = 'Unknown Position'
+        
+        // First check if uploader_name and uploader_position are already stored in the database
+        const reportWithName = report as Report & { uploader_name?: string; uploader_position?: string }
+        if (reportWithName.uploader_name) {
+          uploaderName = reportWithName.uploader_name
+        }
+        if (reportWithName.uploader_position) {
+          uploaderPosition = reportWithName.uploader_position
+        }
+        
+        // If not stored, try to get from current user or personnel data
+        if (!reportWithName.uploader_name && report.uploaded_by) {
+          // Fallback to current logic for reports without stored names
+          if (currentUser && currentUser.id === report.uploaded_by) {
+            // Try to find current user in personnel by email
+            const personnelMatch = personnelData?.find(person => 
+              person.email === currentUser.email
+            )
+            
+            if (personnelMatch) {
+              uploaderName = personnelMatch.name
+              uploaderPosition = personnelMatch.position || 'Unknown Position'
+            } else {
+              // Use the name from user metadata or email
+              uploaderName = currentUser.user_metadata?.name || 
+                           currentUser.email?.split('@')[0] || 
+                           'Current User'
+              uploaderPosition = currentUser.user_metadata?.position || 'Unknown Position'
+            }
+          } else {
+            // For other users, show a shortened UUID for now
+            uploaderName = `User ${report.uploaded_by.substring(0, 8)}`
+            uploaderPosition = 'Unknown Position'
+          }
+        }
+        
+        return {
+          ...report,
+          uploader_name: uploaderName,
+          uploader_position: uploaderPosition
+        }
+      })
+      
+      setReports(reportsWithNames)
     } catch (error) {
       console.error('Error fetching reports:', error)
+      // Fallback to reports without names
+      try {
+        const { data: fallbackData, error: fallbackError } = await supabase
+          .from('reports')
+          .select('*')
+          .order('uploaded_at', { ascending: false })
+        
+        if (!fallbackError) {
+          setReports(fallbackData || [])
+        }
+      } catch (fallbackError) {
+        console.error('Fallback fetch also failed:', fallbackError)
+      }
     } finally {
       setLoading(false)
     }
@@ -156,8 +230,41 @@ export function useReports() {
       const truncatedStatus = status.length > 50 ? status.substring(0, 50) : status
       const truncatedDescription = description && description.length > 1000 ? description.substring(0, 1000) : description
 
+      // Get current user for uploaded_by field
+      const { data: { user: currentUser } } = await supabase.auth.getUser()
+      
+      // Get uploader name and position from personnel table or user metadata
+      let uploaderName = 'Unknown User'
+      let uploaderPosition = 'Unknown Position'
+      if (currentUser && currentUser.email) {
+        console.log('Looking up user in personnel:', currentUser.email)
+        
+        // Try to find user in personnel by email
+        const { data: personnelData, error: personnelError } = await supabase
+          .from('personnel')
+          .select('name, position')
+          .eq('email', currentUser.email)
+          .single()
+        
+        console.log('Personnel lookup result:', { personnelData, personnelError })
+        
+        if (personnelData) {
+          uploaderName = personnelData.name
+          uploaderPosition = personnelData.position || 'Team Member' // Better default
+        } else {
+          console.log('User not found in personnel table, using metadata')
+          // Use name and position from user metadata or email
+          uploaderName = currentUser.user_metadata?.name || 
+                        currentUser.email.split('@')[0] || 
+                        'Current User'
+          uploaderPosition = currentUser.user_metadata?.position || 'Team Member'
+        }
+        
+        console.log('Final uploader info:', { uploaderName, uploaderPosition })
+      }
+      
       // Save report metadata to database
-      const reportData: ReportInsert = {
+      const reportData: ReportInsert & { uploader_name?: string; uploader_position?: string } = {
         project_id: projectId,
         file_name: truncatedFileName,
         file_path: filePath,
@@ -166,7 +273,9 @@ export function useReports() {
         category: truncatedCategory,
         status: truncatedStatus,
         description: truncatedDescription || null,
-        uploaded_by: null, // Will be set when auth is implemented
+        uploaded_by: currentUser?.id || null,
+        uploader_name: uploaderName,
+        uploader_position: uploaderPosition,
       }
 
       const { data: report, error: dbError } = await supabase
@@ -370,14 +479,50 @@ export function useReports() {
       const truncatedStatus = status.length > 50 ? status.substring(0, 50) : status
       const truncatedDescription = description && description.length > 1000 ? description.substring(0, 1000) : description
 
+      // Get current user for uploaded_by field
+      const { data: { user: currentUser } } = await supabase.auth.getUser()
+
+      // Get uploader name and position from personnel table or user metadata
+      let uploaderName = 'Unknown User'
+      let uploaderPosition = 'Unknown Position'
+      if (currentUser && currentUser.email) {
+        console.log('Looking up user in personnel (replace):', currentUser.email)
+        
+        // Try to find user in personnel by email
+        const { data: personnelData, error: personnelError } = await supabase
+          .from('personnel')
+          .select('name, position')
+          .eq('email', currentUser.email)
+          .single()
+        
+        console.log('Personnel lookup result (replace):', { personnelData, personnelError })
+        
+        if (personnelData) {
+          uploaderName = personnelData.name
+          uploaderPosition = personnelData.position || 'Team Member' // Better default
+        } else {
+          console.log('User not found in personnel table, using metadata (replace)')
+          // Use name and position from user metadata or email
+          uploaderName = currentUser.user_metadata?.name || 
+                        currentUser.email.split('@')[0] || 
+                        'Current User'
+          uploaderPosition = currentUser.user_metadata?.position || 'Team Member'
+        }
+        
+        console.log('Final uploader info (replace):', { uploaderName, uploaderPosition })
+      }
+
       // Update report metadata in database
-      const updateData: Partial<ReportInsert> = {
+      const updateData: Partial<ReportInsert> & { uploader_name?: string; uploader_position?: string } = {
         file_name: truncatedFileName,
         file_path: filePath,
         file_type: truncatedFileType,
         file_size: file.size,
         status: truncatedStatus,
-        uploaded_at: new Date().toISOString()
+        uploaded_at: new Date().toISOString(),
+        uploaded_by: currentUser?.id || null,
+        uploader_name: uploaderName,
+        uploader_position: uploaderPosition,
       }
 
       // Only update category and description if provided

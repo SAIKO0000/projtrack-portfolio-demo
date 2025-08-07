@@ -17,18 +17,18 @@ export function useNotificationsQuery() {
           supabase
             .from('photos')
             .select(`
-              id, description, file_url, taken_at, uploaded_at, uploaded_by, project_id,
+              id, description, storage_path, upload_date, created_at, uploaded_by, project_id,
               project:projects(id, name)
             `)
-            .order('uploaded_at', { ascending: false })
+            .order('upload_date', { ascending: false })
             .limit(10)
             .then(result => {
               if (result.error && result.error.code === 'PGRST116') {
                 // Handle missing foreign key relation gracefully
                 return supabase
                   .from('photos')
-                  .select('id, description, file_url, taken_at, uploaded_at, uploaded_by, project_id')
-                  .order('uploaded_at', { ascending: false })
+                  .select('id, description, storage_path, upload_date, created_at, uploaded_by, project_id')
+                  .order('upload_date', { ascending: false })
                   .limit(10)
               }
               return result
@@ -38,7 +38,7 @@ export function useNotificationsQuery() {
           supabase
             .from('reports')
             .select(`
-              id, title, file_url, uploaded_at, uploaded_by, description, project_id,
+              id, file_name, file_path, uploaded_at, uploaded_by, description, project_id,
               project:projects(id, name)
             `)
             .order('uploaded_at', { ascending: false })
@@ -47,7 +47,7 @@ export function useNotificationsQuery() {
               if (result.error && result.error.code === 'PGRST116') {
                 return supabase
                   .from('reports')
-                  .select('id, title, file_url, uploaded_at, uploaded_by, description, project_id')
+                  .select('id, file_name, file_path, uploaded_at, uploaded_by, description, project_id')
                   .order('uploaded_at', { ascending: false })
                   .limit(10)
               }
@@ -58,7 +58,7 @@ export function useNotificationsQuery() {
           supabase
             .from('tasks')
             .select(`
-              id, title, status, priority, due_date, created_at, updated_at, project_id, assigned_to,
+              id, name, status, priority, due_date, created_at, updated_at, project_id, assigned_to,
               project:projects(id, name),
               assignee:personnel(name)
             `)
@@ -68,7 +68,7 @@ export function useNotificationsQuery() {
               if (result.error && result.error.code === 'PGRST116') {
                 return supabase
                   .from('tasks')
-                  .select('id, title, status, priority, due_date, created_at, updated_at, project_id, assigned_to')
+                  .select('id, name, status, priority, due_date, created_at, updated_at, project_id, assigned_to')
                   .order('updated_at', { ascending: false })
                   .limit(10)
               }
@@ -79,7 +79,7 @@ export function useNotificationsQuery() {
           supabase
             .from('events')
             .select(`
-              id, title, start_date, end_date, type, status, created_at, project_id,
+              id, title, date, time, type, created_at, project_id,
               project:projects(id, name)
             `)
             .order('created_at', { ascending: false })
@@ -88,7 +88,7 @@ export function useNotificationsQuery() {
               if (result.error && result.error.code === 'PGRST116') {
                 return supabase
                   .from('events')
-                  .select('id, title, start_date, end_date, type, status, created_at, project_id')
+                  .select('id, title, date, time, type, created_at, project_id')
                   .order('created_at', { ascending: false })
                   .limit(10)
               }
@@ -215,8 +215,9 @@ export function useNotificationsQuery() {
 
     // Process photos
     photos.forEach(photo => {
-      const projectName = photo.project?.name || 'Unknown Project'
-      const projectId = photo.project?.id || photo.project_id || 'unknown'
+      const photoWithProject = photo as typeof photo & { project?: { id: string; name: string } }
+      const projectName = photoWithProject.project?.name || 'Unknown Project'
+      const projectId = photoWithProject.project?.id || photo.project_id || 'unknown'
       
       notifications.push({
         id: `photo_${photo.id}`,
@@ -224,50 +225,56 @@ export function useNotificationsQuery() {
         title: `New photo uploaded: ${photo.description || 'Untitled'}`,
         project: projectName,
         projectId: projectId,
-        timestamp: photo.uploaded_at || photo.taken_at || new Date().toISOString(),
-        description: photo.description
+        timestamp: photo.upload_date || photo.created_at || new Date().toISOString(),
+        description: photo.description || undefined
       })
     })
 
     // Process reports
     reports.forEach(report => {
-      const projectName = report.project?.name || 'Unknown Project'
-      const projectId = report.project?.id || report.project_id || 'unknown'
+      const reportWithProject = report as typeof report & { project?: { id: string; name: string } }
+      const projectName = reportWithProject.project?.name || 'Unknown Project'
+      const projectId = reportWithProject.project?.id || report.project_id || 'unknown'
       
       notifications.push({
         id: `report_${report.id}`,
         type: 'report',
-        title: `New report uploaded: ${report.title}`,
+        title: `New report uploaded: ${report.file_name}`,
         project: projectName,
         projectId: projectId,
         timestamp: report.uploaded_at || new Date().toISOString(),
-        description: report.description
+        description: report.description || undefined
       })
     })
 
     // Process tasks
     tasks.forEach(task => {
-      const projectName = task.project?.name || 'Unknown Project'
-      const projectId = task.project?.id || task.project_id || 'unknown'
-      const assigneeName = task.assignee?.name || 'Unassigned'
+      const taskWithRels = task as typeof task & { 
+        project?: { id: string; name: string }
+        assignee?: { name: string }
+      }
+      const projectName = taskWithRels.project?.name || 'Unknown Project'
+      const projectId = taskWithRels.project?.id || task.project_id || 'unknown'
+      const assigneeName = taskWithRels.assignee?.name || 'Unassigned'
       
       notifications.push({
         id: `task_${task.id}`,
         type: 'task',
-        title: `Task activity: ${task.title}`,
+        title: `Task activity: ${task.name || 'Untitled Task'}`,
         project: projectName,
         projectId: projectId,
         timestamp: task.updated_at || task.created_at || new Date().toISOString(),
         description: `Assigned to ${assigneeName}`,
-        status: task.status,
-        priority: task.priority
+        status: task.status || undefined,
+        priority: task.priority || undefined
       })
     })
 
     // Process events
     events.forEach(event => {
-      const projectName = event.project?.name || 'Unknown Project'
-      const projectId = event.project?.id || event.project_id || 'unknown'
+      const eventWithProject = event as typeof event & { project?: { id: string; name: string } }
+      const projectName = eventWithProject.project?.name || 'Unknown Project'
+      const projectId = eventWithProject.project?.id || event.project_id || 'unknown'
       
       notifications.push({
         id: `event_${event.id}`,
@@ -276,7 +283,7 @@ export function useNotificationsQuery() {
         project: projectName,
         projectId: projectId,
         timestamp: event.created_at || new Date().toISOString(),
-        status: event.status
+        status: event.type || undefined
       })
     })
 
@@ -311,11 +318,11 @@ export function useDashboardStatsQuery() {
           
           supabase
             .from('personnel')
-            .select('id, status', { count: 'exact', head: false }),
+            .select('id, position', { count: 'exact', head: false }),
           
           supabase
             .from('events')
-            .select('id, type, status', { count: 'exact', head: false })
+            .select('id, type, date', { count: 'exact', head: false })
         ])
 
         // Check for errors
@@ -346,12 +353,12 @@ export function useDashboardStatsQuery() {
           },
           personnel: {
             total: personnel.length,
-            active: personnel.filter(p => p.status === 'active').length
+            active: personnel.length // All personnel are considered active since no status field
           },
           events: {
             total: events.length,
-            upcoming: events.filter(e => e.status === 'scheduled').length,
-            completed: events.filter(e => e.status === 'completed').length
+            upcoming: events.filter(e => new Date(e.date) > new Date()).length,
+            completed: events.filter(e => new Date(e.date) <= new Date()).length
           }
         }
       } catch (error) {

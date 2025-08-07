@@ -256,7 +256,7 @@ export function Sidebar({ activeTab, onTabChangeAction }: SidebarProps) {
       {/* Profile Modal */}
       <ProfileModal 
         isOpen={showProfileModal} 
-        onClose={() => setShowProfileModal(false)} 
+        onCloseAction={() => setShowProfileModal(false)} 
       />
     </div>
   )

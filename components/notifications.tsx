@@ -24,26 +24,9 @@ import {
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Switch } from "@/components/ui/switch"
 import { useNotificationsQuery } from "@/lib/hooks/useNotificationsOptimized"
+import { useFCM } from "@/lib/hooks/useFCM"
+import { useDeadlineNotifications } from "@/lib/hooks/useDeadlineNotifications"
 import { toast } from "react-hot-toast"
-
-// Types for system notifications
-interface SystemNotification {
-  id: string
-  type: 'photo' | 'report' | 'task' | 'event' | 'project' | 'task_update'
-  title: string
-  message: string
-  project_id?: string
-  project_name?: string
-  timestamp: string
-  priority: 'high' | 'medium' | 'low'
-  metadata?: {
-    file_name?: string
-    task_title?: string
-    event_title?: string
-    status?: string
-    user_name?: string
-  }
-}
 
 const notificationSettings = [
   { id: "photos", label: "Photo Uploads", enabled: true },
@@ -65,9 +48,30 @@ export function Notifications() {
     notifications: systemNotifications, 
     isLoading: loading, 
     isFetching: refreshing,
-    refetch: handleRefresh,
+    refetch,
     error 
   } = useNotificationsQuery()
+
+  // FCM integration
+  const { 
+    token: fcmToken, 
+    notificationPermission, 
+    requestPermission: requestFCMPermission, 
+    isLoading: fcmLoading,
+    isSupported: fcmSupported
+  } = useFCM()
+
+  // Deadline notifications
+  const {
+    upcomingTasks,
+    isLoading: deadlineLoading,
+    checkDeadlines,
+    lastChecked
+  } = useDeadlineNotifications()
+
+  const handleRefresh = () => {
+    refetch()
+  }
 
   // Handle error with useEffect to avoid setState during render
   useEffect(() => {
@@ -260,7 +264,7 @@ export function Notifications() {
                 <div className="flex items-center justify-between">
                   <div>
                     <p className="text-sm text-gray-600">Projects Active</p>
-                    <p className="text-2xl font-bold">{notifications.filter(n => n.type === 'project').length}</p>
+                    <p className="text-2xl font-bold">{new Set(notifications.map(n => n.project_id).filter(Boolean)).size}</p>
                   </div>
                   <div className="w-8 h-8 bg-purple-100 rounded-full flex items-center justify-center">
                     <Users className="h-4 w-4 text-purple-600" />
@@ -272,22 +276,235 @@ export function Notifications() {
 
           {/* Settings Panel */}
           {showSettings && (
-            <Card>
-              <CardHeader>
-                <CardTitle>Notification Settings</CardTitle>
-                <CardDescription>Configure which activities you want to track</CardDescription>
-              </CardHeader>
-              <CardContent>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  {settings.map((setting) => (
-                    <div key={setting.id} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
-                      <span className="text-sm font-medium">{setting.label}</span>
-                      <Switch checked={setting.enabled} onCheckedChange={() => toggleSetting(setting.id)} />
+            <div className="space-y-4">
+              <Card>
+                <CardHeader>
+                  <CardTitle>Notification Settings</CardTitle>
+                  <CardDescription>Configure which activities you want to track</CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    {settings.map((setting) => (
+                      <div key={setting.id} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
+                        <span className="text-sm font-medium">{setting.label}</span>
+                        <Switch checked={setting.enabled} onCheckedChange={() => toggleSetting(setting.id)} />
+                      </div>
+                    ))}
+                  </div>
+                </CardContent>
+              </Card>
+
+              {/* FCM Push Notifications Settings */}
+              <Card>
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2">
+                    <Bell className="h-5 w-5" />
+                    Push Notifications
+                  </CardTitle>
+                  <CardDescription>
+                    Enable browser push notifications to receive real-time updates
+                  </CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  {/* Browser Compatibility Check */}
+                  {!fcmSupported && (
+                    <div className="p-4 bg-yellow-50 border border-yellow-200 rounded-lg">
+                      <div className="flex items-start">
+                        <AlertTriangle className="h-5 w-5 text-yellow-600 mt-0.5 mr-3" />
+                        <div>
+                          <h4 className="font-medium text-yellow-800">Browser Not Compatible</h4>
+                          <p className="text-sm text-yellow-700 mt-1">
+                            Your browser doesn&apos;t support the required APIs for push notifications. 
+                            Please use a modern browser like Chrome, Firefox, Safari, or Edge.
+                          </p>
+                        </div>
+                      </div>
                     </div>
-                  ))}
-                </div>
-              </CardContent>
-            </Card>
+                  )}
+
+                  <div className="flex items-center justify-between p-4 bg-gray-50 rounded-lg">
+                    <div className="flex-1">
+                      <h4 className="font-medium">Browser Notifications</h4>
+                      <p className="text-sm text-gray-600">
+                        {notificationPermission === 'granted' 
+                          ? 'Notifications are enabled' 
+                          : notificationPermission === 'denied'
+                          ? 'Notifications are blocked'
+                          : 'Enable notifications to receive updates'}
+                      </p>
+                      {fcmToken && (
+                        <p className="text-xs text-gray-500 mt-1 font-mono truncate">
+                          Token: {fcmToken.substring(0, 20)}...
+                        </p>
+                      )}
+                    </div>
+                    <div className="ml-4">
+                      {notificationPermission === 'granted' ? (
+                        <Badge variant="secondary" className="bg-green-100 text-green-800">
+                          <CheckCircle className="h-3 w-3 mr-1" />
+                          Enabled
+                        </Badge>
+                      ) : notificationPermission === 'denied' ? (
+                        <Badge variant="destructive">
+                          <AlertTriangle className="h-3 w-3 mr-1" />
+                          Blocked
+                        </Badge>
+                      ) : (
+                        <Button 
+                          onClick={requestFCMPermission}
+                          disabled={fcmLoading || !fcmSupported}
+                          size="sm"
+                        >
+                          {fcmLoading ? (
+                            <>
+                              <RefreshCw className="h-3 w-3 mr-1 animate-spin" />
+                              Requesting...
+                            </>
+                          ) : !fcmSupported ? (
+                            <>
+                              <AlertTriangle className="h-3 w-3 mr-1" />
+                              Not Supported
+                            </>
+                          ) : (
+                            <>
+                              <Bell className="h-3 w-3 mr-1" />
+                              Enable
+                            </>
+                          )}
+                        </Button>
+                      )}
+                    </div>
+                  </div>
+
+                  {notificationPermission === 'denied' && (
+                    <div className="p-4 bg-yellow-50 border border-yellow-200 rounded-lg">
+                      <div className="flex items-start">
+                        <AlertTriangle className="h-5 w-5 text-yellow-600 mt-0.5 mr-3" />
+                        <div>
+                          <h4 className="font-medium text-yellow-800">Notifications Blocked</h4>
+                          <p className="text-sm text-yellow-700 mt-1">
+                            To enable notifications, please click on the lock icon in your browser&apos;s address bar 
+                            and allow notifications for this site.
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
+                  {fcmToken && (
+                    <div className="space-y-4">
+                      <div className="p-4 bg-blue-50 border border-blue-200 rounded-lg">
+                        <div className="flex items-start">
+                          <CheckCircle className="h-5 w-5 text-blue-600 mt-0.5 mr-3" />
+                          <div>
+                            <h4 className="font-medium text-blue-800">Push Notifications Active</h4>
+                            <p className="text-sm text-blue-700 mt-1">
+                              You&apos;ll receive push notifications for project updates, task changes, and file uploads.
+                            </p>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+
+              {/* Deadline Notifications Card */}
+              <Card>
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2">
+                    <Clock className="h-5 w-5" />
+                    Task Deadline Notifications
+                  </CardTitle>
+                  <CardDescription>
+                    Individual task deadline notifications on login - shows specific project details, status, priority, and due dates for tasks within 7 days
+                  </CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  {/* Status Section */}
+                  <div className="flex items-center justify-between p-4 bg-gray-50 rounded-lg">
+                    <div className="flex-1">
+                      <h4 className="font-medium">Deadline Monitoring</h4>
+                      <p className="text-sm text-gray-600">
+                        {deadlineLoading ? 'Checking deadlines...' : 
+                         lastChecked ? `Last checked: ${lastChecked.toLocaleTimeString()}` : 
+                         'Not yet checked'}
+                      </p>
+                      <p className="text-xs text-gray-500 mt-1">
+                        {upcomingTasks.length} tasks with deadlines in next 7 days
+                      </p>
+                    </div>
+                    <div className="ml-4">
+                      <Button 
+                        size="sm" 
+                        variant="outline"
+                        onClick={checkDeadlines}
+                        disabled={deadlineLoading}
+                      >
+                        {deadlineLoading ? (
+                          <>
+                            <RefreshCw className="h-3 w-3 mr-1 animate-spin" />
+                            Checking...
+                          </>
+                        ) : (
+                          <>
+                            <RefreshCw className="h-3 w-3 mr-1" />
+                            Check Now
+                          </>
+                        )}
+                      </Button>
+                    </div>
+                  </div>
+
+                  {/* Upcoming Tasks */}
+                  {upcomingTasks.length > 0 && (
+                    <div className="space-y-3">
+                      <h4 className="font-medium text-gray-800">Upcoming Deadlines</h4>
+                      {upcomingTasks.map((task) => (
+                        <div key={task.id} className="p-3 border border-gray-200 rounded-lg">
+                          <div className="flex items-start justify-between">
+                            <div className="flex-1">
+                              <h5 className="font-medium text-sm">{task.project_name}</h5>
+                              <p className="text-sm text-gray-700 mt-1">{task.title}</p>
+                              <div className="flex items-center gap-4 mt-2 text-xs text-gray-500">
+                                <span className="capitalize">{task.status}</span>
+                                <span className="capitalize">{task.priority} priority</span>
+                                <span>{new Date(task.end_date).toLocaleDateString()}</span>
+                              </div>
+                            </div>
+                            <div className="ml-4 text-right">
+                              <Badge 
+                                variant={task.daysRemaining === 0 ? "destructive" : 
+                                       task.daysRemaining === 1 ? "default" : "secondary"}
+                              >
+                                {task.daysRemaining === 0 ? '🚨 Due Today' : 
+                                 task.daysRemaining === 1 ? '⚠️ 1 day left' : 
+                                 `⏰ ${task.daysRemaining} days`}
+                              </Badge>
+                            </div>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+
+                  {/* No upcoming tasks */}
+                  {upcomingTasks.length === 0 && !deadlineLoading && (
+                    <div className="p-4 bg-green-50 border border-green-200 rounded-lg">
+                      <div className="flex items-center">
+                        <CheckCircle className="h-5 w-5 text-green-600 mr-3" />
+                        <div>
+                          <h4 className="font-medium text-green-800">All Good!</h4>
+                          <p className="text-sm text-green-700">
+                            No tasks with deadlines in the next 7 days.
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            </div>
           )}
 
           {/* Filters */}

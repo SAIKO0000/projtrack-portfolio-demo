@@ -158,8 +158,8 @@ export function TaskFormModalOptimized({ onTaskCreated }: TaskFormModalProps) {
   return (
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>
-        <Button className="bg-gradient-to-r from-orange-500 to-orange-600 hover:from-orange-600 hover:to-orange-700 w-full sm:w-auto min-h-[44px] shadow-sm">
-          <Plus className="h-4 w-4 mr-2" />
+        <Button className="bg-gradient-to-r from-orange-500 to-orange-600 hover:from-orange-600 hover:to-orange-700 w-full sm:w-auto h-9 sm:h-10 md:min-h-[44px] shadow-sm text-sm px-3 sm:px-4">
+          <Plus className="h-4 w-4 mr-1 sm:mr-2" />
           Add Task
         </Button>
       </DialogTrigger>
@@ -263,6 +263,26 @@ export function TaskFormModalOptimized({ onTaskCreated }: TaskFormModalProps) {
                   />
                 </PopoverContent>
               </Popover>
+              {formData.project_id ? (() => {
+                const selectedProject = projects.find(p => p.id === formData.project_id)
+                if (selectedProject?.start_date) {
+                  const projectStartDate = new Date(selectedProject.start_date)
+                  return (
+                    <p className="text-xs text-muted-foreground mt-1">
+                      Cannot be before project start date: {projectStartDate.toLocaleDateString("en-US", {
+                        year: 'numeric',
+                        month: 'short',
+                        day: 'numeric'
+                      })}
+                    </p>
+                  )
+                }
+                return null
+              })() : (
+                <p className="text-xs text-muted-foreground mt-1">
+                  Select a project first to see date restrictions
+                </p>
+              )}
             </div>
 
             <div>

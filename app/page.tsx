@@ -11,12 +11,16 @@ import { Team } from "@/components/team"
 import { Reports } from "@/components/reports"
 import { Notifications } from "@/components/notifications"
 import { useAuth } from "@/lib/auth"
+import { useAutoNotifications } from "@/lib/hooks/useAutoNotifications"
 
 export default function Home() {
   const [activeTab, setActiveTab] = useState("dashboard")
   const [selectedProjectId, setSelectedProjectId] = useState<string | null>(null)
   const { user, loading } = useAuth()
   const router = useRouter()
+
+  // Auto-trigger notifications when user logs in
+  useAutoNotifications()
 
   useEffect(() => {
     if (!loading && !user) {
@@ -78,7 +82,11 @@ export default function Home() {
   return (
     <div className="flex h-screen bg-gray-50">
       <Sidebar activeTab={activeTab} onTabChangeAction={handleTabChange} />
-      <main className="flex-1 overflow-hidden">{renderContent()}</main>
+      <main className="flex-1 overflow-hidden">
+        <div className="h-full overflow-y-auto pt-20 lg:pt-0">
+          {renderContent()}
+        </div>
+      </main>
     </div>
   )
 }

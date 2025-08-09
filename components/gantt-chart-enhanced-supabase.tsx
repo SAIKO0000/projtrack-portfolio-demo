@@ -501,12 +501,12 @@ export function GanttChartEnhanced({ selectedProjectId }: GanttChartEnhancedProp
   }
 
   return (
-    <div className="p-4 md:p-6 space-y-4 overflow-y-auto h-full bg-gray-50 dark:bg-gray-950">
+    <div className="p-2 sm:p-4 md:p-6 space-y-2 sm:space-y-3 md:space-y-4 overflow-y-auto h-full bg-gray-50 dark:bg-gray-950">
       {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 sm:gap-3">
         <div>
-          <h1 className="text-xl md:text-2xl font-bold text-gray-900 dark:text-white">Task Gantt Chart</h1>
-          <p className="text-gray-600 dark:text-gray-400 text-sm">
+          <h1 className="text-lg sm:text-xl md:text-2xl font-bold text-gray-900 dark:text-white">Task Gantt Chart</h1>
+          <p className="text-gray-600 dark:text-gray-400 text-xs sm:text-sm">
             Task timelines, deadlines, and progress tracking
           </p>
         </div>
@@ -519,80 +519,83 @@ export function GanttChartEnhanced({ selectedProjectId }: GanttChartEnhancedProp
       </div>
 
       {/* Stats Cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3 md:gap-4">
-        <Card className="border-l-4 border-l-blue-500 dark:bg-gray-900 dark:border-gray-800 hover:shadow-lg transition-shadow">
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-1">
-            <CardTitle className="text-sm font-medium dark:text-white">Total Tasks</CardTitle>
+      <div className="grid grid-cols-2 lg:grid-cols-5 gap-3 sm:gap-4">
+        <Card className="border-l-4 border-l-blue-500 dark:bg-gray-900 dark:border-gray-800 hover:shadow-md transition-all duration-200">
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2 px-4 pt-4">
+            <CardTitle className="text-sm font-semibold text-gray-700 dark:text-gray-300">Total Tasks</CardTitle>
             <BarChart3 className="h-4 w-4 text-blue-500" />
           </CardHeader>
-          <CardContent className="pb-3">
-            <div className="text-xl font-bold dark:text-white">{overallStats.total}</div>
-            <p className="text-xs text-muted-foreground dark:text-gray-400">In timeline</p>
+          <CardContent className="pb-4 px-4">
+            <div className="text-2xl font-bold text-gray-900 dark:text-white">{overallStats.total}</div>
+            <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">In timeline</p>
           </CardContent>
         </Card>
 
-        <Card className="border-l-4 border-l-green-500 dark:bg-gray-900 dark:border-gray-800 hover:shadow-lg transition-shadow">
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-1">
-            <CardTitle className="text-sm font-medium dark:text-white">Completed</CardTitle>
+        <Card className="border-l-4 border-l-green-500 dark:bg-gray-900 dark:border-gray-800 hover:shadow-md transition-all duration-200">
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2 px-4 pt-4">
+            <CardTitle className="text-sm font-semibold text-gray-700 dark:text-gray-300">Completed</CardTitle>
             <CheckCircle className="h-4 w-4 text-green-500" />
           </CardHeader>
-          <CardContent className="pb-3">
-            <div className="text-xl font-bold dark:text-white">{overallStats.completed}</div>
-            <p className="text-xs text-muted-foreground dark:text-gray-400">Finished tasks</p>
+          <CardContent className="pb-4 px-4">
+            <div className="text-2xl font-bold text-gray-900 dark:text-white">{overallStats.completed}</div>
+            <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">Finished tasks</p>
           </CardContent>
         </Card>
 
-        <Card className="border-l-4 border-l-orange-500 dark:bg-gray-900 dark:border-gray-800 hover:shadow-lg transition-shadow">
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-1">
-            <CardTitle className="text-sm font-medium dark:text-white">In Progress</CardTitle>
+        <Card className="border-l-4 border-l-orange-500 dark:bg-gray-900 dark:border-gray-800 hover:shadow-md transition-all duration-200">
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2 px-4 pt-4">
+            <CardTitle className="text-sm font-semibold text-gray-700 dark:text-gray-300">In Progress</CardTitle>
             <Play className="h-4 w-4 text-orange-500" />
           </CardHeader>
-          <CardContent className="pb-3">
-            <div className="text-xl font-bold dark:text-white">{overallStats.inProgress}</div>
-            <p className="text-xs text-muted-foreground dark:text-gray-400">Active work</p>
+          <CardContent className="pb-4 px-4">
+            <div className="text-2xl font-bold text-gray-900 dark:text-white">{overallStats.inProgress}</div>
+            <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">Active work</p>
           </CardContent>
         </Card>
 
-        <Card className="border-l-4 border-l-red-500 dark:bg-gray-900 dark:border-gray-800 hover:shadow-lg transition-shadow">
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-1">
-            <CardTitle className="text-sm font-medium dark:text-white">Delayed</CardTitle>
+        <Card className="border-l-4 border-l-red-500 dark:bg-gray-900 dark:border-gray-800 hover:shadow-md transition-all duration-200">
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2 px-4 pt-4">
+            <CardTitle className="text-sm font-semibold text-gray-700 dark:text-gray-300">Delayed</CardTitle>
             <AlertTriangle className="h-4 w-4 text-red-500" />
           </CardHeader>
-          <CardContent className="pb-3">
-            <div className="text-xl font-bold dark:text-white">{overallStats.delayed}</div>
-            <p className="text-xs text-muted-foreground dark:text-gray-400">Need attention</p>
+          <CardContent className="pb-4 px-4">
+            <div className="text-2xl font-bold text-gray-900 dark:text-white">{overallStats.delayed}</div>
+            <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">Need attention</p>
           </CardContent>
         </Card>
 
-        <Card className="border-l-4 border-l-purple-500 dark:bg-gray-900 dark:border-gray-800 hover:shadow-lg transition-shadow">
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-1">
-            <CardTitle className="text-sm font-medium dark:text-white">Avg Progress</CardTitle>
+        <Card className="border-l-4 border-l-purple-500 dark:bg-gray-900 dark:border-gray-800 hover:shadow-md transition-all duration-200 col-span-2 lg:col-span-1">
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2 px-4 pt-4">
+            <CardTitle className="text-sm font-semibold text-gray-700 dark:text-gray-300">Progress</CardTitle>
             <BarChart3 className="h-4 w-4 text-purple-500" />
           </CardHeader>
-          <CardContent className="pb-3">
-            <div className="text-xl font-bold dark:text-white">{overallStats.avgProgress}%</div>
-            <p className="text-xs text-muted-foreground dark:text-gray-400">Overall completion</p>
+          <CardContent className="pb-4 px-4">
+            <div className="text-2xl font-bold text-gray-900 dark:text-white">{overallStats.avgProgress}%</div>
+            <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">Overall completion</p>
           </CardContent>
         </Card>
       </div>
 
       {/* Filters */}
       <Card className="dark:bg-gray-900 dark:border-gray-800">
-        <CardContent className="pt-4 pb-4">
-          <div className="flex flex-col lg:flex-row gap-3 items-start lg:items-center">
-            <div className="relative flex-1 max-w-md">
+        <CardContent className="pt-3 pb-3 px-3 sm:px-6">
+          <div className="flex flex-col gap-2 sm:gap-3">
+            {/* Search */}
+            <div className="relative w-full">
               <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-4 w-4" />
               <Input
                 placeholder="Search tasks, projects, assignees..."
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
-                className="pl-10 bg-white dark:bg-gray-700 border-gray-200 dark:border-gray-600 h-10"
+                className="pl-10 bg-white dark:bg-gray-700 border-gray-200 dark:border-gray-600 h-9 sm:h-10 text-sm"
               />
             </div>
-            <div className="flex flex-col sm:flex-row gap-3 flex-1">
+            
+            {/* Filters Row */}
+            <div className="grid grid-cols-3 gap-2 sm:flex sm:gap-2 lg:gap-3">
               <Select value={projectFilter} onValueChange={setProjectFilter}>
-                <SelectTrigger className="w-full sm:w-36 h-10 bg-white dark:bg-gray-900">
-                  <SelectValue placeholder="All Projects" />
+                <SelectTrigger className="h-9 sm:h-9 lg:h-10 bg-white dark:bg-gray-900 text-xs sm:text-sm lg:text-sm">
+                  <SelectValue placeholder="Projects" />
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="all">All Projects</SelectItem>
@@ -605,7 +608,7 @@ export function GanttChartEnhanced({ selectedProjectId }: GanttChartEnhancedProp
               </Select>
 
               <Select value={statusFilter} onValueChange={setStatusFilter}>
-                <SelectTrigger className="w-full sm:w-32 h-10 bg-white dark:bg-gray-900">
+                <SelectTrigger className="h-9 sm:h-9 lg:h-10 bg-white dark:bg-gray-900 text-xs sm:text-sm lg:text-sm">
                   <SelectValue placeholder="Status" />
                 </SelectTrigger>
                 <SelectContent>
@@ -619,7 +622,7 @@ export function GanttChartEnhanced({ selectedProjectId }: GanttChartEnhancedProp
               </Select>
 
               <Select value={priorityFilter} onValueChange={setPriorityFilter}>
-                <SelectTrigger className="w-full sm:w-32 h-10 bg-white dark:bg-gray-900">
+                <SelectTrigger className="h-9 sm:h-9 lg:h-10 bg-white dark:bg-gray-900 text-xs sm:text-sm lg:text-sm">
                   <SelectValue placeholder="Priority" />
                 </SelectTrigger>
                 <SelectContent>
@@ -630,39 +633,41 @@ export function GanttChartEnhanced({ selectedProjectId }: GanttChartEnhancedProp
                 </SelectContent>
               </Select>
             </div>
+            
+            {/* View Mode Buttons */}
             <div className="flex items-center bg-gray-100 dark:bg-gray-800 rounded-lg p-1">
               <Button
                 variant={viewMode === "daily" ? "default" : "ghost"}
                 size="sm"
                 onClick={() => setViewMode("daily")}
-                className={`h-8 ${
+                className={`h-7 sm:h-8 text-xs px-2 sm:px-3 whitespace-nowrap flex-1 transition-all duration-200 ${
                   viewMode === "daily" 
-                    ? "bg-white dark:bg-gray-700 shadow-sm text-gray-900 dark:text-white border-gray-200 dark:border-gray-600 hover:bg-white dark:hover:bg-gray-700" 
-                    : "text-gray-600 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white hover:bg-gray-200 dark:hover:bg-gray-700"
+                    ? "bg-white dark:bg-gray-700 shadow-sm text-gray-900 dark:text-white hover:bg-white dark:hover:bg-gray-700" 
+                    : "text-gray-600 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white hover:bg-white/50 dark:hover:bg-gray-700/50 hover:shadow-none"
                 }`}
               >
-                Daily View
+                Daily
               </Button>
               <Button
                 variant={viewMode === "weekly" ? "default" : "ghost"}
                 size="sm"
                 onClick={() => setViewMode("weekly")}
-                className={`h-8 ${
+                className={`h-7 sm:h-8 text-xs px-2 sm:px-3 whitespace-nowrap flex-1 transition-all duration-200 ${
                   viewMode === "weekly" 
-                    ? "bg-white dark:bg-gray-700 shadow-sm text-gray-900 dark:text-white border-gray-200 dark:border-gray-600 hover:bg-white dark:hover:bg-gray-700" 
-                    : "text-gray-600 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white hover:bg-gray-200 dark:hover:bg-gray-700"
+                    ? "bg-white dark:bg-gray-700 shadow-sm text-gray-900 dark:text-white hover:bg-white dark:hover:bg-gray-700" 
+                    : "text-gray-600 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white hover:bg-white/50 dark:hover:bg-gray-700/50 hover:shadow-none"
                 }`}
               >
-                Weekly View
+                Weekly
               </Button>
               <Button
                 variant={viewMode === "full" ? "default" : "ghost"}
                 size="sm"
                 onClick={() => setViewMode("full")}
-                className={`h-8 ${
+                className={`h-7 sm:h-8 text-xs px-2 sm:px-3 whitespace-nowrap flex-1 transition-all duration-200 ${
                   viewMode === "full" 
-                    ? "bg-white dark:bg-gray-700 shadow-sm text-gray-900 dark:text-white border-gray-200 dark:border-gray-600 hover:bg-white dark:hover:bg-gray-700" 
-                    : "text-gray-600 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white hover:bg-gray-200 dark:hover:bg-gray-700"
+                    ? "bg-white dark:bg-gray-700 shadow-sm text-gray-900 dark:text-white hover:bg-white dark:hover:bg-gray-700" 
+                    : "text-gray-600 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white hover:bg-white/50 dark:hover:bg-gray-700/50 hover:shadow-none"
                 }`}
               >
                 Full Timeline
@@ -674,33 +679,33 @@ export function GanttChartEnhanced({ selectedProjectId }: GanttChartEnhancedProp
 
       {/* Timeline Navigation */}
       <Card className="dark:bg-gray-900 dark:border-gray-800">
-        <CardHeader className="pb-3">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center space-x-3">
-              <CardTitle className="dark:text-white text-lg">
+        <CardHeader className="pb-3 px-3 sm:px-6">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+            <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:space-x-3 min-w-0">
+              <CardTitle className="dark:text-white text-sm sm:text-lg truncate">
                 {projectFilter !== "all" 
-                  ? `${projects.find(p => p.id === projectFilter)?.name || 'Unknown Project'} Task Timeline` 
+                  ? `${projects.find(p => p.id === projectFilter)?.name || 'Unknown Project'} Timeline` 
                   : viewMode === "daily" 
-                    ? `Daily View - ${currentPeriod.toLocaleDateString("en-PH", { weekday: "long", year: "numeric", month: "long", day: "numeric" })}`
+                    ? `Daily - ${currentPeriod.toLocaleDateString("en-PH", { month: "short", day: "numeric" })}`
                     : viewMode === "weekly"
-                      ? `Weekly View - ${currentPeriod.toLocaleDateString("en-PH", { year: "numeric", month: "long", day: "numeric" })}`
-                      : "Full Timeline View"
+                      ? `Weekly - ${currentPeriod.toLocaleDateString("en-PH", { month: "short", day: "numeric" })}`
+                      : "Full Timeline"
                 }
               </CardTitle>
-              <Badge variant="outline" className="text-xs">
+              <Badge variant="outline" className="text-xs w-fit">
                 {filteredTasks.length} tasks
               </Badge>
             </div>
-            <div className="flex items-center space-x-2">
+            <div className="flex items-center space-x-1 sm:space-x-2">
               {viewMode !== "full" && (
                 <>
                   <Button
                     variant="outline"
                     size="sm"
                     onClick={() => navigatePeriod("prev")}
-                    className="h-10 w-10"
+                    className="h-8 w-8 sm:h-10 sm:w-10 p-0"
                   >
-                    <ChevronLeft className="h-4 w-4" />
+                    <ChevronLeft className="h-3 w-3 sm:h-4 sm:w-4" />
                   </Button>
                   <Button
                     variant="outline"
@@ -713,7 +718,7 @@ export function GanttChartEnhanced({ selectedProjectId }: GanttChartEnhancedProp
                       const philippinesTime = new Date(now.getTime() + (localOffset + philippinesOffset) * 60000)
                       setCurrentPeriod(philippinesTime)
                     }}
-                    className="h-10 px-3"
+                    className="h-8 px-2 sm:h-10 sm:px-3 text-xs sm:text-sm"
                     title="Go to current period (Philippines time)"
                   >
                     Today
@@ -722,18 +727,18 @@ export function GanttChartEnhanced({ selectedProjectId }: GanttChartEnhancedProp
                     variant="outline"
                     size="sm"
                     onClick={() => navigatePeriod("next")}
-                    className="h-10 w-10"
+                    className="h-8 w-8 sm:h-10 sm:w-10 p-0"
                   >
-                    <ChevronRight className="h-4 w-4" />
+                    <ChevronRight className="h-3 w-3 sm:h-4 sm:w-4" />
                   </Button>
                 </>
               )}
             </div>
           </div>
         </CardHeader>
-        <CardContent className="pt-0">
-          {/* Timeline Header */}
-          <div className="grid grid-cols-12 gap-2 mb-3 pb-2 border-b border-gray-200 dark:border-gray-700">
+        <CardContent className="pt-0 px-3 sm:px-6">
+          {/* Timeline Header - Desktop */}
+          <div className="hidden sm:grid grid-cols-12 gap-2 mb-3 pb-2 border-b border-gray-200 dark:border-gray-700">
             <div className="col-span-4 text-sm font-medium text-gray-600 dark:text-gray-400">Task Details</div>
             <div className="col-span-8">
               {viewMode === "daily" ? (
@@ -862,32 +867,50 @@ export function GanttChartEnhanced({ selectedProjectId }: GanttChartEnhancedProp
             </div>
           </div>
 
+          {/* Mobile Timeline Header */}
+          <div className="sm:hidden mb-3 p-2 bg-gray-100 dark:bg-gray-800 rounded-lg">
+            <div className="text-center">
+              <div className="text-sm font-medium text-gray-800 dark:text-gray-200">
+                {viewMode === "daily" 
+                  ? currentPeriod.toLocaleDateString("en-PH", { month: "short", day: "numeric" })
+                  : viewMode === "weekly"
+                    ? `Week of ${currentPeriod.toLocaleDateString("en-PH", { month: "short", day: "numeric" })}`
+                    : "Timeline Overview"
+                }
+              </div>
+              <div className="text-xs text-gray-500 dark:text-gray-400">
+                {filteredTasks.length} task{filteredTasks.length !== 1 ? 's' : ''}
+              </div>
+            </div>
+          </div>
+
           {/* Task Rows */}
-          <div className="space-y-4">
+          <div className="space-y-2 sm:space-y-4">
             {filteredTasks.map((task, index) => {
               const position = getTaskPosition(task, timelineMonths)
               const daysUntilDeadline = getDaysUntilDeadline(task.end_date, task.status)
               const overdue = isOverdue(task.end_date, task.status)
 
               return (
-                <div
-                  key={task.id}
-                  className={`grid grid-cols-12 gap-2 items-center py-3 rounded-lg transition-colors group relative ${
-                    index % 2 === 0 
-                      ? 'bg-white dark:bg-gray-900 hover:bg-gray-50 dark:hover:bg-gray-800' 
-                      : 'bg-gray-50 dark:bg-gray-800 hover:bg-gray-100 dark:hover:bg-gray-700'
-                  }`}
-                >
-                  {/* Task Info */}
-                  <div className="col-span-4 space-y-2">
-                    <div className="flex items-start justify-between">
-                      <div className="flex-1 min-w-0">
-                        <h3 className="text-sm font-medium text-gray-900 dark:text-white truncate">{task.title}</h3>
-                        <p className="text-xs text-gray-500 dark:text-gray-400 truncate">{task.project_name}</p>
-                      </div>
-                      <DropdownMenu>
-                        <DropdownMenuTrigger asChild>
-                          <Button
+                <div key={task.id}>
+                  {/* Desktop Layout */}
+                  <div
+                    className={`hidden sm:grid grid-cols-12 gap-2 items-center py-3 px-3 rounded-lg transition-colors group relative ${
+                      index % 2 === 0 
+                        ? 'bg-white dark:bg-gray-900 hover:bg-gray-50 dark:hover:bg-gray-800' 
+                        : 'bg-gray-50 dark:bg-gray-800 hover:bg-gray-100 dark:hover:bg-gray-700'
+                    }`}
+                  >
+                    {/* Task Info - Desktop */}
+                    <div className="col-span-4 space-y-2">
+                      <div className="flex items-start justify-between">
+                        <div className="flex-1 min-w-0">
+                          <h3 className="text-sm font-medium text-gray-900 dark:text-white truncate">{task.title}</h3>
+                          <p className="text-xs text-gray-500 dark:text-gray-400 truncate">{task.project_name}</p>
+                        </div>
+                        <DropdownMenu>
+                          <DropdownMenuTrigger asChild>
+                            <Button
                             variant="ghost"
                             size="sm"
                             className="h-8 w-8 p-0 text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200"
@@ -950,7 +973,7 @@ export function GanttChartEnhanced({ selectedProjectId }: GanttChartEnhancedProp
                     </div>
                   </div>
 
-                  {/* Timeline */}
+                  {/* Timeline - Desktop */}
                   <div className="col-span-8">
                     <div className="overflow-x-auto">
                       <div className="relative h-8 bg-gray-100 dark:bg-gray-800 rounded-lg overflow-hidden" 
@@ -1031,6 +1054,156 @@ export function GanttChartEnhanced({ selectedProjectId }: GanttChartEnhancedProp
                       </div>
                     </div>
                   </div>
+                  </div>
+
+                  {/* Mobile Layout */}
+                  <div className={`sm:hidden p-2 rounded-lg border-l-4 transition-colors ${
+                    overdue ? 'border-l-red-500' : 
+                    task.status === 'completed' ? 'border-l-green-500' :
+                    task.status === 'in-progress' ? 'border-l-orange-500' : 'border-l-blue-500'
+                  } ${
+                    index % 2 === 0 
+                      ? 'bg-white dark:bg-gray-900' 
+                      : 'bg-gray-50 dark:bg-gray-800'
+                  }`}>
+                    {/* Task Header - Mobile - More Compact */}
+                    <div className="flex items-center justify-between mb-2">
+                      <div className="flex-1 min-w-0 mr-2">
+                        <div className="flex items-center gap-2 mb-1">
+                          <h3 className="text-sm font-medium text-gray-900 dark:text-white truncate">{task.title}</h3>
+                          <Badge className={`${getStatusColor(task.status, overdue)} text-xs px-1.5 py-0.5`}>
+                            {getEffectiveStatus(task.status, overdue)?.replace("-", " ") || 'Unknown'}
+                          </Badge>
+                        </div>
+                        <div className="flex items-center gap-3 text-xs text-gray-500 dark:text-gray-400">
+                          <span className="truncate">{task.project_name}</span>
+                          <Badge className={`${getPriorityColor(task.priority || 'medium')} text-xs px-1.5 py-0.5`}>
+                            {task.priority || 'medium'}
+                          </Badge>
+                        </div>
+                      </div>
+                      <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="h-6 w-6 p-0 text-gray-400 hover:text-gray-600 dark:text-gray-500 dark:hover:text-gray-300"
+                          >
+                            <MoreVertical className="h-3 w-3" />
+                          </Button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="end" className="w-36">
+                          <DropdownMenuItem onClick={() => handleEditTask(task)} className="text-xs">
+                            <Edit className="h-3 w-3 mr-2" />
+                            Edit
+                          </DropdownMenuItem>
+                          <DropdownMenuItem 
+                            onClick={() => handleDeleteTask(task)}
+                            className="text-red-600 dark:text-red-400 text-xs"
+                          >
+                            <Trash2 className="h-3 w-3 mr-2" />
+                            Delete
+                          </DropdownMenuItem>
+                        </DropdownMenuContent>
+                      </DropdownMenu>
+                    </div>
+
+                    {/* Timeline Bar - Mobile - More Prominent */}
+                    <div className="mb-2">
+                      <div className="relative h-4 bg-gray-200 dark:bg-gray-700 rounded-md overflow-hidden">
+                        {position.isVisible && (
+                          <div
+                            className={`absolute top-0 bottom-0 rounded-md ${getProjectBarColor(task.status, overdue)} opacity-80`}
+                            style={{
+                              left: position.left,
+                              width: position.width,
+                            }}
+                          >
+                            <div className="flex items-center justify-center h-full">
+                              <span className="text-white text-xs font-medium px-1">
+                                {task.progress ? `${task.progress}%` : ''}
+                              </span>
+                            </div>
+                          </div>
+                        )}
+                        
+                        {/* Today line - Mobile */}
+                        {(() => {
+                          const now = new Date()
+                          const philippinesOffset = 8 * 60
+                          const localOffset = now.getTimezoneOffset()
+                          const philippinesTime = new Date(now.getTime() + (localOffset + philippinesOffset) * 60000)
+                          const today = new Date(philippinesTime.getFullYear(), philippinesTime.getMonth(), philippinesTime.getDate())
+                          
+                          let todayPosition = 0
+                          let isTodayVisible = false
+
+                          if (viewMode === "weekly") {
+                            for (let i = 0; i < timelineMonths.length; i++) {
+                              const weekStart = new Date(timelineMonths[i].date)
+                              weekStart.setHours(0, 0, 0, 0)
+                              const weekEnd = new Date(timelineMonths[i].endDate)
+                              weekEnd.setHours(23, 59, 59, 999)
+                              
+                              if (today >= weekStart && today <= weekEnd) {
+                                const weekColumnWidth = 100 / timelineMonths.length
+                                const weekStartPosition = i * weekColumnWidth
+                                const weekCenterPosition = weekStartPosition + (weekColumnWidth / 2)
+                                
+                                todayPosition = weekCenterPosition
+                                isTodayVisible = true
+                                break
+                              }
+                            }
+                          } else {
+                            const timelineStart = timelineMonths[0].date
+                            const timelineEnd = timelineMonths[timelineMonths.length - 1].endDate ||
+                              new Date(
+                                timelineMonths[timelineMonths.length - 1].date.getFullYear(),
+                                timelineMonths[timelineMonths.length - 1].date.getMonth() + 1,
+                                0,
+                              )
+
+                            const totalDuration = timelineEnd.getTime() - timelineStart.getTime()
+                            const todayOffset = today.getTime() - timelineStart.getTime()
+                            todayPosition = (todayOffset / totalDuration) * 100
+                            isTodayVisible = todayPosition >= 0 && todayPosition <= 100
+                          }
+
+                          return isTodayVisible ? (
+                            <div
+                              className="absolute top-0 bottom-0 w-0.5 bg-red-600 z-30"
+                              style={{ left: `${todayPosition}%` }}
+                            />
+                          ) : null
+                        })()}
+                      </div>
+                    </div>
+
+                    {/* Compact Info Row */}
+                    <div className="flex items-center justify-between text-xs text-gray-500 dark:text-gray-400">
+                      <div className="flex items-center gap-3">
+                        <span className="flex items-center gap-1">
+                          <Calendar className="h-3 w-3" />
+                          {formatDate(task.start_date)} - {formatDate(task.end_date)}
+                        </span>
+                        {task.assignee && (
+                          <span className="flex items-center gap-1">
+                            <Users className="h-3 w-3" />
+                            {task.assignee}
+                          </span>
+                        )}
+                      </div>
+                      {daysUntilDeadline !== null && (
+                        <span className={`flex items-center gap-1 font-medium ${overdue ? "text-red-600 dark:text-red-400" : "text-blue-600 dark:text-blue-400"}`}>
+                          <Clock className="h-3 w-3" />
+                          {overdue
+                            ? `${Math.abs(daysUntilDeadline)}d overdue`
+                            : `${daysUntilDeadline}d left`}
+                        </span>
+                      )}
+                    </div>
+                  </div>
                 </div>
               )
             })}
@@ -1062,7 +1235,7 @@ export function GanttChartEnhanced({ selectedProjectId }: GanttChartEnhancedProp
           assignee: editingTask.assignee
         } : null}
         open={isEditModalOpen}
-        onOpenChange={setIsEditModalOpen}
+        onOpenChangeAction={setIsEditModalOpen}
         onTaskUpdated={handleTaskUpdated}
       />
     </div>

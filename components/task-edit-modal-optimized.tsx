@@ -46,11 +46,11 @@ interface TaskFormData {
 interface TaskEditModalProps {
   readonly task: Task | null
   readonly open: boolean
-  readonly onOpenChange: (open: boolean) => void
+  readonly onOpenChangeAction: (open: boolean) => void
   readonly onTaskUpdated?: () => void
 }
 
-export function TaskEditModalOptimized({ task, open, onOpenChange, onTaskUpdated }: TaskEditModalProps) {
+export function TaskEditModalOptimized({ task, open, onOpenChangeAction, onTaskUpdated }: TaskEditModalProps) {
   const { projects } = useProjects()
   const { updateTask } = useGanttTasks()
   const [loading, setLoading] = useState(false)
@@ -159,7 +159,7 @@ export function TaskEditModalOptimized({ task, open, onOpenChange, onTaskUpdated
 
       toast.success("Task updated successfully!")
       onTaskUpdated?.()
-      onOpenChange(false)
+      onOpenChangeAction(false)
     } catch (error) {
       console.error("Error updating task:", error)
       toast.error("Failed to update task. Please try again.")
@@ -168,7 +168,7 @@ export function TaskEditModalOptimized({ task, open, onOpenChange, onTaskUpdated
     }
   }
 
-  const handleInputChange = (field: keyof TaskFormData, value: any) => {
+  const handleInputChange = (field: keyof TaskFormData, value: string | Date | undefined) => {
     setFormData(prev => ({
       ...prev,
       [field]: value
@@ -176,7 +176,7 @@ export function TaskEditModalOptimized({ task, open, onOpenChange, onTaskUpdated
   }
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
+    <Dialog open={open} onOpenChange={onOpenChangeAction}>
       <DialogContent className="sm:max-w-[600px] max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>Edit Task</DialogTitle>
@@ -271,6 +271,26 @@ export function TaskEditModalOptimized({ task, open, onOpenChange, onTaskUpdated
                   />
                 </PopoverContent>
               </Popover>
+              {formData.project_id ? (() => {
+                const selectedProject = projects.find(p => p.id === formData.project_id)
+                if (selectedProject?.start_date) {
+                  const projectStartDate = new Date(selectedProject.start_date)
+                  return (
+                    <p className="text-xs text-muted-foreground mt-1">
+                      Cannot be before project start date: {projectStartDate.toLocaleDateString("en-US", {
+                        year: 'numeric',
+                        month: 'short',
+                        day: 'numeric'
+                      })}
+                    </p>
+                  )
+                }
+                return null
+              })() : (
+                <p className="text-xs text-muted-foreground mt-1">
+                  Select a project first to see date restrictions
+                </p>
+              )}
             </div>
 
             <div>
@@ -392,7 +412,7 @@ export function TaskEditModalOptimized({ task, open, onOpenChange, onTaskUpdated
             <Button
               type="button"
               variant="outline"
-              onClick={() => onOpenChange(false)}
+              onClick={() => onOpenChangeAction(false)}
               disabled={loading}
             >
               Cancel

@@ -40,7 +40,7 @@ interface ProjectsProps {
 }
 
 export function Projects({ onProjectSelect }: ProjectsProps) {
-  const { projects, loading, fetchProjects, deleteProject } = useProjects()
+  const { projects, loading, fetchProjects, deleteProject, updateProject } = useProjects()
   const { tasks, loading: tasksLoading } = useTasks()
   const { reports, loading: reportsLoading, updateReport } = useReports()
   const { user } = useAuth()
@@ -150,6 +150,17 @@ export function Projects({ onProjectSelect }: ProjectsProps) {
     fetchProjects() // Refresh projects list
   }
 
+  // Handle project status update
+  const handleStatusUpdate = async (projectId: string, newStatus: string) => {
+    try {
+      await updateProject(projectId, { status: newStatus })
+      toast.success("Project status updated successfully")
+    } catch (error) {
+      console.error("Status update error:", error)
+      toast.error("Failed to update project status")
+    }
+  }
+
   const handleReportStatusUpdate = async (reportId: string, status: string) => {
     try {
       await updateReport(reportId, { status })
@@ -246,29 +257,29 @@ export function Projects({ onProjectSelect }: ProjectsProps) {
   }
 
   return (
-    <div className="p-4 sm:p-6 space-y-6 overflow-y-auto h-full max-w-full">
+    <div className="p-3 sm:p-4 lg:p-6 space-y-4 sm:space-y-6 overflow-y-auto h-full max-w-full">
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">Projects</h1>
-          <p className="text-gray-600">Manage and track all your electrical engineering projects</p>
+          <h1 className="text-xl sm:text-2xl font-bold text-gray-900">Projects</h1>
+          <p className="text-sm sm:text-base text-gray-600">Manage and track all your electrical engineering projects</p>
         </div>
         <ProjectFormModal onProjectCreated={handleProjectCreated} />
       </div>
 
       {/* Filters */}
-      <div className="flex flex-col sm:flex-row gap-4">
+      <div className="flex flex-col sm:flex-row gap-3 sm:gap-4">
         <div className="relative flex-1">
           <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
           <Input
             placeholder="Search projects or clients..."
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
-            className="pl-10"
+            className="pl-10 h-10"
           />
         </div>
         <Select value={statusFilter} onValueChange={setStatusFilter}>
-          <SelectTrigger className="w-full sm:w-48">
+          <SelectTrigger className="w-full sm:w-48 h-10">
             <SelectValue placeholder="Filter by status" />
           </SelectTrigger>
           <SelectContent>
@@ -282,88 +293,137 @@ export function Projects({ onProjectSelect }: ProjectsProps) {
       </div>
 
       {/* Project Stats */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
         <Card>
-          <CardContent className="p-4">
+          <CardContent className="p-3 sm:p-4">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-sm text-gray-600">Total Projects</p>
-                <p className="text-2xl font-bold">{projects.length}</p>
+                <p className="text-xs sm:text-sm text-gray-600">Total Projects</p>
+                <p className="text-lg sm:text-2xl font-bold">{projects.length}</p>
               </div>
-              <div className="w-8 h-8 bg-blue-100 rounded-full flex items-center justify-center">
-                <CheckCircle className="h-4 w-4 text-blue-600" />
+              <div className="w-6 h-6 sm:w-8 sm:h-8 bg-blue-100 rounded-full flex items-center justify-center flex-shrink-0">
+                <CheckCircle className="h-3 w-3 sm:h-4 sm:w-4 text-blue-600" />
               </div>
             </div>
           </CardContent>
         </Card>
         <Card>
-          <CardContent className="p-4">
+          <CardContent className="p-3 sm:p-4">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-sm text-gray-600">In Progress</p>
-                <p className="text-2xl font-bold">{projects.filter((p) => p.status === "in-progress").length}</p>
+                <p className="text-xs sm:text-sm text-gray-600">In Progress</p>
+                <p className="text-lg sm:text-2xl font-bold">{projects.filter((p) => p.status === "in-progress").length}</p>
               </div>
-              <div className="w-8 h-8 bg-orange-100 rounded-full flex items-center justify-center">
-                <Play className="h-4 w-4 text-orange-600" />
+              <div className="w-6 h-6 sm:w-8 sm:h-8 bg-orange-100 rounded-full flex items-center justify-center flex-shrink-0">
+                <Play className="h-3 w-3 sm:h-4 sm:w-4 text-orange-600" />
               </div>
             </div>
           </CardContent>
         </Card>
         <Card>
-          <CardContent className="p-4">
+          <CardContent className="p-3 sm:p-4">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-sm text-gray-600">Completed</p>
-                <p className="text-2xl font-bold">{projects.filter((p) => p.status === "completed").length}</p>
+                <p className="text-xs sm:text-sm text-gray-600">Completed</p>
+                <p className="text-lg sm:text-2xl font-bold">{projects.filter((p) => p.status === "completed").length}</p>
               </div>
-              <div className="w-8 h-8 bg-green-100 rounded-full flex items-center justify-center">
-                <CheckCircle className="h-4 w-4 text-green-600" />
+              <div className="w-6 h-6 sm:w-8 sm:h-8 bg-green-100 rounded-full flex items-center justify-center flex-shrink-0">
+                <CheckCircle className="h-3 w-3 sm:h-4 sm:w-4 text-green-600" />
               </div>
             </div>
           </CardContent>
         </Card>
         <Card>
-          <CardContent className="p-4">
+          <CardContent className="p-3 sm:p-4">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-sm text-gray-600">On Hold</p>
-                <p className="text-2xl font-bold">{projects.filter((p) => p.status === "on-hold").length}</p>
+                <p className="text-xs sm:text-sm text-gray-600">On Hold</p>
+                <p className="text-lg sm:text-2xl font-bold">{projects.filter((p) => p.status === "on-hold").length}</p>
               </div>
-              <div className="w-8 h-8 bg-yellow-100 rounded-full flex items-center justify-center">
-                <Pause className="h-4 w-4 text-yellow-600" />
+              <div className="w-6 h-6 sm:w-8 sm:h-8 bg-yellow-100 rounded-full flex items-center justify-center flex-shrink-0">
+                <Pause className="h-3 w-3 sm:h-4 sm:w-4 text-yellow-600" />
               </div>
             </div>
           </CardContent>
         </Card>
-      </div>      {/* Projects Grid - 2 blocks per row */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+      </div>      {/* Projects Grid - Responsive layout */}
+      <div className="grid grid-cols-1 xl:grid-cols-2 gap-4 sm:gap-6">
         {filteredProjects.map((project) => (
           <Card
             key={project.id}
-            className="border-l-4 border-l-orange-500 hover:shadow-lg transition-shadow overflow-hidden w-full min-h-[450px] flex flex-col"
-          >            <CardHeader className="pb-4">
-              <div className="flex items-start justify-between gap-4">
+            className="border-l-4 border-l-orange-500 hover:shadow-lg transition-shadow overflow-hidden w-full flex flex-col"
+          >
+            <CardHeader className="pb-3 sm:pb-4">
+              <div className="flex items-start justify-between gap-3 sm:gap-4">
                 <div className="flex-1 min-w-0">
-                  <CardTitle className="text-xl mb-2 break-words leading-tight">{project.name}</CardTitle>
-                  <CardDescription className="text-sm mb-3 text-gray-600 line-clamp-2">
+                  <CardTitle className="text-lg sm:text-xl mb-2 break-words leading-tight">{project.name}</CardTitle>
+                  <CardDescription className="text-xs sm:text-sm mb-2 sm:mb-3 text-gray-600 line-clamp-2">
                     {project.description}
                   </CardDescription>
-                  <div className="flex flex-wrap items-center gap-3 text-sm text-gray-500">
+                  <div className="flex flex-col sm:flex-row sm:flex-wrap sm:items-center gap-2 sm:gap-3 text-xs sm:text-sm text-gray-500">
                     <span className="flex items-center min-w-0">
-                      <MapPin className="h-4 w-4 mr-1 flex-shrink-0" />
+                      <MapPin className="h-3 w-3 sm:h-4 sm:w-4 mr-1 flex-shrink-0" />
                       <span className="truncate">{project.location}</span>
                     </span>
                     <span className="flex items-center flex-shrink-0">
-                      <Calendar className="h-4 w-4 mr-1" />
+                      <Calendar className="h-3 w-3 sm:h-4 sm:w-4 mr-1" />
                       {formatDate(project.end_date)}
                     </span>
                   </div>
                 </div>
                 <div className="flex items-start flex-col gap-2 flex-shrink-0">
-                  <Badge className={getStatusColor(project.status)}>
-                    {getStatusIcon(project.status)}
-                    <span className="ml-1">{capitalizeWords(project.status) || "Unknown"}</span>
-                  </Badge>
+                  {isAdmin ? (
+                    <DropdownMenu>
+                      <DropdownMenuTrigger asChild>
+                        <Badge 
+                          className={`${getStatusColor(project.status)} cursor-pointer hover:opacity-80 hover:scale-105 transition-all duration-200 shadow-sm hover:shadow-md select-none text-xs`}
+                          title="Click to change status"
+                        >
+                          {getStatusIcon(project.status)}
+                          <span className="ml-1">{capitalizeWords(project.status) || "Unknown"}</span>
+                          <span className="ml-1 text-xs opacity-70">▼</span>
+                        </Badge>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent align="end">
+                        <DropdownMenuItem 
+                          onClick={() => handleStatusUpdate(project.id, "planning")}
+                          className="cursor-pointer"
+                        >
+                          <Clock className="h-4 w-4 mr-2" />
+                          Planning
+                        </DropdownMenuItem>
+                        <DropdownMenuItem 
+                          onClick={() => handleStatusUpdate(project.id, "in-progress")}
+                          className="cursor-pointer"
+                        >
+                          <Play className="h-4 w-4 mr-2" />
+                          In Progress
+                        </DropdownMenuItem>
+                        <DropdownMenuItem 
+                          onClick={() => handleStatusUpdate(project.id, "on-hold")}
+                          className="cursor-pointer"
+                        >
+                          <Pause className="h-4 w-4 mr-2" />
+                          On Hold
+                        </DropdownMenuItem>
+                        <DropdownMenuItem 
+                          onClick={() => handleStatusUpdate(project.id, "completed")}
+                          className="cursor-pointer"
+                        >
+                          <CheckCircle className="h-4 w-4 mr-2" />
+                          Completed
+                        </DropdownMenuItem>
+                      </DropdownMenuContent>
+                    </DropdownMenu>
+                  ) : (
+                    <Badge 
+                      className={`${getStatusColor(project.status)} cursor-default text-xs`}
+                      title="Status (read-only)"
+                    >
+                      {getStatusIcon(project.status)}
+                      <span className="ml-1">{capitalizeWords(project.status) || "Unknown"}</span>
+                    </Badge>
+                  )}
                   <DropdownMenu>
                     <DropdownMenuTrigger asChild>
                       <Button variant="ghost" size="sm" className="h-8 w-8 p-0">
@@ -388,54 +448,54 @@ export function Projects({ onProjectSelect }: ProjectsProps) {
               </div>
             </CardHeader>
             <CardContent className="pt-0 flex-grow flex flex-col">
-              <div className="space-y-5 flex-grow">
+              <div className="space-y-4 sm:space-y-5 flex-grow">
                 <div>
-                  <div className="flex items-center justify-between mb-3">
-                    <span className="text-sm font-medium text-gray-900">Task Progress</span>
-                    <span className="text-sm text-gray-600 font-medium">
+                  <div className="flex items-center justify-between mb-2 sm:mb-3">
+                    <span className="text-xs sm:text-sm font-medium text-gray-900">Task Progress</span>
+                    <span className="text-xs sm:text-sm text-gray-600 font-medium">
                       {getProjectTaskCounts(project.id).completed}/{getProjectTaskCounts(project.id).total} tasks
                     </span>
                   </div>
-                  <Progress value={getProjectTaskProgress(project.id)} className="h-3" />
+                  <Progress value={getProjectTaskProgress(project.id)} className="h-2 sm:h-3" />
                   <p className="text-xs text-gray-500 mt-1 text-center">{getProjectTaskProgress(project.id)}% Complete</p>
                 </div>
 
-                <div className="grid grid-cols-2 gap-4 text-sm">
+                <div className="grid grid-cols-2 gap-3 sm:gap-4 text-sm">
                   <div className="space-y-2">
                     <div>
                       <span className="text-gray-500 block text-xs">Client:</span>
-                      <span className="font-medium break-words">{project.client}</span>
+                      <span className="font-medium break-words text-xs sm:text-sm">{project.client}</span>
                     </div>
                   </div>
                   <div className="space-y-2">
                     <div>
                       <span className="text-gray-500 block text-xs">Status:</span>
-                      <span className="font-medium">{capitalizeWords(project.status) || "Unknown"}</span>
+                      <span className="font-medium text-xs sm:text-sm">{capitalizeWords(project.status) || "Unknown"}</span>
                     </div>
                   </div>
                 </div>
 
                 <div className="flex items-center justify-center py-2">
-                  <Badge variant="outline" className="text-xs px-3 py-1">
+                  <Badge variant="outline" className="text-xs px-2 sm:px-3 py-1">
                     {formatDate(project.start_date)} → {formatDate(project.end_date)}
                   </Badge>
                 </div>
 
                 {/* Reports Section */}
                 {getProjectReports(project.id).length > 0 && (
-                  <div className="space-y-3 flex-grow">
+                  <div className="space-y-2 sm:space-y-3 flex-grow">
                     <div className="flex items-center justify-between">
-                      <h4 className="text-sm font-medium text-gray-900 flex items-center">
-                        <FileText className="h-4 w-4 mr-2" />
+                      <h4 className="text-xs sm:text-sm font-medium text-gray-900 flex items-center">
+                        <FileText className="h-3 w-3 sm:h-4 sm:w-4 mr-1 sm:mr-2" />
                         Reports ({getProjectReports(project.id).length})
                       </h4>
                     </div>
-                    <div className="space-y-2 max-h-40 overflow-y-auto">
+                    <div className="space-y-2 max-h-32 sm:max-h-40 overflow-y-auto">
                       {getProjectReports(project.id).slice(0, 3).map((report) => (
-                        <div key={report.id} className="bg-gray-50 rounded-lg p-3 border">
+                        <div key={report.id} className="bg-gray-50 rounded-lg p-2 sm:p-3 border">
                           <div className="flex flex-col gap-2">
                             <div className="flex items-center justify-between">
-                              <p className="text-sm font-medium text-gray-900 truncate flex-1">
+                              <p className="text-xs sm:text-sm font-medium text-gray-900 truncate flex-1">
                                 {report.file_name}
                               </p>
                               <Badge 
@@ -520,7 +580,7 @@ export function Projects({ onProjectSelect }: ProjectsProps) {
                         <Button
                           variant="ghost"
                           size="sm"
-                          className="w-full text-xs text-gray-500 hover:text-gray-700 h-7"
+                          className="w-full text-xs text-gray-500 hover:text-gray-700 h-6 sm:h-7"
                           onClick={() => setViewingReports({ projectId: project.id, projectName: project.name })}
                         >
                           View All {getProjectReports(project.id).length} Reports →
@@ -531,19 +591,19 @@ export function Projects({ onProjectSelect }: ProjectsProps) {
                 )}
 
                 {/* Action buttons - always at bottom */}
-                <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 pt-4 mt-auto border-t border-gray-100">
+                <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 sm:gap-3 pt-3 sm:pt-4 mt-auto border-t border-gray-100">
                   <Button
                     size="sm"
-                    className="bg-gradient-to-r from-orange-500 to-orange-600 hover:from-orange-600 hover:to-orange-700 flex-1 sm:flex-none h-9"
+                    className="bg-gradient-to-r from-orange-500 to-orange-600 hover:from-orange-600 hover:to-orange-700 h-8 px-3 text-xs"
                     onClick={() => onProjectSelect?.(project.id)}
                   >
-                    View Details
+                    View Schedule
                   </Button>
                   <ReportUploadModal 
                     preselectedProjectId={project.id}
                   >
-                    <Button variant="outline" size="sm" className="flex-1 sm:flex-none h-9">
-                      <FileText className="h-4 w-4 mr-2" />
+                    <Button variant="outline" size="sm" className="h-8 px-3 text-xs">
+                      <FileText className="h-3 w-3 mr-1" />
                       Attach Report
                     </Button>
                   </ReportUploadModal>
@@ -555,12 +615,13 @@ export function Projects({ onProjectSelect }: ProjectsProps) {
       </div>
 
       {filteredProjects.length === 0 && (
-        <div className="text-center py-12">
-          <div className="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-4">
-            <Search className="h-6 w-6 text-gray-400" />
+        <div className="text-center py-8 sm:py-12">
+          <div className="w-12 h-12 sm:w-16 sm:h-16 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-4">
+            <Search className="h-5 w-5 sm:h-6 sm:w-6 text-gray-400" />
           </div>
-          <h3 className="text-lg font-medium text-gray-900 mb-2">No projects found</h3>
-          <p className="text-gray-500 mb-4">Try adjusting your search or filter criteria</p>          <ProjectFormModal onProjectCreated={handleProjectCreated} />
+          <h3 className="text-base sm:text-lg font-medium text-gray-900 mb-2">No projects found</h3>
+          <p className="text-sm sm:text-base text-gray-500 mb-4">Try adjusting your search or filter criteria</p>
+          <ProjectFormModal onProjectCreated={handleProjectCreated} />
         </div>
       )}
 

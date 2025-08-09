@@ -236,7 +236,7 @@ export function Team() {
       {selectedPersonnel && (
         <ProfileModal 
           isOpen={isProfileModalOpen} 
-          onClose={() => {
+          onCloseAction={() => {
             setIsProfileModalOpen(false)
             setSelectedPersonnel(null)
           }}

@@ -14,7 +14,6 @@ import {
   Briefcase, 
   Phone, 
   FileText, 
-  X, 
   Edit3, 
   Save, 
   Loader2,
@@ -25,14 +24,18 @@ import {
 import { useCurrentUserPersonnel } from "@/lib/hooks/useCurrentUserPersonnel"
 import { useAuth } from "@/lib/auth"
 import { toast } from "react-hot-toast"
+import type { Database } from "@/lib/supabase.types"
+
+type Personnel = Database['public']['Tables']['personnel']['Row']
 
 interface ProfileModalProps {
   readonly isOpen: boolean
   readonly onCloseAction: () => void
+  readonly personnel?: Personnel | null
 }
 
-export function ProfileModal({ isOpen, onCloseAction }: ProfileModalProps) {
-  const { personnel, loading, updating, updatePersonnel } = useCurrentUserPersonnel()
+export function ProfileModal({ isOpen, onCloseAction, personnel: viewingPersonnel }: ProfileModalProps) {
+  const { personnel: currentUserPersonnel, loading: currentUserLoading, updating, updatePersonnel } = useCurrentUserPersonnel()
   const { user } = useAuth()
   const [isEditing, setIsEditing] = useState(false)
   const [formData, setFormData] = useState({
@@ -41,23 +44,30 @@ export function ProfileModal({ isOpen, onCloseAction }: ProfileModalProps) {
     years_experience: 0
   })
 
+  // Determine which personnel data to show
+  // If viewingPersonnel is provided, show that personnel's profile
+  // Otherwise, show current user's profile (for editing)
+  const displayedPersonnel = viewingPersonnel || currentUserPersonnel
+  const isOwnProfile = !viewingPersonnel || (viewingPersonnel?.email === user?.email)
+  const loading = viewingPersonnel ? false : currentUserLoading
+
   // Initialize form data when personnel data loads
   const initializeFormData = useCallback(() => {
-    if (personnel) {
+    if (displayedPersonnel) {
       setFormData({
-        name: personnel.name || '',
-        phone: personnel.phone || '',
-        years_experience: personnel.years_experience || 0
+        name: displayedPersonnel.name || '',
+        phone: displayedPersonnel.phone || '',
+        years_experience: displayedPersonnel.years_experience || 0
       })
     }
-  }, [personnel])
+  }, [displayedPersonnel])
 
   // Initialize form data when modal opens or personnel data changes
   useEffect(() => {
-    if (isOpen && personnel) {
+    if (isOpen && displayedPersonnel) {
       initializeFormData()
     }
-  }, [isOpen, personnel, initializeFormData])
+  }, [isOpen, displayedPersonnel, initializeFormData])
 
   const getInitials = useCallback((name: string) => {
     if (!name) return "U"
@@ -85,6 +95,8 @@ export function ProfileModal({ isOpen, onCloseAction }: ProfileModalProps) {
   }, [])
 
   const handleSave = useCallback(async () => {
+    if (!isOwnProfile) return // Can't edit other people's profiles
+    
     try {
       const updates = {
         name: formData.name.trim(),
@@ -104,23 +116,23 @@ export function ProfileModal({ isOpen, onCloseAction }: ProfileModalProps) {
       console.error('Error saving profile:', error)
       toast.error("Failed to update profile")
     }
-  }, [formData, updatePersonnel])
+  }, [formData, updatePersonnel, isOwnProfile])
 
   const isFormValid = useMemo(() => {
     return formData.name.trim().length > 0
   }, [formData.name])
 
   const userName = useMemo(() => {
-    return personnel?.name || user?.user_metadata?.name || "User"
-  }, [personnel, user])
+    return displayedPersonnel?.name || user?.user_metadata?.name || "User"
+  }, [displayedPersonnel, user])
 
   const userPosition = useMemo(() => {
-    return personnel?.position || user?.user_metadata?.position || "Team Member"
-  }, [personnel, user])
+    return displayedPersonnel?.position || user?.user_metadata?.position || "Team Member"
+  }, [displayedPersonnel, user])
 
   const userEmail = useMemo(() => {
-    return personnel?.email || user?.email || ""
-  }, [personnel, user])
+    return displayedPersonnel?.email || user?.email || ""
+  }, [displayedPersonnel, user])
 
   if (loading) {
     return (
@@ -142,10 +154,10 @@ export function ProfileModal({ isOpen, onCloseAction }: ProfileModalProps) {
           <div className="flex justify-between items-center">
             <DialogTitle className="text-2xl font-bold text-gray-900 flex items-center gap-2">
               <User className="h-6 w-6 text-orange-500" />
-              Profile Settings
+              {isOwnProfile ? "Profile Settings" : `${userName}'s Profile`}
             </DialogTitle>
             <div className="flex items-center gap-2">
-              {!isEditing ? (
+              {isOwnProfile && !isEditing ? (
                 <Button 
                   variant="outline" 
                   size="sm" 
@@ -155,7 +167,7 @@ export function ProfileModal({ isOpen, onCloseAction }: ProfileModalProps) {
                   <Edit3 className="h-4 w-4 mr-2" />
                   Edit
                 </Button>
-              ) : (
+              ) : isOwnProfile && isEditing ? (
                 <div className="flex gap-2">
                   <Button 
                     variant="outline" 
@@ -179,10 +191,7 @@ export function ProfileModal({ isOpen, onCloseAction }: ProfileModalProps) {
                     Save
                   </Button>
                 </div>
-              )}
-              <Button variant="ghost" size="sm" onClick={onCloseAction}>
-                <X className="h-4 w-4" />
-              </Button>
+              ) : null}
             </div>
           </div>
         </DialogHeader>
@@ -191,7 +200,7 @@ export function ProfileModal({ isOpen, onCloseAction }: ProfileModalProps) {
           {/* Profile Header */}
           <div className="flex items-center space-x-6 p-6 bg-gradient-to-r from-orange-50 to-orange-100 rounded-xl border border-orange-200">
             <Avatar className="h-24 w-24 ring-4 ring-white shadow-lg">
-              <AvatarImage src={personnel?.avatar_url || ""} alt={userName} />
+              <AvatarImage src={displayedPersonnel?.avatar_url || ""} alt={userName} />
               <AvatarFallback className="bg-gradient-to-r from-orange-500 to-orange-600 text-white text-2xl font-semibold">
                 {getInitials(userName)}
               </AvatarFallback>
@@ -205,7 +214,7 @@ export function ProfileModal({ isOpen, onCloseAction }: ProfileModalProps) {
               </div>
               <p className="text-sm text-gray-600 mt-1 flex items-center gap-1">
                 <MapPin className="h-3 w-3" />
-                {personnel?.department || "Department not specified"}
+                {displayedPersonnel?.department || "Department not specified"}
               </p>
             </div>
           </div>
@@ -224,7 +233,7 @@ export function ProfileModal({ isOpen, onCloseAction }: ProfileModalProps) {
                   <User className="h-4 w-4" />
                   Full Name
                 </Label>
-                {isEditing ? (
+                {isEditing && isOwnProfile ? (
                   <Input
                     id="name"
                     type="text"
@@ -235,7 +244,7 @@ export function ProfileModal({ isOpen, onCloseAction }: ProfileModalProps) {
                   />
                 ) : (
                   <div className="p-3 bg-gray-50 rounded-lg border border-gray-200">
-                    <p className="font-medium text-gray-900">{personnel?.name || 'Not specified'}</p>
+                    <p className="font-medium text-gray-900">{displayedPersonnel?.name || 'Not specified'}</p>
                   </div>
                 )}
               </div>
@@ -246,7 +255,7 @@ export function ProfileModal({ isOpen, onCloseAction }: ProfileModalProps) {
                   <Phone className="h-4 w-4" />
                   Phone Number
                 </Label>
-                {isEditing ? (
+                {isEditing && isOwnProfile ? (
                   <Input
                     id="phone"
                     type="tel"
@@ -257,7 +266,7 @@ export function ProfileModal({ isOpen, onCloseAction }: ProfileModalProps) {
                   />
                 ) : (
                   <div className="p-3 bg-gray-50 rounded-lg border border-gray-200">
-                    <p className="font-medium text-gray-900">{personnel?.phone || 'Not specified'}</p>
+                    <p className="font-medium text-gray-900">{displayedPersonnel?.phone || 'Not specified'}</p>
                   </div>
                 )}
               </div>
@@ -268,7 +277,7 @@ export function ProfileModal({ isOpen, onCloseAction }: ProfileModalProps) {
                   <Briefcase className="h-4 w-4" />
                   Years of Experience
                 </Label>
-                {isEditing ? (
+                {isEditing && isOwnProfile ? (
                   <Input
                     id="experience"
                     type="number"
@@ -281,7 +290,7 @@ export function ProfileModal({ isOpen, onCloseAction }: ProfileModalProps) {
                   />
                 ) : (
                   <div className="p-3 bg-gray-50 rounded-lg border border-gray-200">
-                    <p className="font-medium text-gray-900">{personnel?.years_experience || 0} years</p>
+                    <p className="font-medium text-gray-900">{displayedPersonnel?.years_experience || 0} years</p>
                   </div>
                 )}
               </div>
@@ -332,20 +341,20 @@ export function ProfileModal({ isOpen, onCloseAction }: ProfileModalProps) {
                   Department
                 </Label>
                 <div className="p-3 bg-gray-50 rounded-lg border border-gray-200 opacity-75">
-                  <p className="font-medium text-gray-600">{personnel?.department || 'Not specified'}</p>
+                  <p className="font-medium text-gray-600">{displayedPersonnel?.department || 'Not specified'}</p>
                   <p className="text-xs text-gray-500 mt-1">Department is managed by administrators</p>
                 </div>
               </div>
 
               {/* PRC License Field (Read-only) */}
-              {personnel?.prc_license && (
+              {displayedPersonnel?.prc_license && (
                 <div className="space-y-2">
                   <Label className="text-sm font-medium text-gray-700 flex items-center gap-2">
                     <FileText className="h-4 w-4" />
                     PRC License
                   </Label>
                   <div className="p-3 bg-gray-50 rounded-lg border border-gray-200 opacity-75">
-                    <p className="font-medium text-gray-600">{personnel.prc_license}</p>
+                    <p className="font-medium text-gray-600">{displayedPersonnel.prc_license}</p>
                     <p className="text-xs text-gray-500 mt-1">License information is protected</p>
                   </div>
                 </div>
@@ -354,7 +363,7 @@ export function ProfileModal({ isOpen, onCloseAction }: ProfileModalProps) {
           </div>
 
           {/* Additional Information */}
-          {personnel?.created_at && (
+          {displayedPersonnel?.created_at && (
             <>
               <Separator />
               <div className="space-y-4">
@@ -365,7 +374,7 @@ export function ProfileModal({ isOpen, onCloseAction }: ProfileModalProps) {
                     <span className="text-sm font-medium">Member Since</span>
                   </div>
                   <p className="font-medium text-blue-900 mt-1">
-                    {new Date(personnel.created_at).toLocaleDateString('en-US', {
+                    {new Date(displayedPersonnel.created_at).toLocaleDateString('en-US', {
                       year: 'numeric',
                       month: 'long',
                       day: 'numeric'

@@ -958,7 +958,21 @@ export function GanttChartEnhanced({ selectedProjectId }: GanttChartEnhancedProp
                       </div>
                       <div className="flex items-center">
                         <Users className="h-3 w-3 mr-1" />
-                        <span>{task.assignee || 'Unassigned'}</span>
+                        {task.assignee ? (
+                          <div className="flex flex-wrap gap-1">
+                            {task.assignee.split(', ').map((assignee, index) => (
+                              <Badge 
+                                key={index} 
+                                variant="outline" 
+                                className="text-xs px-1 py-0 h-auto"
+                              >
+                                {assignee.trim()}
+                              </Badge>
+                            ))}
+                          </div>
+                        ) : (
+                          <span>Unassigned</span>
+                        )}
                       </div>
                       {daysUntilDeadline !== null && (
                         <div className={`flex items-center ${overdue ? "text-red-600 dark:text-red-400" : ""}`}>
@@ -1188,10 +1202,20 @@ export function GanttChartEnhanced({ selectedProjectId }: GanttChartEnhancedProp
                           {formatDate(task.start_date)} - {formatDate(task.end_date)}
                         </span>
                         {task.assignee && (
-                          <span className="flex items-center gap-1">
+                          <div className="flex items-center gap-1">
                             <Users className="h-3 w-3" />
-                            {task.assignee}
-                          </span>
+                            <div className="flex flex-wrap gap-1">
+                              {task.assignee.split(', ').map((assignee, index) => (
+                                <Badge 
+                                  key={index} 
+                                  variant="outline" 
+                                  className="text-xs px-1 py-0 h-auto"
+                                >
+                                  {assignee.trim()}
+                                </Badge>
+                              ))}
+                            </div>
+                          </div>
                         )}
                       </div>
                       {daysUntilDeadline !== null && (

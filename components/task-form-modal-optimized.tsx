@@ -9,12 +9,27 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
 import { Calendar } from "@/components/ui/calendar-custom"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
+import { Badge } from "@/components/ui/badge"
 import { useProjects } from "@/lib/hooks/useProjects"
 import { useGanttTasks } from "@/lib/hooks/useGanttTasks"
-import { Plus, Calendar as CalendarIcon, Clock } from "lucide-react"
+import { Plus, Calendar as CalendarIcon, Clock, X } from "lucide-react"
 import { format } from "date-fns"
 import { cn } from "@/lib/utils"
 import { toast } from "react-hot-toast"
+
+// Predefined roles based on your project structure
+// PROJECT STAFF and DIRECT LABOR are categories, not assignable roles
+const PROJECT_ROLES = [
+  "PROJECT IN-CHARGE", 
+  "PROJECT ENGINEER",
+  "GC ENGINEER",
+  "SAFETY OFFICER",
+  "FOREMAN",
+  "ELECTRICIAN",
+  "HELPER",
+  "WELDER/FABRICATOR",
+  "TIME KEEPER/WAREHOUSEMEN"
+] as const
 
 interface TaskFormData {
   title: string
@@ -26,7 +41,7 @@ interface TaskFormData {
   priority: string
   phase: string
   category: string
-  assignee: string
+  assignees: string[] // Changed from single assignee to multiple
 }
 
 interface TaskFormModalProps {
@@ -38,6 +53,7 @@ export function TaskFormModalOptimized({ onTaskCreated }: TaskFormModalProps) {
   const { createTask } = useGanttTasks()
   const [open, setOpen] = useState(false)
   const [loading, setLoading] = useState(false)
+  const [selectedRole, setSelectedRole] = useState<string>("")
   const [formData, setFormData] = useState<TaskFormData>({
     title: "",
     description: "",
@@ -48,7 +64,7 @@ export function TaskFormModalOptimized({ onTaskCreated }: TaskFormModalProps) {
     priority: "medium",
     phase: "Planning",
     category: "planning",
-    assignee: ""
+    assignees: [] // Changed from assignee: "" to assignees: []
   })
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -114,7 +130,7 @@ export function TaskFormModalOptimized({ onTaskCreated }: TaskFormModalProps) {
         progress: 0, // Always start at 0 since we don't track progress
         phase: formData.phase || null,
         category: formData.category as "planning" | "pre-construction" | "construction" | "finishing" | "closeout",
-        assignee: formData.assignee || null,
+        assignee: formData.assignees.length > 0 ? formData.assignees.join(", ") : null, // Join multiple assignees
         assigned_to: null,
         estimated_hours: duration * 8, // Assume 8 hours per day
         duration,
@@ -138,7 +154,7 @@ export function TaskFormModalOptimized({ onTaskCreated }: TaskFormModalProps) {
         priority: "medium",
         phase: "Planning",
         category: "planning",
-        assignee: ""
+        assignees: [] // Reset to empty array
       })
       
       // Refresh data
@@ -153,6 +169,23 @@ export function TaskFormModalOptimized({ onTaskCreated }: TaskFormModalProps) {
 
   const handleInputChange = (field: keyof TaskFormData, value: string | Date) => {
     setFormData(prev => ({ ...prev, [field]: value }))
+  }
+
+  const handleAddAssignee = () => {
+    if (selectedRole && !formData.assignees.includes(selectedRole)) {
+      setFormData(prev => ({
+        ...prev,
+        assignees: [...prev.assignees, selectedRole]
+      }))
+      setSelectedRole("")
+    }
+  }
+
+  const handleRemoveAssignee = (assigneeToRemove: string) => {
+    setFormData(prev => ({
+      ...prev,
+      assignees: prev.assignees.filter(assignee => assignee !== assigneeToRemove)
+    }))
   }
 
   return (
@@ -215,14 +248,64 @@ export function TaskFormModalOptimized({ onTaskCreated }: TaskFormModalProps) {
               </Select>
             </div>
 
-            <div>
-              <Label htmlFor="assignee">Assignee</Label>
-              <Input
-                id="assignee"
-                value={formData.assignee}
-                onChange={(e) => handleInputChange("assignee", e.target.value)}
-                placeholder="Enter assignee name"
-              />
+            {/* Multiple Assignees Section */}
+            <div className="space-y-2">
+              <Label>Assignees</Label>
+              
+              {/* Current Assignees */}
+              {formData.assignees.length > 0 && (
+                <div className="flex flex-wrap gap-2 mb-2">
+                  {formData.assignees.map((assignee, index) => (
+                    <Badge 
+                      key={index} 
+                      variant="secondary" 
+                      className="flex items-center gap-1 pr-1"
+                    >
+                      {assignee}
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        className="h-4 w-4 p-0 hover:bg-destructive hover:text-destructive-foreground"
+                        onClick={() => handleRemoveAssignee(assignee)}
+                      >
+                        <X className="h-3 w-3" />
+                      </Button>
+                    </Badge>
+                  ))}
+                </div>
+              )}
+
+              {/* Add Assignee Interface */}
+              <div className="flex gap-2">
+                <Select value={selectedRole} onValueChange={setSelectedRole}>
+                  <SelectTrigger className="flex-1">
+                    <SelectValue placeholder="Select role to assign..." />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {PROJECT_ROLES.map((role) => (
+                      <SelectItem 
+                        key={role} 
+                        value={role}
+                        disabled={formData.assignees.includes(role)}
+                      >
+                        {role}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={handleAddAssignee}
+                  disabled={!selectedRole || formData.assignees.includes(selectedRole)}
+                  className="whitespace-nowrap"
+                >
+                  <Plus className="h-4 w-4 mr-1" />
+                  Add
+                </Button>
+              </div>
             </div>
           </div>
 

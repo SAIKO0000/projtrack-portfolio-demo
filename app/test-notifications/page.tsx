@@ -5,7 +5,8 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { TestNotificationService } from '@/lib/test-notification-service';
-import { Bell, TestTube, Zap, Clock, AlertTriangle, Smartphone, CheckCircle, X } from 'lucide-react';
+import { mobileNotificationService } from '@/lib/mobile-notification-service';
+import { Bell, TestTube, Clock, AlertTriangle, Smartphone, CheckCircle, X, Wifi, WifiOff } from 'lucide-react';
 
 interface MobileCompatibility {
   isMobile: boolean;
@@ -17,6 +18,7 @@ interface MobileCompatibility {
   isSecure: boolean;
   notificationPermission: string;
   issues: string[];
+  recommendations: string[];
 }
 
 export default function NotificationTestPage() {
@@ -24,42 +26,41 @@ export default function NotificationTestPage() {
   const [lastTest, setLastTest] = useState<string | null>(null);
   const [compatibility, setCompatibility] = useState<MobileCompatibility | null>(null);
   const [testResults, setTestResults] = useState<string[]>([]);
+  const [isOnline, setIsOnline] = useState(true);
 
   useEffect(() => {
     checkMobileCompatibility();
+    
+    // Listen for online/offline status
+    const handleOnline = () => setIsOnline(true);
+    const handleOffline = () => setIsOnline(false);
+    
+    window.addEventListener('online', handleOnline);
+    window.addEventListener('offline', handleOffline);
+    setIsOnline(navigator.onLine);
+    
+    return () => {
+      window.removeEventListener('online', handleOnline);
+      window.removeEventListener('offline', handleOffline);
+    };
   }, []);
 
   const checkMobileCompatibility = () => {
-    const userAgent = navigator.userAgent.toLowerCase();
-    const issues: string[] = [];
+    // Get browser info from mobile notification service
+    const browserInfo = mobileNotificationService.getBrowserInfo();
+    const supportStatus = mobileNotificationService.getSupportStatus();
     
-    const isMobile = /android|webos|iphone|ipad|ipod|blackberry|iemobile|opera mini/i.test(userAgent);
-    const isChrome = /chrome/i.test(userAgent) && !/edg/i.test(userAgent);
-    const isIOS = /iphone|ipad|ipod/i.test(userAgent);
-    const isAndroid = /android/i.test(userAgent);
-    const isSecure = location.protocol === 'https:' || location.hostname === 'localhost';
-    const supportsPush = 'PushManager' in window;
-    const supportsServiceWorker = 'serviceWorker' in navigator;
-    const notificationPermission = 'Notification' in window ? Notification.permission : 'unsupported';
-
-    // Check for issues
-    if (!isSecure) issues.push('Site must be served over HTTPS');
-    if (!supportsPush) issues.push('Push Manager not supported');
-    if (!supportsServiceWorker) issues.push('Service Worker not supported');
-    if (isIOS) issues.push('iOS Safari has limited notification support');
-    if (notificationPermission === 'denied') issues.push('Notification permission denied');
-    if (isMobile && !isChrome) issues.push('Best support on Chrome mobile');
-
     setCompatibility({
-      isMobile,
-      isChrome,
-      isIOS,
-      isAndroid,
-      supportsPush,
-      supportsServiceWorker,
-      isSecure,
-      notificationPermission,
-      issues
+      isMobile: browserInfo.isMobile,
+      isChrome: browserInfo.isChrome,
+      isIOS: browserInfo.isIOS,
+      isAndroid: browserInfo.isAndroid,
+      supportsPush: browserInfo.supportsPush,
+      supportsServiceWorker: browserInfo.supportsServiceWorker,
+      isSecure: browserInfo.isSecure,
+      notificationPermission: 'Notification' in window ? Notification.permission : 'unsupported',
+      issues: supportStatus.issues,
+      recommendations: supportStatus.recommendations
     });
   };
 
@@ -74,14 +75,12 @@ export default function NotificationTestPage() {
   const requestNotificationPermission = async () => {
     setIsLoading(true);
     try {
-      const permission = await Notification.requestPermission();
-      addTestResult(`Permission request result: ${permission}`);
-      
-      if (permission === 'granted') {
-        addTestResult('✅ Notification permission granted!');
+      const granted = await mobileNotificationService.requestPermission();
+      if (granted) {
+        addTestResult('✅ Mobile notification permission granted!');
         checkMobileCompatibility(); // Refresh compatibility check
       } else {
-        addTestResult('❌ Notification permission denied or dismissed');
+        addTestResult('❌ Mobile notification permission denied or dismissed');
       }
     } catch (error) {
       addTestResult(`❌ Permission request failed: ${error}`);
@@ -90,241 +89,79 @@ export default function NotificationTestPage() {
     }
   };
 
-  const testBasicNotification = () => {
+  const testMobileNotification = async () => {
     setIsLoading(true);
     try {
-      if (Notification.permission !== 'granted') {
-        addTestResult('❌ Cannot test - permission not granted');
-        setIsLoading(false);
+      addTestResult('📱 Testing mobile notification system...');
+      
+      // Check mobile compatibility first
+      const browserInfo = mobileNotificationService.getBrowserInfo();
+      
+      if (!browserInfo.isSecure) {
+        addTestResult('❌ HTTPS required for mobile notifications');
+        addTestResult('💡 Make sure you\'re accessing via HTTPS or localhost');
         return;
       }
-
-      const notification = new Notification('Mobile Test Notification', {
-        body: 'This is a basic notification test on mobile device',
-        icon: '/logo.svg',
-        badge: '/logo.svg',
-        tag: 'mobile-test',
-        requireInteraction: true,
-        vibrate: [200, 100, 200] // Mobile vibration pattern
-      });
-
-      notification.onclick = () => {
-        addTestResult('✅ Notification clicked!');
-        notification.close();
-      };
-
-      notification.onshow = () => {
-        addTestResult('✅ Basic notification displayed successfully!');
-      };
-
-      notification.onerror = (error) => {
-        addTestResult(`❌ Notification error: ${error}`);
-      };
-
+      
+      if (!browserInfo.supportsNotifications) {
+        addTestResult('❌ Notifications not supported in this browser');
+        return;
+      }
+      
+      const success = await mobileNotificationService.testMobileNotification();
+      if (success) {
+        addTestResult('✅ Mobile notification sent successfully!');
+        addTestResult('📱 Check your device for the notification');
+      } else {
+        addTestResult('❌ Mobile notification failed to send');
+        addTestResult('💡 Try enabling notifications in browser settings');
+      }
       setLastTest(new Date().toLocaleTimeString());
     } catch (error) {
-      addTestResult(`❌ Basic notification failed: ${error}`);
+      addTestResult(`❌ Mobile notification test failed: ${error}`);
+      
+      // Provide mobile-specific help
+      const browserInfo = mobileNotificationService.getBrowserInfo();
+      if (browserInfo.isMobile) {
+        addTestResult('📱 Mobile Help:');
+        addTestResult('1. Tap address bar lock/info icon');
+        addTestResult('2. Enable "Notifications"');
+        addTestResult('3. Refresh page and try again');
+      }
     } finally {
       setIsLoading(false);
     }
   };
 
-  const testTaskNotification = async () => {
+  const testTaskDeadlineNotifications = async () => {
     setIsLoading(true);
     try {
-      if (Notification.permission !== 'granted') {
-        addTestResult('❌ Cannot test - permission not granted');
-        setIsLoading(false);
-        return;
+      addTestResult('📋 Testing task deadline notifications...');
+      const tasks = await mobileNotificationService.checkAndNotifyDeadlines();
+      if (tasks.length > 0) {
+        addTestResult(`✅ Found and notified ${tasks.length} upcoming deadlines!`);
+        tasks.forEach(task => {
+          addTestResult(`📌 ${task.project_name}: ${task.title} (${task.daysRemaining} days)`);
+        });
+      } else {
+        addTestResult('✅ No upcoming deadlines found');
       }
-
-      // Mock task data in your requested format
-      const mockTask = {
-        project_name: 'Cebu Industrial Park Power Systems',
-        title: 'dsafasgs',
-        status: 'in-progress',
-        priority: 'high',
-        end_date: '8/12/2025',
-        days_remaining: 3
-      };
-
-      // Format exactly as you requested
-      const title = mockTask.project_name;
-      const body = `${mockTask.title}\n${mockTask.status}, ${mockTask.priority} priority\n${mockTask.end_date}\n⏰ ${mockTask.days_remaining} days`;
-
-      addTestResult('📱 Sending task notification with your requested format...');
-      addTestResult(`Title: "${title}"`);
-      addTestResult(`Body: "${body.replace(/\n/g, ' | ')}"`);
-
-      const notification = new Notification(title, {
-        body: body,
-        icon: '/logo.svg',
-        badge: '/logo.svg',
-        tag: 'task-deadline',
-        requireInteraction: true,
-        vibrate: [300, 100, 300, 100, 300], // Urgent pattern
-        data: {
-          taskId: 'test-task-1',
-          projectName: mockTask.project_name,
-          type: 'deadline'
-        }
-      });
-
-      notification.onclick = () => {
-        addTestResult('✅ Task notification clicked!');
-        notification.close();
-      };
-
-      notification.onshow = () => {
-        addTestResult('✅ Task notification displayed successfully!');
-      };
-
-      notification.onerror = (error) => {
-        addTestResult(`❌ Task notification error: ${error}`);
-      };
-
       setLastTest(new Date().toLocaleTimeString());
     } catch (error) {
-      addTestResult(`❌ Task notification failed: ${error}`);
+      addTestResult(`❌ Task deadline test failed: ${error}`);
     } finally {
       setIsLoading(false);
     }
   };
 
-  const testMultipleTaskNotifications = async () => {
-    setIsLoading(true);
-    try {
-      if (Notification.permission !== 'granted') {
-        addTestResult('❌ Cannot test - permission not granted');
-        setIsLoading(false);
-        return;
-      }
-
-      const mockTasks = [
-        {
-          project_name: 'Cebu Industrial Park Power Systems',
-          title: 'Power Grid Installation',
-          status: 'in-progress',
-          priority: 'high',
-          end_date: '8/9/2025',
-          days_remaining: 0
-        },
-        {
-          project_name: 'Manila Bay Electrical Grid',
-          title: 'Electrical Upgrade',
-          status: 'in-progress',
-          priority: 'high',
-          end_date: '8/10/2025',
-          days_remaining: 1
-        },
-        {
-          project_name: 'Davao Commercial Complex',
-          title: 'Wiring Installation',
-          status: 'pending',
-          priority: 'medium',
-          end_date: '8/12/2025',
-          days_remaining: 3
-        }
-      ];
-
-      addTestResult(`📱 Sending ${mockTasks.length} individual task notifications...`);
-
-      mockTasks.forEach((task, index) => {
-        setTimeout(() => {
-          const urgencyIcon = task.days_remaining === 0 ? '🚨' : 
-                            task.days_remaining <= 1 ? '⚠️' : '⏰';
-          
-          const daysText = task.days_remaining === 0 ? 'DUE TODAY' : 
-                          task.days_remaining === 1 ? '1 day' : 
-                          `${task.days_remaining} days`;
-
-          const title = task.project_name;
-          const body = `${task.title}\n${task.status}, ${task.priority} priority\n${task.end_date}\n${urgencyIcon} ${daysText}`;
-          
-          addTestResult(`Sending notification ${index + 1}: ${title}`);
-          
-          const notification = new Notification(title, {
-            body: body,
-            icon: '/logo.svg',
-            badge: '/logo.svg',
-            tag: `task-${index}`,
-            requireInteraction: task.days_remaining <= 1,
-            vibrate: task.days_remaining <= 1 ? [300, 100, 300, 100, 300] : [200, 100, 200]
-          });
-
-          notification.onshow = () => {
-            addTestResult(`✅ Notification ${index + 1} displayed`);
-          };
-
-          notification.onerror = (error) => {
-            addTestResult(`❌ Notification ${index + 1} error: ${error}`);
-          };
-
-        }, index * 2500); // Stagger by 2.5 seconds
-      });
-
-      setTimeout(() => {
-        addTestResult(`✅ All ${mockTasks.length} task notifications scheduled`);
-        setLastTest(new Date().toLocaleTimeString());
-        setIsLoading(false);
-      }, mockTasks.length * 2500 + 1000);
-
-    } catch (error) {
-      addTestResult(`❌ Multiple notifications failed: ${error}`);
-      setIsLoading(false);
-    }
-  };
-
-  const testServiceWorkerNotification = async () => {
-    setIsLoading(true);
-    try {
-      if (!('serviceWorker' in navigator)) {
-        addTestResult('❌ Service Worker not supported');
-        setIsLoading(false);
-        return;
-      }
-
-      const registration = await navigator.serviceWorker.ready;
-      addTestResult('✅ Service Worker registered');
-
-      await registration.showNotification('Service Worker Test', {
-        body: 'This notification was sent via Service Worker for mobile testing',
-        icon: '/logo.svg',
-        badge: '/logo.svg',
-        tag: 'sw-test',
-        requireInteraction: true,
-        vibrate: [200, 100, 200]
-      });
-
-      addTestResult('✅ Service Worker notification sent');
-      setLastTest(new Date().toLocaleTimeString());
-
-    } catch (error) {
-      addTestResult(`❌ Service Worker notification failed: ${error}`);
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  const handleTestAllNotifications = async () => {
-    setIsLoading(true);
-    try {
-      await TestNotificationService.sendTestNotifications();
-      setLastTest(new Date().toLocaleTimeString());
-    } catch (error) {
-      console.error('Test failed:', error);
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  const handleSingleTest = async () => {
+  const testLegacyNotifications = async () => {
     setIsLoading(true);
     try {
       await TestNotificationService.sendSingleTestNotification();
+      addTestResult('✅ Legacy notification system test completed');
       setLastTest(new Date().toLocaleTimeString());
     } catch (error) {
-      console.error('Single test failed:', error);
+      addTestResult(`❌ Legacy test failed: ${error}`);
     } finally {
       setIsLoading(false);
     }
@@ -347,20 +184,62 @@ export default function NotificationTestPage() {
         <div className="text-center">
           <h1 className="text-2xl font-bold flex items-center justify-center gap-2">
             <Smartphone className="h-6 w-6" />
-            Mobile Notification Test Lab
+            Enhanced Mobile Notification Test Lab
           </h1>
           <p className="text-gray-600 mt-2">
-            Test individual task deadline notifications on mobile devices
+            Cross-browser mobile notification testing for Android & iPhone Chrome
           </p>
+          <div className="flex items-center justify-center gap-2 mt-2">
+            {isOnline ? (
+              <>
+                <CheckCircle className="h-4 w-4 text-green-600" />
+                <span className="text-green-600 text-sm">Online - Ready for Testing</span>
+              </>
+            ) : (
+              <>
+                <AlertTriangle className="h-4 w-4 text-red-600" />
+                <span className="text-red-600 text-sm">Offline - Limited Functionality</span>
+              </>
+            )}
+          </div>
         </div>
 
-        {/* Mobile Compatibility Status */}
+        {/* Mobile Instructions Card */}
+        {compatibility.isMobile && (
+          <Card className="border-blue-200 bg-blue-50">
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2 text-blue-800">
+                <Smartphone className="h-5 w-5" />
+                📱 Mobile Setup Instructions
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="text-blue-700">
+              <div className="space-y-2 text-sm">
+                <p className="font-medium">To enable notifications on your mobile device:</p>
+                <ol className="list-decimal list-inside space-y-1 ml-2">
+                  <li>Tap the 🔒 lock icon or ℹ️ info icon in your browser address bar</li>
+                  <li>Find &quot;Notifications&quot; and set it to &quot;Allow&quot;</li>
+                  <li>Refresh this page and test again</li>
+                </ol>
+                <p className="mt-3 text-xs bg-blue-100 p-2 rounded">
+                  <strong>Chrome Mobile:</strong> Settings → Site Settings → Notifications → Allow<br/>
+                  <strong>Safari iOS:</strong> Limited support - Use Chrome for best experience
+                </p>
+              </div>
+            </CardContent>
+          </Card>
+        )}
+
+        {/* Enhanced Mobile Compatibility Status */}
         <Card>
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
               <CheckCircle className="h-5 w-5" />
-              Mobile Device Status
+              Enhanced Mobile Browser Analysis
             </CardTitle>
+            <CardDescription>
+              Comprehensive mobile notification compatibility check
+            </CardDescription>
           </CardHeader>
           <CardContent>
             <div className="grid grid-cols-2 gap-4 mb-4">
@@ -385,6 +264,20 @@ export default function NotificationTestPage() {
                 </Badge>
               </div>
             </div>
+
+            {compatibility.recommendations && compatibility.recommendations.length > 0 && (
+              <div className="p-3 bg-blue-50 border border-blue-200 rounded mb-4">
+                <h4 className="font-semibold text-blue-800 flex items-center gap-2">
+                  <CheckCircle className="h-4 w-4" />
+                  Recommendations:
+                </h4>
+                <ul className="mt-2 text-sm text-blue-700">
+                  {compatibility.recommendations.map((rec, index) => (
+                    <li key={index}>• {rec}</li>
+                  ))}
+                </ul>
+              </div>
+            )}
 
             {compatibility.issues.length > 0 && (
               <div className="p-3 bg-red-50 border border-red-200 rounded">
@@ -426,39 +319,30 @@ export default function NotificationTestPage() {
               </Button>
 
               <Button 
-                onClick={testBasicNotification}
-                disabled={compatibility.notificationPermission !== 'granted' || isLoading}
+                onClick={testMobileNotification}
+                disabled={compatibility.notificationPermission !== 'granted' || isLoading || !isOnline}
                 variant="outline"
                 className="w-full"
               >
-                {isLoading ? 'Testing...' : '🔔 Test Basic Mobile Notification'}
+                {isLoading ? 'Testing...' : '� Test Enhanced Mobile Notification'}
               </Button>
 
               <Button 
-                onClick={testTaskNotification}
-                disabled={compatibility.notificationPermission !== 'granted' || isLoading}
+                onClick={testTaskDeadlineNotifications}
+                disabled={compatibility.notificationPermission !== 'granted' || isLoading || !isOnline}
                 variant="outline"
                 className="w-full"
               >
-                {isLoading ? 'Testing...' : '📋 Test Single Task Notification'}
+                {isLoading ? 'Testing...' : '📋 Test Task Deadline Notifications'}
               </Button>
 
               <Button 
-                onClick={testMultipleTaskNotifications}
-                disabled={compatibility.notificationPermission !== 'granted' || isLoading}
+                onClick={testLegacyNotifications}
+                disabled={compatibility.notificationPermission !== 'granted' || isLoading || !isOnline}
                 variant="outline"
                 className="w-full"
               >
-                {isLoading ? 'Testing...' : '📱 Test Multiple Task Notifications'}
-              </Button>
-
-              <Button 
-                onClick={testServiceWorkerNotification}
-                disabled={compatibility.notificationPermission !== 'granted' || !compatibility.supportsServiceWorker || isLoading}
-                variant="outline"
-                className="w-full"
-              >
-                {isLoading ? 'Testing...' : '⚙️ Test Service Worker Notification'}
+                {isLoading ? 'Testing...' : '� Test Legacy System (Fallback)'}
               </Button>
             </div>
           </CardContent>

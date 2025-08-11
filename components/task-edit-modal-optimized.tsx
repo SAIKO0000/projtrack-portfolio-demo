@@ -9,12 +9,27 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Calendar } from "@/components/ui/calendar-custom"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
+import { Badge } from "@/components/ui/badge"
 import { useProjects } from "@/lib/hooks/useProjects"
 import { useGanttTasks } from "@/lib/hooks/useGanttTasks"
-import { Calendar as CalendarIcon, Clock, Save } from "lucide-react"
+import { Calendar as CalendarIcon, Clock, X, Plus, Save } from "lucide-react"
 import { format } from "date-fns"
 import { cn } from "@/lib/utils"
 import { toast } from "react-hot-toast"
+
+// Predefined roles based on your project structure
+// PROJECT STAFF and DIRECT LABOR are categories, not assignable roles
+const PROJECT_ROLES = [
+  "PROJECT IN-CHARGE", 
+  "PROJECT ENGINEER",
+  "GC ENGINEER",
+  "SAFETY OFFICER",
+  "FOREMAN",
+  "ELECTRICIAN",
+  "HELPER",
+  "WELDER/FABRICATOR",
+  "TIME KEEPER/WAREHOUSEMEN"
+] as const
 
 interface Task {
   id: string
@@ -40,7 +55,7 @@ interface TaskFormData {
   priority: string
   phase: string
   category: string
-  assignee: string
+  assignees: string[] // Changed from assignee to assignees
 }
 
 interface TaskEditModalProps {
@@ -54,6 +69,7 @@ export function TaskEditModalOptimized({ task, open, onOpenChangeAction, onTaskU
   const { projects } = useProjects()
   const { updateTask } = useGanttTasks()
   const [loading, setLoading] = useState(false)
+  const [selectedRole, setSelectedRole] = useState<string>("")
   const [formData, setFormData] = useState<TaskFormData>({
     title: "",
     description: "",
@@ -64,7 +80,7 @@ export function TaskEditModalOptimized({ task, open, onOpenChangeAction, onTaskU
     priority: "medium",
     phase: "Planning",
     category: "planning",
-    assignee: "",
+    assignees: [], // Changed from assignee: "" to assignees: []
   })
 
   const parseDateFromDatabase = (dateString: string | null) => {
@@ -78,6 +94,11 @@ export function TaskEditModalOptimized({ task, open, onOpenChangeAction, onTaskU
   // Load task data when modal opens or task changes
   useEffect(() => {
     if (task && open) {
+      // Parse existing assignees (split by comma if multiple)
+      const existingAssignees = task.assignee 
+        ? task.assignee.split(', ').map(a => a.trim()).filter(a => a.length > 0)
+        : []
+      
       setFormData({
         title: task.title || "",
         description: task.description || "",
@@ -88,7 +109,7 @@ export function TaskEditModalOptimized({ task, open, onOpenChangeAction, onTaskU
         priority: task.priority || "medium",
         phase: task.phase || "Planning",
         category: task.category || "planning",
-        assignee: task.assignee || "",
+        assignees: existingAssignees, // Use parsed assignees array
       })
     }
   }, [task, open])
@@ -154,7 +175,7 @@ export function TaskEditModalOptimized({ task, open, onOpenChangeAction, onTaskU
         progress: 0, // We don't track progress anymore
         phase: formData.phase,
         category: formData.category as "planning" | "pre-construction" | "construction" | "finishing" | "closeout" | null,
-        assignee: formData.assignee,
+        assignee: formData.assignees.length > 0 ? formData.assignees.join(", ") : null, // Join multiple assignees
       })
 
       toast.success("Task updated successfully!")
@@ -172,6 +193,23 @@ export function TaskEditModalOptimized({ task, open, onOpenChangeAction, onTaskU
     setFormData(prev => ({
       ...prev,
       [field]: value
+    }))
+  }
+
+  const handleAddAssignee = () => {
+    if (selectedRole && !formData.assignees.includes(selectedRole)) {
+      setFormData(prev => ({
+        ...prev,
+        assignees: [...prev.assignees, selectedRole]
+      }))
+      setSelectedRole("")
+    }
+  }
+
+  const handleRemoveAssignee = (assigneeToRemove: string) => {
+    setFormData(prev => ({
+      ...prev,
+      assignees: prev.assignees.filter(assignee => assignee !== assigneeToRemove)
     }))
   }
 
@@ -223,14 +261,64 @@ export function TaskEditModalOptimized({ task, open, onOpenChangeAction, onTaskU
               </Select>
             </div>
 
-            <div>
-              <Label htmlFor="assignee">Assignee</Label>
-              <Input
-                id="assignee"
-                value={formData.assignee}
-                onChange={(e) => handleInputChange('assignee', e.target.value)}
-                placeholder="Enter assignee name"
-              />
+            {/* Multiple Assignees Section */}
+            <div className="space-y-2">
+              <Label>Assignees</Label>
+              
+              {/* Current Assignees */}
+              {formData.assignees.length > 0 && (
+                <div className="flex flex-wrap gap-2 mb-2">
+                  {formData.assignees.map((assignee, index) => (
+                    <Badge 
+                      key={index} 
+                      variant="secondary" 
+                      className="flex items-center gap-1 pr-1"
+                    >
+                      {assignee}
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        className="h-4 w-4 p-0 hover:bg-destructive hover:text-destructive-foreground"
+                        onClick={() => handleRemoveAssignee(assignee)}
+                      >
+                        <X className="h-3 w-3" />
+                      </Button>
+                    </Badge>
+                  ))}
+                </div>
+              )}
+
+              {/* Add Assignee Interface */}
+              <div className="flex gap-2">
+                <Select value={selectedRole} onValueChange={setSelectedRole}>
+                  <SelectTrigger className="flex-1">
+                    <SelectValue placeholder="Select role to assign..." />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {PROJECT_ROLES.map((role) => (
+                      <SelectItem 
+                        key={role} 
+                        value={role}
+                        disabled={formData.assignees.includes(role)}
+                      >
+                        {role}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={handleAddAssignee}
+                  disabled={!selectedRole || formData.assignees.includes(selectedRole)}
+                  className="whitespace-nowrap"
+                >
+                  <Plus className="h-4 w-4 mr-1" />
+                  Add
+                </Button>
+              </div>
             </div>
           </div>
 

@@ -28,6 +28,8 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
 import { ProfileModal } from "@/components/profile-modal"
+import { UserAvatar } from "@/components/user-avatar"
+import { useCurrentUserPersonnel } from "@/lib/hooks/useCurrentUserPersonnel"
 import { useAuth } from "@/lib/auth"
 import Image from "next/image"
 
@@ -43,6 +45,7 @@ export function Sidebar({ activeTab, onTabChangeAction }: SidebarProps) {
   const [showProfileModal, setShowProfileModal] = useState(false)
   const [isMobile, setIsMobile] = useState(false)
   const { user, signOut } = useAuth()
+  const { personnel } = useCurrentUserPersonnel()
 
   // Check for mobile viewport
   useEffect(() => {
@@ -95,16 +98,6 @@ export function Sidebar({ activeTab, onTabChangeAction }: SidebarProps) {
       setMobileMenuOpen(false)
     }
   }, [onTabChangeAction, isMobile])
-
-  const userInitials = useMemo(() => {
-    const name = user?.user_metadata?.name || user?.email || "User"
-    return name
-      .split(" ")
-      .map((n: string) => n[0])
-      .join("")
-      .toUpperCase()
-      .slice(0, 2)
-  }, [user])
 
   const userName = useMemo(() => {
     return user?.user_metadata?.name || "User"
@@ -201,9 +194,12 @@ export function Sidebar({ activeTab, onTabChangeAction }: SidebarProps) {
                 <DropdownMenuTrigger asChild>
                   <Button variant="ghost" className="w-full p-0 h-auto hover:bg-transparent group">
                     <div className="flex items-center space-x-3 p-3 bg-gray-50 rounded-lg w-full transition-all duration-200 group-hover:bg-gray-100 group-hover:shadow-sm">
-                      <div className="w-8 h-8 bg-gradient-to-r from-orange-500 to-orange-600 rounded-full flex items-center justify-center transition-transform duration-200 group-hover:scale-105">
-                        <span className="text-white text-sm font-medium">{userInitials}</span>
-                      </div>
+                      <UserAvatar 
+                        avatarUrl={personnel?.avatar_url}
+                        userName={userName}
+                        size="sm"
+                        className="transition-transform duration-200 group-hover:scale-105"
+                      />
                       <div className="flex-1 min-w-0 text-left">
                         <p className="text-sm font-medium text-gray-900 truncate">{userName}</p>
                         <p className="text-xs text-gray-500 truncate">{userPosition}</p>
@@ -220,9 +216,11 @@ export function Sidebar({ activeTab, onTabChangeAction }: SidebarProps) {
                   className="w-72 p-2 shadow-lg border-gray-200"
                 >
                   <div className="flex items-center space-x-3 p-3 mb-2 bg-gray-50 rounded-lg">
-                    <div className="w-10 h-10 bg-gradient-to-r from-orange-500 to-orange-600 rounded-full flex items-center justify-center">
-                      <span className="text-white font-medium">{userInitials}</span>
-                    </div>
+                    <UserAvatar 
+                      avatarUrl={personnel?.avatar_url}
+                      userName={userName}
+                      size="md"
+                    />
                     <div className="flex-1">
                       <p className="text-sm font-semibold text-gray-900">{userName}</p>
                       <p className="text-xs text-gray-500">{userPosition}</p>
@@ -348,9 +346,12 @@ export function Sidebar({ activeTab, onTabChangeAction }: SidebarProps) {
               <Button variant="ghost" className="w-full p-0 h-auto hover:bg-transparent group">
                 {!collapsed ? (
                   <div className="flex items-center space-x-3 p-3 bg-gray-50 rounded-lg w-full transition-all duration-200 group-hover:bg-gray-100 group-hover:shadow-sm">
-                    <div className="w-8 h-8 bg-gradient-to-r from-orange-500 to-orange-600 rounded-full flex items-center justify-center transition-transform duration-200 group-hover:scale-105">
-                      <span className="text-white text-sm font-medium">{userInitials}</span>
-                    </div>
+                    <UserAvatar 
+                      avatarUrl={personnel?.avatar_url}
+                      userName={userName}
+                      size="sm"
+                      className="transition-transform duration-200 group-hover:scale-105"
+                    />
                     <div className="flex-1 min-w-0 text-left">
                       <p className="text-sm font-medium text-gray-900 truncate">{userName}</p>
                       <p className="text-xs text-gray-500 truncate">{userPosition}</p>
@@ -359,9 +360,12 @@ export function Sidebar({ activeTab, onTabChangeAction }: SidebarProps) {
                   </div>
                 ) : (
                   <div className="flex justify-center p-2 rounded-lg transition-all duration-200 group-hover:bg-gray-100">
-                    <div className="w-8 h-8 bg-gradient-to-r from-orange-500 to-orange-600 rounded-full flex items-center justify-center transition-transform duration-200 group-hover:scale-110 group-hover:shadow-md">
-                      <span className="text-white text-sm font-medium">{userInitials}</span>
-                    </div>
+                    <UserAvatar 
+                      avatarUrl={personnel?.avatar_url}
+                      userName={userName}
+                      size="sm"
+                      className="transition-transform duration-200 group-hover:scale-110 group-hover:shadow-md"
+                    />
                   </div>
                 )}
               </Button>
@@ -375,9 +379,11 @@ export function Sidebar({ activeTab, onTabChangeAction }: SidebarProps) {
               style={{ transform: 'translateY(-20px)' }}
             >
               <div className="flex items-center space-x-3 p-3 mb-2 bg-gray-50 rounded-lg">
-                <div className="w-10 h-10 bg-gradient-to-r from-orange-500 to-orange-600 rounded-full flex items-center justify-center">
-                  <span className="text-white font-medium">{userInitials}</span>
-                </div>
+                <UserAvatar 
+                  avatarUrl={personnel?.avatar_url}
+                  userName={userName}
+                  size="md"
+                />
                 <div className="flex-1">
                   <p className="text-sm font-semibold text-gray-900">{userName}</p>
                   <p className="text-xs text-gray-500">{userPosition}</p>

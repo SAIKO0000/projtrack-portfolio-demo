@@ -11,6 +11,7 @@ import { Progress } from "@/components/ui/progress"
 import { Upload, X, FileText, FolderOpen, Tag, Clock, FileType, File, FileSpreadsheet, FileImage, Archive, Layers, Video, Music, FileCode } from "lucide-react"
 import { useReports } from "@/lib/hooks/useReports"
 import { useProjects } from "@/lib/hooks/useProjects"
+import { usePersonnel } from "@/lib/hooks/usePersonnel"
 import { useAuth } from "@/lib/auth"
 import { toast } from "react-hot-toast"
 
@@ -28,23 +29,25 @@ export function ReportUploadModal({ children, onUploadComplete, preselectedProje
   const [category, setCategory] = useState("")
   const [status, setStatus] = useState("pending")
   const [description, setDescription] = useState("")
+  const [assignedReviewer, setAssignedReviewer] = useState("")
 
   const { uploadReport, uploading, uploadProgress, replaceReport } = useReports()
   const { projects } = useProjects()
+  const { personnel } = usePersonnel()
   const { user } = useAuth()
 
-  // Get user position from auth context
-  const userPosition = (user as { position?: string })?.position || ""
-  
-  // Check if user is authorized to set status (expanded from just Project Managers)
-  const isAuthorizedReviewer = ["Project Manager", "Senior Electrical Engineer", "Field Engineer", "Design Engineer"].includes(userPosition)
-
-  // Set initial status when modal opens
+  // Set initial status when modal opens - always pending for uploads
   useEffect(() => {
-    if (open && !isAuthorizedReviewer) {
-      setStatus("pending")
+    if (open) {
+      setStatus("pending") // Always pending for new uploads
     }
-  }, [open, isAuthorizedReviewer])
+  }, [open])
+
+  // Get authorized reviewers (excluding current user to prevent self-approval)
+  const authorizedReviewers = personnel.filter(person => 
+    ["Project Manager", "Senior Electrical Engineer", "Field Engineer", "Design Engineer"].includes(person.position || "") &&
+    person.email !== user?.email // Exclude self from reviewers
+  )
 
   const categories = [
     "Progress Report",
@@ -60,12 +63,8 @@ export function ReportUploadModal({ children, onUploadComplete, preselectedProje
   ]
 
   const statuses = [
-    { value: "pending", label: "Pending Review" },
-    ...(isAuthorizedReviewer ? [
-      { value: "approved", label: "Approved" },
-      { value: "revision", label: "Needs Revision" },
-      { value: "rejected", label: "Rejected" }
-    ] : [])
+    { value: "pending", label: "Pending Review" }
+    // Removed self-approval options - only reviewers can approve/reject via other interface
   ]
   const handleFileSelect = (event: React.ChangeEvent<HTMLInputElement>) => {
     const files = event.target.files
@@ -102,14 +101,21 @@ export function ReportUploadModal({ children, onUploadComplete, preselectedProje
     if (!category) {
       toast.error("Please select a category")
       return
-    }    try {
+    }
+
+    if (!assignedReviewer) {
+      toast.error("Please assign a reviewer for this document")
+      return
+    }
+
+    try {
       if (replacingReportId) {
         // Replace existing report
         await replaceReport(replacingReportId, selectedFile, category, status, description)
         toast.success("Report replaced successfully!")
       } else {
-        // Upload new report
-        await uploadReport(selectedFile, projectId, category, status, description)
+        // Upload new report with single reviewer
+        await uploadReport(selectedFile, projectId, category, status, description, assignedReviewer)
         toast.success("Report uploaded successfully!")
       }
       
@@ -117,8 +123,9 @@ export function ReportUploadModal({ children, onUploadComplete, preselectedProje
       setSelectedFile(null)
       setProjectId(preselectedProjectId || "")
       setCategory("")
-      setStatus("pending") // Reset to default, will be overridden by useEffect for non-managers
+      setStatus("pending") // Always reset to pending
       setDescription("")
+      setAssignedReviewer("")
       setOpen(false)
       
       if (onUploadComplete) {
@@ -340,16 +347,14 @@ export function ReportUploadModal({ children, onUploadComplete, preselectedProje
             </div>
           </div>          {/* Status Selection */}
           <div className="space-y-2">
-            <Label className="text-sm font-medium text-gray-700 flex items-center">
+                        <Label className="text-sm font-medium text-gray-900 flex items-center">
               <Clock className="h-4 w-4 mr-2 text-gray-500" />
               Status *
-              {!isAuthorizedReviewer && (
-                <span className="ml-2 text-xs text-gray-500">(Auto-set to Pending)</span>
-              )}
+              <span className="ml-2 text-xs text-gray-500">(Auto-set to Pending)</span>
             </Label>
             <div className="relative">
               <Clock className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
-              <Select value={status} onValueChange={setStatus} disabled={!isAuthorizedReviewer}>
+              <Select value={status} onValueChange={setStatus} disabled={true}>
                 <SelectTrigger className="w-full pl-10">
                   <SelectValue placeholder="Select status" />                </SelectTrigger>
                 <SelectContent>
@@ -361,7 +366,26 @@ export function ReportUploadModal({ children, onUploadComplete, preselectedProje
                 </SelectContent>
               </Select>
             </div>
-          </div>          {/* Description */}
+          </div>
+
+          {/* Assigned Reviewer */}
+          <div className="space-y-2">
+            <Label htmlFor="reviewer">Assigned Reviewer <span className="text-red-500">*</span></Label>
+            <Select value={assignedReviewer} onValueChange={setAssignedReviewer}>
+              <SelectTrigger id="reviewer">
+                <SelectValue placeholder="Select a reviewer" />
+              </SelectTrigger>
+              <SelectContent>
+                {authorizedReviewers.map((reviewer) => (
+                  <SelectItem key={reviewer.id} value={reviewer.id}>
+                    {reviewer.name} ({reviewer.position || 'No position'})
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+
+          {/* Description */}
           <div className="space-y-2">
             <Label className="text-sm font-medium text-gray-700 flex items-center">
               <FileType className="h-4 w-4 mr-2 text-gray-500" />

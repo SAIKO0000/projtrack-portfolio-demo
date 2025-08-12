@@ -7,21 +7,10 @@ import { Label } from "@/components/ui/label"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { useAuth } from "@/lib/auth"
-import { Eye, EyeOff, Mail, Lock, User, Briefcase, Users, Phone, FileText, Loader2 } from "lucide-react"
+import { Eye, EyeOff, Mail, Lock, User, Briefcase, Phone, Loader2 } from "lucide-react"
 import Link from "next/link"
 import Image from "next/image"
 import { toast } from "react-hot-toast"
-
-const departments = [
-  "Engineering",
-  "Project Management", 
-  "Field Operations",
-  "Quality Assurance",
-  "Administration",
-  "Safety",
-  "Finance",
-  "Other"
-]
 
 const positions = [
   "Senior Electrical Engineer",
@@ -44,10 +33,7 @@ export default function SignUpPage() {
     password: "",
     confirmPassword: "",
     position: "",
-    department: "",
-    phone: "",
-    prcLicense: "",
-    yearsExperience: ""
+    phone: ""
   })
   const [showPassword, setShowPassword] = useState(false)
   const [showConfirmPassword, setShowConfirmPassword] = useState(false)
@@ -61,7 +47,7 @@ export default function SignUpPage() {
   const handleSubmit = useCallback(async (e: React.FormEvent) => {
     e.preventDefault()
     
-    if (!formData.name || !formData.email || !formData.password || !formData.position || !formData.department) {
+    if (!formData.name || !formData.email || !formData.password || !formData.position) {
       toast.error("Please fill in all required fields")
       return
     }
@@ -79,15 +65,12 @@ export default function SignUpPage() {
     setIsLoading(true)
     try {
       const userData = {
-        name: formData.name,
-        position: formData.position,
-        department: formData.department,
-        phone: formData.phone,
-        prcLicense: formData.prcLicense,
-        yearsExperience: formData.yearsExperience ? parseInt(formData.yearsExperience) : undefined
+        name: formData.name.trim(),
+        position: formData.position.trim(),
+        phone: formData.phone.trim() || undefined
       }
 
-      const { success, error } = await signUp(formData.email, formData.password, userData)
+      const { success, error } = await signUp(formData.email.trim(), formData.password, userData)
       if (!success && error) {
         toast.error(error)
       }
@@ -111,7 +94,6 @@ export default function SignUpPage() {
       formData.password.trim() !== '' &&
       formData.confirmPassword.trim() !== '' &&
       formData.position.trim() !== '' &&
-      formData.department.trim() !== '' &&
       formData.password === formData.confirmPassword &&
       formData.password.length >= 6 &&
       !isLoading
@@ -295,36 +277,6 @@ export default function SignUpPage() {
                   </div>
                 </div>
 
-                {/* Department */}
-                <div className="space-y-2">
-                  <Label htmlFor="department" className="text-sm font-medium text-gray-700">
-                    Department <span className="text-red-500">*</span>
-                  </Label>
-                  <div className="relative">
-                    <Users className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400 z-10" />
-                    <Select
-                      value={formData.department}
-                      onValueChange={(value) => handleInputChange("department", value)}
-                      disabled={isLoading}
-                      required
-                    >
-                      <SelectTrigger className="pl-10 h-11 border-gray-300 focus:border-orange-500 focus:ring-orange-500">
-                        <SelectValue placeholder="Select your department" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {departments.map((department) => (
-                          <SelectItem key={department} value={department}>
-                            {department}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
-                </div>
-              </div>
-
-              {/* Additional Information */}
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                 {/* Phone */}
                 <div className="space-y-2">
                   <Label htmlFor="phone" className="text-sm font-medium text-gray-700">
@@ -342,43 +294,6 @@ export default function SignUpPage() {
                       disabled={isLoading}
                     />
                   </div>
-                </div>
-
-                {/* PRC License */}
-                <div className="space-y-2">
-                  <Label htmlFor="prcLicense" className="text-sm font-medium text-gray-700">
-                    PRC License
-                  </Label>
-                  <div className="relative">
-                    <FileText className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
-                    <Input
-                      id="prcLicense"
-                      type="text"
-                      placeholder="EE-12345"
-                      value={formData.prcLicense}
-                      onChange={(e) => handleInputChange("prcLicense", e.target.value)}
-                      className="pl-10 h-11 border-gray-300 focus:border-orange-500 focus:ring-orange-500"
-                      disabled={isLoading}
-                    />
-                  </div>
-                </div>
-
-                {/* Years Experience */}
-                <div className="space-y-2">
-                  <Label htmlFor="yearsExperience" className="text-sm font-medium text-gray-700">
-                    Years Experience
-                  </Label>
-                  <Input
-                    id="yearsExperience"
-                    type="number"
-                    placeholder="5"
-                    value={formData.yearsExperience}
-                    onChange={(e) => handleInputChange("yearsExperience", e.target.value)}
-                    className="h-11 border-gray-300 focus:border-orange-500 focus:ring-orange-500"
-                    disabled={isLoading}
-                    min="0"
-                    max="50"
-                  />
                 </div>
               </div>
 

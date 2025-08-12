@@ -11,6 +11,7 @@ import { Progress } from "@/components/ui/progress"
 import { Edit, FileText, FolderOpen, Tag, Clock, FileType, Save } from "lucide-react"
 import { useReports } from "@/lib/hooks/useReports"
 import { useProjects } from "@/lib/hooks/useProjects"
+import { useAuth } from "@/lib/auth"
 import { toast } from "react-hot-toast"
 import type { Report } from "@/lib/supabase"
 
@@ -35,6 +36,13 @@ export function EditReportModal({ report, open, onOpenChange, onReportUpdated }:
 
   const { updateReport, uploading } = useReports()
   const { projects } = useProjects()
+  const { user } = useAuth()
+
+  // Check if current user can approve this report (not their own report + has privileges)
+  const userPosition = (user as { position?: string })?.position || ""
+  const isAuthorizedReviewer = ["Project Manager", "Senior Electrical Engineer", "Field Engineer", "Design Engineer"].includes(userPosition)
+  const isOwnReport = report?.uploaded_by === user?.id
+  const canApproveReject = isAuthorizedReviewer && !isOwnReport
 
   const categories = [
     "Progress Report",
@@ -49,11 +57,14 @@ export function EditReportModal({ report, open, onOpenChange, onReportUpdated }:
     "Other"
   ]
 
+  // Status options - filter based on user permissions and report ownership
   const statuses = [
     { value: "pending", label: "Pending Review" },
-    { value: "approved", label: "Approved" },
-    { value: "revision", label: "Needs Revision" },
-    { value: "rejected", label: "Rejected" }
+    ...(canApproveReject ? [
+      { value: "approved", label: "Approved" },
+      { value: "revision", label: "Needs Revision" },
+      { value: "rejected", label: "Rejected" }
+    ] : [])
   ]
 
   // Initialize form data when report changes
@@ -215,6 +226,11 @@ export function EditReportModal({ report, open, onOpenChange, onReportUpdated }:
             <Label className="text-sm font-medium text-gray-700 flex items-center">
               <Clock className="h-4 w-4 mr-2 text-gray-500" />
               Status *
+              {isOwnReport && (
+                <span className="ml-2 text-xs text-amber-600 bg-amber-50 px-2 py-1 rounded">
+                  Cannot self-approve
+                </span>
+              )}
             </Label>
             <div className="relative">
               <Clock className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />

@@ -26,14 +26,20 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigge
 import { useProjects } from "@/lib/hooks/useProjects"
 import { useTasks } from "@/lib/hooks/useTasks"
 import { useReports } from "@/lib/hooks/useReports"
+import { usePersonnel } from "@/lib/hooks/usePersonnel"
 import { useAuth } from "@/lib/auth"
 import { ProjectFormModal } from "@/components/project-form-modal"
 import { ReportUploadModal } from "@/components/report-upload-modal"
 import { EditProjectModal } from "@/components/edit-project-modal"
+import { ReviewerNotesModal } from "@/components/reviewer-notes-modal"
+import { SimpleNotesModal } from "@/components/simple-notes-modal"
+import { DocumentViewerWithNotesModal } from "@/components/document-viewer-with-notes-modal"
 import { toast } from "react-hot-toast"
 import { Database } from "@/lib/supabase.types"
+import { supabase } from "@/lib/supabase"
 
 type Project = Database['public']['Tables']['projects']['Row']
+type Report = Database['public']['Tables']['reports']['Row']
 
 interface ProjectsProps {
   readonly onProjectSelect?: (projectId: string) => void
@@ -42,12 +48,44 @@ interface ProjectsProps {
 export function Projects({ onProjectSelect }: ProjectsProps) {
   const { projects, loading, fetchProjects, deleteProject, updateProject } = useProjects()
   const { tasks, loading: tasksLoading } = useTasks()
-  const { reports, loading: reportsLoading, updateReport } = useReports()
+  const { reports, loading: reportsLoading, updateReport, fetchReports } = useReports()
+  const { personnel } = usePersonnel()
   const { user } = useAuth()
   const [searchTerm, setSearchTerm] = useState("")
   const [statusFilter, setStatusFilter] = useState("all")
   const [editingProject, setEditingProject] = useState<Project | null>(null)
   const [viewingReports, setViewingReports] = useState<{ projectId: string; projectName: string } | null>(null)
+  const [reviewerNotesModal, setReviewerNotesModal] = useState<{
+    open: boolean
+    action: 'approved' | 'revision' | 'rejected' | null
+    reportId: string
+    reportName: string
+  }>({
+    open: false,
+    action: null,
+    reportId: '',
+    reportName: ''
+  })
+  const [simpleNotesModal, setSimpleNotesModal] = useState<{
+    open: boolean
+    reportId: string
+    reportName: string
+    existingNotes: string
+  }>({
+    open: false,
+    reportId: '',
+    reportName: '',
+    existingNotes: ''
+  })
+
+  // New state for document viewer with notes
+  const [documentViewerModal, setDocumentViewerModal] = useState<{
+    open: boolean
+    report: Report | null
+  }>({
+    open: false,
+    report: null
+  })
 
   // Get project reports
   const getProjectReports = (projectId: string) => {
@@ -57,6 +95,27 @@ export function Projects({ onProjectSelect }: ProjectsProps) {
   // Get user position
   const userPosition = user?.user_metadata?.position || "Team Member"
   const isAdmin = ["Project Manager", "Senior Electrical Engineer", "Field Engineer", "Design Engineer"].includes(userPosition)
+  
+  console.log('User admin check:', { userPosition, isAdmin, email: user?.email })
+
+  // Helper function to check if current user is the assigned reviewer for a report
+  const isAssignedReviewer = (report: typeof reports[0]) => {
+    const currentUserPersonnel = personnel.find(p => p.email === user?.email)
+    
+    // Check if user is the assigned reviewer
+    const reportWithReviewer = report as typeof report & { assigned_reviewer?: string }
+    
+    const isReviewer = reportWithReviewer.assigned_reviewer === currentUserPersonnel?.id
+    
+    console.log('Assigned reviewer check:', { 
+      reportId: report.id,
+      currentUserEmail: user?.email,
+      currentUserPersonnelId: currentUserPersonnel?.id,
+      assignedReviewer: reportWithReviewer.assigned_reviewer,
+      isAssigned: isReviewer
+    })
+    return isReviewer
+  }
 
   // Helper function to get uploader name and position
   const getUploaderInfo = (report: typeof reports[0]): { name: string; position: string } => {
@@ -65,6 +124,42 @@ export function Projects({ onProjectSelect }: ProjectsProps) {
       name: reportWithInfo.uploader_name || (report.uploaded_by ? `${report.uploaded_by.slice(0, 10)}...` : 'Unknown'),
       position: reportWithInfo.uploader_position || 'Unknown Position'
     }
+  }
+
+  // Helper function to get assigned reviewer names (multiple reviewers)
+  const getAssignedReviewerNames = (report: typeof reports[0]): string => {
+    const reportWithReviewer = report as typeof report & { assigned_reviewer?: string }
+    
+    if (!reportWithReviewer.assigned_reviewer) {
+      return 'No reviewer assigned'
+    }
+    
+    // Find the reviewer by ID in personnel list
+    const reviewer = personnel.find(p => p.id === reportWithReviewer.assigned_reviewer)
+    
+    return reviewer?.name || 'Unknown Reviewer'
+  }
+
+  // Helper function to get individual reviewer status for display
+  const getReviewerStatus = (report: typeof reports[0]) => {
+    const reportWithReviewers = report as typeof report & { 
+      report_reviewers?: Array<{
+        reviewer_id: string
+        status: string | null
+        personnel: { id: string; name: string; position: string | null } | null
+      }>
+    }
+    
+    if (!reportWithReviewers.report_reviewers || reportWithReviewers.report_reviewers.length === 0) {
+      return []
+    }
+    
+    return reportWithReviewers.report_reviewers.map(rr => ({
+      reviewerId: rr.reviewer_id,
+      reviewerName: rr.personnel?.name || 'Unknown',
+      reviewerPosition: rr.personnel?.position || 'Unknown Position',
+      status: rr.status || 'pending'
+    }))
   }
 
   // Capitalize first letter of each word for formal display
@@ -94,17 +189,6 @@ export function Projects({ onProjectSelect }: ProjectsProps) {
 
   const handleProjectCreated = () => {
     fetchProjects() // Refresh projects list
-  }
-
-  // Handle report status update
-  const handleUpdateReportStatus = async (reportId: string, status: string) => {
-    try {
-      await updateReport(reportId, { status })
-      toast.success(`Report status updated to ${capitalizeWords(status)}`)
-    } catch (error) {
-      console.error("Update error:", error)
-      toast.error("Failed to update report status")
-    }
   }
 
   // Calculate task-based progress for a project
@@ -161,13 +245,68 @@ export function Projects({ onProjectSelect }: ProjectsProps) {
     }
   }
 
-  const handleReportStatusUpdate = async (reportId: string, status: string) => {
+  // Handle reviewer notes submission
+  const handleReviewerNotesSubmit = async (action: 'approved' | 'revision' | 'rejected', notes: string) => {
     try {
-      await updateReport(reportId, { status })
-      toast.success(`Report status updated to ${capitalizeWords(status)}`)
+      console.log('Submitting reviewer notes:', { reportId: reviewerNotesModal.reportId, action, notes })
+      
+      await updateReport(reviewerNotesModal.reportId, { 
+        status: action,
+        reviewer_notes: notes 
+      })
+      
+      console.log('Report updated successfully')
+      toast.success(`Report ${action} successfully`)
+      fetchReports() // Refresh reports to get updated data
+      setReviewerNotesModal({
+        open: false,
+        action: null,
+        reportId: '',
+        reportName: ''
+      })
     } catch (error) {
-      console.error("Error updating report status:", error)
+      console.error("Status update error:", error)
       toast.error("Failed to update report status")
+    }
+  }
+
+  // Handle simple notes submission (without status change)
+  const handleSimpleNotesSubmit = async (notes: string) => {
+    try {
+      await updateReport(simpleNotesModal.reportId, { 
+        reviewer_notes: notes 
+      })
+      
+      toast.success('Notes saved successfully')
+      fetchReports() // Refresh reports to get updated data
+      setSimpleNotesModal({
+        open: false,
+        reportId: '',
+        reportName: '',
+        existingNotes: ''
+      })
+    } catch (error) {
+      console.error("Notes update error:", error)
+      toast.error("Failed to save notes")
+    }
+  }
+
+  // Handler for document viewer with notes (both save notes and status changes)
+  const handleDocumentViewerNotesSubmit = async (reportId: string, notes: string) => {
+    try {
+      await updateReport(reportId, { reviewer_notes: notes })
+      await fetchReports()
+    } catch {
+      throw new Error('Failed to save notes')
+    }
+  }
+
+  const handleDocumentViewerStatusChange = async (reportId: string, status: 'approved' | 'rejected' | 'revision', notes: string) => {
+    try {
+      await updateReport(reportId, { status, reviewer_notes: notes })
+      await fetchReports()
+    } catch {
+      throw new Error(`Failed to ${status} report`)
     }
   }
 
@@ -346,7 +485,9 @@ export function Projects({ onProjectSelect }: ProjectsProps) {
             </div>
           </CardContent>
         </Card>
-      </div>      {/* Projects Grid - Responsive layout */}
+      </div>
+      
+      {/* Projects Grid - Responsive layout */}
       <div className="grid grid-cols-1 xl:grid-cols-2 gap-4 sm:gap-6">
         {filteredProjects.map((project) => (
           <Card
@@ -481,112 +622,18 @@ export function Projects({ onProjectSelect }: ProjectsProps) {
                   </Badge>
                 </div>
 
-                {/* Reports Section */}
+                {/* View All Reports button - only show if reports exist */}
                 {getProjectReports(project.id).length > 0 && (
-                  <div className="space-y-2 sm:space-y-3 flex-grow">
-                    <div className="flex items-center justify-between">
-                      <h4 className="text-xs sm:text-sm font-medium text-gray-900 flex items-center">
-                        <FileText className="h-3 w-3 sm:h-4 sm:w-4 mr-1 sm:mr-2" />
-                        Reports ({getProjectReports(project.id).length})
-                      </h4>
-                    </div>
-                    <div className="space-y-2 max-h-32 sm:max-h-40 overflow-y-auto">
-                      {getProjectReports(project.id).slice(0, 3).map((report) => (
-                        <div key={report.id} className="bg-gray-50 rounded-lg p-2 sm:p-3 border">
-                          <div className="flex flex-col gap-2">
-                            <div className="flex items-center justify-between">
-                              <p className="text-xs sm:text-sm font-medium text-gray-900 truncate flex-1">
-                                {report.file_name}
-                              </p>
-                              <Badge 
-                                className={`text-xs ${getReportStatusColor(report.status)} ml-2 flex-shrink-0`}
-                                variant="secondary"
-                              >
-                                {capitalizeWords(report.status) || 'Pending'}
-                              </Badge>
-                            </div>
-                            <div className="flex items-center justify-between">
-                              <p className="text-xs text-gray-500">{report.category}</p>
-                              {report.uploaded_by && (
-                                <div className="text-xs text-gray-400">
-                                  <span className="text-xs text-gray-500">
-                                    By: {getUploaderInfo(report).name}
-                                    <span className="ml-1 text-gray-400">({getUploaderInfo(report).position})</span>
-                                  </span>
-                                </div>
-                              )}
-                            </div>
-                            
-                            {/* Status Control Buttons for Admins */}
-                            {isAdmin && report.status !== 'approved' && (
-                              <div className="flex gap-1 mt-2">
-                                {report.status !== 'approved' && (
-                                  <Button
-                                    size="sm"
-                                    variant="outline"
-                                    className="h-6 px-2 text-xs bg-green-50 border-green-200 text-green-700 hover:bg-green-100"
-                                    onClick={() => handleUpdateReportStatus(report.id, 'approved')}
-                                  >
-                                    ✓
-                                  </Button>
-                                )}
-                                {report.status !== 'revision' && (
-                                  <Button
-                                    size="sm"
-                                    variant="outline"
-                                    className="h-6 px-2 text-xs bg-yellow-50 border-yellow-200 text-yellow-700 hover:bg-yellow-100"
-                                    onClick={() => handleUpdateReportStatus(report.id, 'revision')}
-                                  >
-                                    ↺
-                                  </Button>
-                                )}
-                                {report.status !== 'rejected' && (
-                                  <Button
-                                    size="sm"
-                                    variant="outline"
-                                    className="h-6 px-2 text-xs bg-red-50 border-red-200 text-red-700 hover:bg-red-100"
-                                    onClick={() => handleUpdateReportStatus(report.id, 'rejected')}
-                                  >
-                                    ✗
-                                  </Button>
-                                )}
-                              </div>
-                            )}
-
-                            {/* Replace Report Button for Non-Admins when report is rejected/revision */}
-                            {!isAdmin && (report.status === 'rejected' || report.status === 'revision') && (
-                              <div className="flex gap-1 mt-2">
-                                <ReportUploadModal 
-                                  preselectedProjectId={project.id}
-                                  replacingReportId={report.id}
-                                  onUploadComplete={fetchProjects}
-                                >
-                                  <Button
-                                    size="sm"
-                                    variant="outline"
-                                    className="h-6 px-2 text-xs bg-blue-50 border-blue-200 text-blue-700 hover:bg-blue-100"
-                                  >
-                                    Replace Report
-                                  </Button>
-                                </ReportUploadModal>
-                              </div>
-                            )}
-                          </div>
-                        </div>
-                      ))}
-                      
-                      {/* Show "View All" if more than 3 reports */}
-                      {getProjectReports(project.id).length > 3 && (
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          className="w-full text-xs text-gray-500 hover:text-gray-700 h-6 sm:h-7"
-                          onClick={() => setViewingReports({ projectId: project.id, projectName: project.name })}
-                        >
-                          View All {getProjectReports(project.id).length} Reports →
-                        </Button>
-                      )}
-                    </div>
+                  <div className="space-y-2 sm:space-y-3 flex-grow flex items-center justify-center">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="text-xs text-gray-600 hover:text-gray-800 border-gray-300"
+                      onClick={() => setViewingReports({ projectId: project.id, projectName: project.name })}
+                    >
+                      <FileText className="h-3 w-3 sm:h-4 sm:w-4 mr-1 sm:mr-2" />
+                      View All {getProjectReports(project.id).length} Reports →
+                    </Button>
                   </div>
                 )}
 
@@ -635,8 +682,8 @@ export function Projects({ onProjectSelect }: ProjectsProps) {
 
       {/* Reports Modal */}
       <Dialog open={!!viewingReports} onOpenChange={(open) => !open && setViewingReports(null)}>
-        <DialogContent className="sm:max-w-[700px] max-h-[85vh] overflow-hidden flex flex-col">
-          <DialogHeader className="flex-shrink-0">
+        <DialogContent className="sm:max-w-4xl max-h-[90vh] overflow-hidden flex flex-col">
+          <DialogHeader className="flex-shrink-0 pb-4">
             <DialogTitle className="text-xl font-bold text-gray-900">
               Project Reports
             </DialogTitle>
@@ -647,84 +694,207 @@ export function Projects({ onProjectSelect }: ProjectsProps) {
             </DialogDescription>
           </DialogHeader>
           
-          <div className="flex-1 overflow-y-auto space-y-4 pr-2">
+          <div className="flex-1 overflow-y-auto space-y-3">
             {viewingReports && getProjectReports(viewingReports.projectId).map((report) => (
-              <div key={report.id} className="flex flex-col lg:flex-row lg:items-center justify-between p-4 bg-gray-50 rounded-lg border hover:bg-gray-100 transition-colors">
-                <div className="flex-1 min-w-0 mb-3 lg:mb-0">
-                  <h4 className="font-medium truncate text-gray-900">{report.file_name}</h4>
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-2 mt-2 text-sm text-gray-600">
-                    <p>
-                      <span className="font-medium">Category:</span> {report.category}
-                    </p>
-                    <p>
-                      <span className="font-medium">Uploaded:</span> {new Date(report.uploaded_at || '').toLocaleDateString()}
-                    </p>
-                    {report.uploaded_by && (
-                      <p className="col-span-1 md:col-span-2">
-                        <span className="font-medium">By:</span> {getUploaderInfo(report).name}
-                        <span className="ml-1 text-gray-500 text-sm">({getUploaderInfo(report).position})</span>
+              <div key={report.id} className="p-3 bg-gray-50 rounded-lg border hover:bg-gray-100 transition-colors">
+                <div className="flex items-start justify-between">
+                  <div className="flex-1 min-w-0">
+                    <h4 className="font-medium truncate text-gray-900">{report.file_name}</h4>
+                    <div className="flex flex-wrap items-center gap-x-4 gap-y-1 mt-1 text-sm text-gray-600">
+                      <span><span className="font-medium">Category:</span> {report.category}</span>
+                      <span><span className="font-medium">Uploaded:</span> {new Date(report.uploaded_at || '').toLocaleDateString()}</span>
+                      {report.uploaded_by && (
+                        <span>
+                          <span className="font-medium">By:</span> {getUploaderInfo(report).name}
+                          <span className="ml-1 text-gray-500">({getUploaderInfo(report).position})</span>
+                        </span>
+                      )}
+                    </div>
+                    {report.description && (
+                      <p className="text-sm text-gray-600 mt-1">
+                        <span className="font-medium">Description:</span> {report.description}
                       </p>
                     )}
                   </div>
-                  {report.description && (
-                    <p className="text-sm text-gray-600 mt-2">
-                      <span className="font-medium">Description:</span> {report.description}
-                    </p>
-                  )}
-                </div>
-                <div className="lg:ml-6 flex flex-col lg:items-end space-y-2">
-                  <Badge className={`${getReportStatusColor(report.status)} self-start lg:self-end`}>
+                  <Badge className={`${getReportStatusColor(report.status)} ml-4 flex-shrink-0`}>
                     {capitalizeWords(report.status) || 'Pending'}
                   </Badge>
-                  {isAdmin && report.status === 'pending' && (
-                    <div className="flex flex-row lg:flex-col space-x-2 lg:space-x-0 lg:space-y-2">
+                </div>
+
+                {/* Action buttons in horizontal layout */}
+                <div className="flex flex-wrap gap-2 mt-3">
+                  {/* Download button for all users */}
+                  <Button 
+                    size="sm" 
+                    variant="outline" 
+                    className="text-xs h-7 px-2 text-gray-600 hover:bg-gray-50 border-gray-200"
+                    onClick={async () => {
+                      try {
+                        const { data, error } = await supabase.storage
+                          .from('project-reports')
+                          .download(report.file_path)
+
+                        if (error) throw error
+
+                        const url = URL.createObjectURL(data)
+                        const a = document.createElement('a')
+                        a.href = url
+                        a.download = report.file_name
+                        document.body.appendChild(a)
+                        a.click()
+                        document.body.removeChild(a)
+                        URL.revokeObjectURL(url)
+                        toast.success('File downloaded successfully')
+                      } catch (error) {
+                        console.error('Download error:', error)
+                        toast.error('Failed to download file')
+                      }
+                    }}
+                  >
+                    Download
+                  </Button>
+
+                  {/* View & Note button for assigned reviewers */}
+                  {isAdmin && isAssignedReviewer(report) && (
+                    <Button 
+                      size="sm" 
+                      variant="outline" 
+                      className="text-xs h-7 px-2 text-purple-600 hover:bg-purple-50 border-purple-200"
+                      onClick={() => {
+                        setDocumentViewerModal({
+                          open: true,
+                          report: report
+                        })
+                      }}
+                    >
+                      View & Note
+                    </Button>
+                  )}
+
+                  {/* Approval buttons for pending reports */}
+                  {isAdmin && report.status === 'pending' && report.uploaded_by !== user?.id && isAssignedReviewer(report) && (
+                    <>
                       <Button 
                         size="sm" 
                         variant="outline" 
-                        className="text-xs h-7 px-3 text-green-600 hover:bg-green-50 border-green-200"
-                        onClick={() => handleReportStatusUpdate(report.id, 'approved')}
+                        className="text-xs h-7 px-2 text-green-600 hover:bg-green-50 border-green-200"
+                        onClick={() => {
+                          setReviewerNotesModal({
+                            open: true,
+                            action: 'approved',
+                            reportId: report.id,
+                            reportName: report.file_name || 'Unknown Report'
+                          })
+                        }}
                       >
                         Approve
                       </Button>
                       <Button 
                         size="sm" 
                         variant="outline" 
-                        className="text-xs h-7 px-3 text-yellow-600 hover:bg-yellow-50 border-yellow-200"
-                        onClick={() => handleReportStatusUpdate(report.id, 'revision')}
+                        className="text-xs h-7 px-2 text-yellow-600 hover:bg-yellow-50 border-yellow-200"
+                        onClick={() => {
+                          setReviewerNotesModal({
+                            open: true,
+                            action: 'revision',
+                            reportId: report.id,
+                            reportName: report.file_name || 'Unknown Report'
+                          })
+                        }}
                       >
                         Revision
                       </Button>
                       <Button 
                         size="sm" 
                         variant="outline" 
-                        className="text-xs h-7 px-3 text-red-600 hover:bg-red-50 border-red-200"
-                        onClick={() => handleReportStatusUpdate(report.id, 'rejected')}
+                        className="text-xs h-7 px-2 text-red-600 hover:bg-red-50 border-red-200"
+                        onClick={() => {
+                          setReviewerNotesModal({
+                            open: true,
+                            action: 'rejected',
+                            reportId: report.id,
+                            reportName: report.file_name || 'Unknown Report'
+                          })
+                        }}
                       >
                         Reject
                       </Button>
-                    </div>
+                    </>
                   )}
-                  {!isAdmin && (report.status === 'rejected' || report.status === 'revision') && (
-                    <div className="flex flex-row lg:flex-col space-x-2 lg:space-x-0 lg:space-y-2">
-                      <ReportUploadModal 
-                        preselectedProjectId={viewingReports.projectId}
-                        replacingReportId={report.id}
-                        onUploadComplete={() => {
-                          fetchProjects()
-                          setViewingReports(null)
-                        }}
+
+                  {/* Replace Report Button for report owner when report is rejected/revision */}
+                  {report.uploaded_by === user?.id && (report.status === 'rejected' || report.status === 'revision') && (
+                    <ReportUploadModal 
+                      preselectedProjectId={viewingReports.projectId}
+                      replacingReportId={report.id}
+                      onUploadComplete={() => {
+                        fetchProjects()
+                        setViewingReports(null)
+                      }}
+                    >
+                      <Button 
+                        size="sm" 
+                        variant="outline" 
+                        className="text-xs h-7 px-2 text-blue-600 hover:bg-blue-50 border-blue-200"
                       >
-                        <Button 
-                          size="sm" 
-                          variant="outline" 
-                          className="text-xs h-7 px-3 text-blue-600 hover:bg-blue-50 border-blue-200"
-                        >
-                          Replace Report
-                        </Button>
-                      </ReportUploadModal>
-                    </div>
+                        Replace Report
+                      </Button>
+                    </ReportUploadModal>
                   )}
                 </div>
+
+                {/* Show reviewer notes if available */}
+                {(() => {
+                  const reportWithNotes = report as typeof report & { reviewer_notes?: string }
+                  return reportWithNotes.reviewer_notes && (
+                    <div className="mt-2 p-2 bg-blue-50 rounded border border-blue-200">
+                      <p className="text-xs font-medium text-blue-800 mb-1">
+                        Reviewer Notes:
+                      </p>
+                      <p className="text-xs text-blue-700">{reportWithNotes.reviewer_notes}</p>
+                    </div>
+                  )
+                })()}
+
+                {/* Show multiple reviewers status */}
+                {(() => {
+                  const reviewers = getReviewerStatus(report)
+                  return reviewers.length > 0 && (
+                    <div className="mt-2 p-2 bg-gray-50 rounded border border-gray-200">
+                      <p className="text-xs font-medium text-gray-800 mb-1">
+                        Reviewers ({reviewers.length}):
+                      </p>
+                      <div className="space-y-1">
+                        {reviewers.map((reviewer) => (
+                          <div key={reviewer.reviewerId} className="flex items-center justify-between text-xs">
+                            <span className="text-gray-700">
+                              {reviewer.reviewerName} - {reviewer.reviewerPosition}
+                            </span>
+                            <Badge 
+                              className={`ml-2 ${
+                                reviewer.status === 'approved' ? 'bg-green-100 text-green-700 border-green-200' :
+                                reviewer.status === 'rejected' ? 'bg-red-100 text-red-700 border-red-200' :
+                                reviewer.status === 'revision' ? 'bg-yellow-100 text-yellow-700 border-yellow-200' :
+                                'bg-gray-100 text-gray-700 border-gray-200'
+                              }`}
+                              variant="outline"
+                            >
+                              {capitalizeWords(reviewer.status)}
+                            </Badge>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )
+                })()}
+
+                {/* Status messages */}
+                {isAdmin && report.uploaded_by === user?.id && report.status === 'pending' && (
+                  <p className="text-xs text-gray-500 italic mt-2">Cannot approve your own report</p>
+                )}
+                {isAdmin && report.uploaded_by !== user?.id && report.status === 'pending' && !isAssignedReviewer(report) && (
+                  <p className="text-xs text-gray-500 italic mt-2">Assigned to: {getAssignedReviewerNames(report)}</p>
+                )}
               </div>
             ))}
             
@@ -738,6 +908,31 @@ export function Projects({ onProjectSelect }: ProjectsProps) {
           </div>
         </DialogContent>
       </Dialog>
+
+      <ReviewerNotesModal
+        open={reviewerNotesModal.open}
+        onOpenChangeAction={(open) => setReviewerNotesModal(prev => ({ ...prev, open }))}
+        onSubmitAction={handleReviewerNotesSubmit}
+        reportName={reviewerNotesModal.reportName}
+        action={reviewerNotesModal.action}
+      />
+
+      <SimpleNotesModal
+        open={simpleNotesModal.open}
+        onOpenChange={(open) => setSimpleNotesModal(prev => ({ ...prev, open }))}
+        onSubmit={handleSimpleNotesSubmit}
+        reportName={simpleNotesModal.reportName}
+        existingNotes={simpleNotesModal.existingNotes}
+      />
+
+      <DocumentViewerWithNotesModal
+        open={documentViewerModal.open}
+        onOpenChange={(open) => setDocumentViewerModal(prev => ({ ...prev, open }))}
+        report={documentViewerModal.report}
+        onNotesSubmit={handleDocumentViewerNotesSubmit}
+        onStatusChange={handleDocumentViewerStatusChange}
+        userRole={isAdmin && documentViewerModal.report && isAssignedReviewer(documentViewerModal.report) ? 'reviewer' : 'viewer'}
+      />
     </div>
   )
 }

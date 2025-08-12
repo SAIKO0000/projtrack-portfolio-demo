@@ -8,18 +8,17 @@ import { Label } from "@/components/ui/label"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Separator } from "@/components/ui/separator"
 import { Badge } from "@/components/ui/badge"
+import { ProfilePictureUpload } from "@/components/profile-picture-upload"
 import { 
   User, 
   Mail, 
-  Briefcase, 
+  Briefcase,
   Phone, 
-  FileText, 
   Edit3, 
   Save, 
   Loader2,
   Lock,
-  Calendar,
-  MapPin
+  Calendar
 } from "lucide-react"
 import { useCurrentUserPersonnel } from "@/lib/hooks/useCurrentUserPersonnel"
 import { useAuth } from "@/lib/auth"
@@ -35,13 +34,12 @@ interface ProfileModalProps {
 }
 
 export function ProfileModal({ isOpen, onCloseAction, personnel: viewingPersonnel }: ProfileModalProps) {
-  const { personnel: currentUserPersonnel, loading: currentUserLoading, updating, updatePersonnel } = useCurrentUserPersonnel()
+  const { personnel: currentUserPersonnel, loading: currentUserLoading, updating, updatePersonnel, refetch } = useCurrentUserPersonnel()
   const { user } = useAuth()
   const [isEditing, setIsEditing] = useState(false)
   const [formData, setFormData] = useState({
     name: '',
-    phone: '',
-    years_experience: 0
+    phone: ''
   })
 
   // Determine which personnel data to show
@@ -56,8 +54,7 @@ export function ProfileModal({ isOpen, onCloseAction, personnel: viewingPersonne
     if (displayedPersonnel) {
       setFormData({
         name: displayedPersonnel.name || '',
-        phone: displayedPersonnel.phone || '',
-        years_experience: displayedPersonnel.years_experience || 0
+        phone: displayedPersonnel.phone || ''
       })
     }
   }, [displayedPersonnel])
@@ -94,14 +91,23 @@ export function ProfileModal({ isOpen, onCloseAction, personnel: viewingPersonne
     setFormData(prev => ({ ...prev, [field]: value }))
   }, [])
 
+  const handleAvatarUpdateAction = useCallback(async () => {
+    // Immediately refresh the personnel data to reflect the avatar change
+    if (isOwnProfile && !viewingPersonnel && refetch) {
+      // Wait a moment for the database to update, then refetch
+      setTimeout(() => {
+        refetch()
+      }, 1000)
+    }
+  }, [isOwnProfile, viewingPersonnel, refetch])
+
   const handleSave = useCallback(async () => {
     if (!isOwnProfile) return // Can't edit other people's profiles
     
     try {
       const updates = {
         name: formData.name.trim(),
-        phone: formData.phone.trim() || null,
-        years_experience: formData.years_experience || null
+        phone: formData.phone.trim() || null
       }
 
       const result = await updatePersonnel(updates)
@@ -199,12 +205,24 @@ export function ProfileModal({ isOpen, onCloseAction, personnel: viewingPersonne
         <div className="space-y-6">
           {/* Profile Header */}
           <div className="flex items-center space-x-6 p-6 bg-gradient-to-r from-orange-50 to-orange-100 rounded-xl border border-orange-200">
-            <Avatar className="h-24 w-24 ring-4 ring-white shadow-lg">
-              <AvatarImage src={displayedPersonnel?.avatar_url || ""} alt={userName} />
-              <AvatarFallback className="bg-gradient-to-r from-orange-500 to-orange-600 text-white text-2xl font-semibold">
-                {getInitials(userName)}
-              </AvatarFallback>
-            </Avatar>
+            {isOwnProfile ? (
+              <ProfilePictureUpload
+                key={displayedPersonnel?.avatar_url || 'no-avatar'}
+                currentAvatarUrl={displayedPersonnel?.avatar_url}
+                personnelId={displayedPersonnel?.id || ''}
+                userName={userName}
+                onAvatarUpdateAction={handleAvatarUpdateAction}
+                size="lg"
+                editable={true}
+              />
+            ) : (
+              <Avatar className="h-24 w-24 ring-4 ring-white shadow-lg">
+                <AvatarImage src={displayedPersonnel?.avatar_url || ""} alt={userName} />
+                <AvatarFallback className="bg-gradient-to-r from-orange-500 to-orange-600 text-white text-2xl font-semibold">
+                  {getInitials(userName)}
+                </AvatarFallback>
+              </Avatar>
+            )}
             <div className="flex-1">
               <h2 className="text-3xl font-bold text-gray-900">{userName}</h2>
               <div className="flex items-center gap-2 mt-2">
@@ -212,10 +230,6 @@ export function ProfileModal({ isOpen, onCloseAction, personnel: viewingPersonne
                   {userPosition}
                 </Badge>
               </div>
-              <p className="text-sm text-gray-600 mt-1 flex items-center gap-1">
-                <MapPin className="h-3 w-3" />
-                {displayedPersonnel?.department || "Department not specified"}
-              </p>
             </div>
           </div>
 
@@ -271,29 +285,6 @@ export function ProfileModal({ isOpen, onCloseAction, personnel: viewingPersonne
                 )}
               </div>
 
-              {/* Years of Experience Field */}
-              <div className="space-y-2">
-                <Label htmlFor="experience" className="text-sm font-medium text-gray-700 flex items-center gap-2">
-                  <Briefcase className="h-4 w-4" />
-                  Years of Experience
-                </Label>
-                {isEditing && isOwnProfile ? (
-                  <Input
-                    id="experience"
-                    type="number"
-                    min="0"
-                    max="50"
-                    value={formData.years_experience}
-                    onChange={(e) => handleInputChange('years_experience', parseInt(e.target.value) || 0)}
-                    placeholder="Enter years of experience"
-                    className="border-gray-300 focus:border-orange-500 focus:ring-orange-500"
-                  />
-                ) : (
-                  <div className="p-3 bg-gray-50 rounded-lg border border-gray-200">
-                    <p className="font-medium text-gray-900">{displayedPersonnel?.years_experience || 0} years</p>
-                  </div>
-                )}
-              </div>
             </div>
           </div>
 
@@ -333,32 +324,6 @@ export function ProfileModal({ isOpen, onCloseAction, personnel: viewingPersonne
                   <p className="text-xs text-gray-500 mt-1">Position is managed by administrators</p>
                 </div>
               </div>
-
-              {/* Department Field (Read-only) */}
-              <div className="space-y-2">
-                <Label className="text-sm font-medium text-gray-700 flex items-center gap-2">
-                  <MapPin className="h-4 w-4" />
-                  Department
-                </Label>
-                <div className="p-3 bg-gray-50 rounded-lg border border-gray-200 opacity-75">
-                  <p className="font-medium text-gray-600">{displayedPersonnel?.department || 'Not specified'}</p>
-                  <p className="text-xs text-gray-500 mt-1">Department is managed by administrators</p>
-                </div>
-              </div>
-
-              {/* PRC License Field (Read-only) */}
-              {displayedPersonnel?.prc_license && (
-                <div className="space-y-2">
-                  <Label className="text-sm font-medium text-gray-700 flex items-center gap-2">
-                    <FileText className="h-4 w-4" />
-                    PRC License
-                  </Label>
-                  <div className="p-3 bg-gray-50 rounded-lg border border-gray-200 opacity-75">
-                    <p className="font-medium text-gray-600">{displayedPersonnel.prc_license}</p>
-                    <p className="text-xs text-gray-500 mt-1">License information is protected</p>
-                  </div>
-                </div>
-              )}
             </div>
           </div>
 

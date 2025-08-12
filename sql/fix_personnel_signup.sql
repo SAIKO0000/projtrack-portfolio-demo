@@ -8,6 +8,7 @@ ALTER TABLE personnel ENABLE ROW LEVEL SECURITY;
 DROP POLICY IF EXISTS "Enable insert for authenticated users during signup" ON personnel;
 DROP POLICY IF EXISTS "Users can view all personnel" ON personnel;
 DROP POLICY IF EXISTS "Users can update own personnel record" ON personnel;
+DROP POLICY IF EXISTS "Enable insert for anonymous users during signup" ON personnel;
 
 -- Allow authenticated users to insert personnel records (for signup)
 CREATE POLICY "Enable insert for authenticated users during signup" 

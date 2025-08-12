@@ -1,0 +1,191 @@
+"use client"
+
+import React, { useRef, useState } from 'react'
+import { Button } from '@/components/ui/button'
+import { Card, CardContent } from '@/components/ui/card'
+import { Upload, File, X, Loader2 } from 'lucide-react'
+import { cn } from '@/lib/utils'
+import { useReportOperations } from '@/lib/hooks/useReportOperations'
+import { toast } from 'react-hot-toast'
+
+interface ReportFileUploadProps {
+  reportId: string
+  maxFiles?: number
+  maxFileSize?: number
+  accept?: string
+  className?: string
+}
+
+const SUPPORTED_FILE_TYPES = [
+  '.pdf', '.doc', '.docx', '.xls', '.xlsx', 
+  '.ppt', '.pptx', '.txt', '.jpg', '.jpeg', 
+  '.png', '.gif', '.zip', '.rar'
+]
+
+export function ReportFileUpload({ 
+  reportId, 
+  maxFiles = 5, 
+  maxFileSize = 10 * 1024 * 1024, // 10MB
+  accept = SUPPORTED_FILE_TYPES.join(','),
+  className 
+}: ReportFileUploadProps) {
+  const [selectedFiles, setSelectedFiles] = useState<File[]>([])
+  const [dragActive, setDragActive] = useState(false)
+  const fileInputRef = useRef<HTMLInputElement>(null)
+  
+  const { uploadReportFiles, uploading } = useReportOperations()
+
+  const validateFile = (file: File): boolean => {
+    if (file.size > maxFileSize) {
+      toast.error(`File ${file.name} is too large. Max size is ${Math.round(maxFileSize / 1024 / 1024)}MB`)
+      return false
+    }
+
+    const fileExt = '.' + file.name.split('.').pop()?.toLowerCase()
+    if (!SUPPORTED_FILE_TYPES.includes(fileExt)) {
+      toast.error(`File type ${fileExt} is not supported`)
+      return false
+    }
+
+    return true
+  }
+
+  const handleFiles = (files: FileList | null) => {
+    if (!files) return
+
+    const validFiles = Array.from(files).filter(validateFile)
+    
+    if (selectedFiles.length + validFiles.length > maxFiles) {
+      toast.error(`Maximum ${maxFiles} files allowed`)
+      return
+    }
+
+    setSelectedFiles(prev => [...prev, ...validFiles])
+  }
+
+  const handleDrag = (e: React.DragEvent) => {
+    e.preventDefault()
+    e.stopPropagation()
+    if (e.type === 'dragenter' || e.type === 'dragover') {
+      setDragActive(true)
+    } else if (e.type === 'dragleave') {
+      setDragActive(false)
+    }
+  }
+
+  const handleDrop = (e: React.DragEvent) => {
+    e.preventDefault()
+    e.stopPropagation()
+    setDragActive(false)
+    handleFiles(e.dataTransfer.files)
+  }
+
+  const removeFile = (index: number) => {
+    setSelectedFiles(prev => prev.filter((_, i) => i !== index))
+  }
+
+  const handleUpload = async () => {
+    if (selectedFiles.length === 0) {
+      toast.error('Please select files to upload')
+      return
+    }
+
+    try {
+      await uploadReportFiles({ files: selectedFiles, reportId })
+      setSelectedFiles([])
+      // Reset file input
+      if (fileInputRef.current) {
+        fileInputRef.current.value = ''
+      }
+    } catch (error) {
+      console.error('Upload error:', error)
+    }
+  }
+
+  return (
+    <div className={cn("space-y-4", className)}>
+      {/* Drop Zone */}
+      <Card 
+        className={cn(
+          "border-2 border-dashed transition-colors cursor-pointer",
+          dragActive ? "border-blue-500 bg-blue-50" : "border-gray-300 hover:border-gray-400",
+          uploading && "opacity-50 pointer-events-none"
+        )}
+        onDragEnter={handleDrag}
+        onDragLeave={handleDrag}
+        onDragOver={handleDrag}
+        onDrop={handleDrop}
+        onClick={() => fileInputRef.current?.click()}
+      >
+        <CardContent className="flex flex-col items-center justify-center py-8 text-center">
+          <Upload className="h-10 w-10 text-gray-400 mb-4" />
+          <p className="text-sm text-gray-600 mb-2">
+            Drag and drop files here, or click to select
+          </p>
+          <p className="text-xs text-gray-500">
+            Support for {SUPPORTED_FILE_TYPES.join(', ')}
+          </p>
+          <p className="text-xs text-gray-500">
+            Max {maxFiles} files, {Math.round(maxFileSize / 1024 / 1024)}MB each
+          </p>
+          <input
+            ref={fileInputRef}
+            type="file"
+            multiple
+            accept={accept}
+            className="hidden"
+            onChange={(e) => handleFiles(e.target.files)}
+            disabled={uploading}
+          />
+        </CardContent>
+      </Card>
+
+      {/* Selected Files */}
+      {selectedFiles.length > 0 && (
+        <div className="space-y-2">
+          <h4 className="text-sm font-medium">Selected Files:</h4>
+          {selectedFiles.map((file, index) => (
+            <div key={index} className="flex items-center justify-between p-2 bg-gray-50 rounded-lg">
+              <div className="flex items-center space-x-2">
+                <File className="h-4 w-4 text-gray-500" />
+                <span className="text-sm truncate">{file.name}</span>
+                <span className="text-xs text-gray-500">
+                  ({(file.size / 1024 / 1024).toFixed(2)} MB)
+                </span>
+              </div>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={(e) => {
+                  e.stopPropagation()
+                  removeFile(index)
+                }}
+                disabled={uploading}
+              >
+                <X className="h-4 w-4" />
+              </Button>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* Upload Button */}
+      {selectedFiles.length > 0 && (
+        <Button 
+          onClick={handleUpload} 
+          disabled={uploading}
+          className="w-full"
+        >
+          {uploading ? (
+            <>
+              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+              Uploading...
+            </>
+          ) : (
+            `Upload ${selectedFiles.length} file${selectedFiles.length > 1 ? 's' : ''}`
+          )}
+        </Button>
+      )}
+    </div>
+  )
+}

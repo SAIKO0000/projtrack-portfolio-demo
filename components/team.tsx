@@ -1,12 +1,11 @@
 "use client"
 
 import { useState } from "react"
-import { Card, CardContent, CardHeader } from "@/components/ui/card"
+import { Card, CardContent } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
+import { UserAvatar } from "@/components/user-avatar"
 import { Search, Plus, Mail, Phone, Users, Briefcase } from "lucide-react"
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { usePersonnel } from "@/lib/hooks/usePersonnel"
 import { ProfileModal } from "./profile-modal"
 import type { Database } from "@/lib/supabase.types"
@@ -15,30 +14,19 @@ type Personnel = Database['public']['Tables']['personnel']['Row']
 
 export function Team() {
   const [searchTerm, setSearchTerm] = useState("")
-  const [departmentFilter, setDepartmentFilter] = useState("all")
   const [selectedPersonnel, setSelectedPersonnel] = useState<Personnel | null>(null)
   const [isProfileModalOpen, setIsProfileModalOpen] = useState(false)
   
   const { personnel, loading, error } = usePersonnel()
 
-  const getInitials = (name: string) => {
-    return name
-      .split(" ")
-      .map((n) => n[0])
-      .join("")
-      .toUpperCase()
-  }
-
   const filteredMembers = personnel.filter((member) => {
     const matchesSearch =
       member.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
       (member.position && member.position.toLowerCase().includes(searchTerm.toLowerCase()))
-    const matchesDepartment = departmentFilter === "all" || member.department === departmentFilter
 
-    return matchesSearch && matchesDepartment
+    return matchesSearch
   })
 
-  const departments = [...new Set(personnel.map((member) => member.department).filter(Boolean))]
   const totalMembers = personnel.length
 
   const handleViewProfile = (member: Personnel) => {
@@ -69,153 +57,108 @@ export function Team() {
   }
 
   return (
-    <div className="p-6 space-y-6 overflow-y-auto h-full">
+    <div className="p-8 space-y-8 overflow-y-auto h-full bg-gray-50/30">
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">Team</h1>
-          <p className="text-gray-600">Manage your electrical engineering team and workload</p>
+          <h1 className="text-3xl font-bold text-gray-900">Team</h1>
+          <p className="text-gray-600 mt-1">Manage your electrical engineering team and workload</p>
         </div>
-        <Button className="bg-gradient-to-r from-orange-500 to-orange-600 hover:from-orange-600 hover:to-orange-700">
+        <Button className="bg-gradient-to-r from-orange-500 to-orange-600 hover:from-orange-600 hover:to-orange-700 shadow-md hover:shadow-lg transition-all duration-200">
           <Plus className="h-4 w-4 mr-2" />
           Add Member
         </Button>
       </div>
 
       {/* Team Stats */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        <Card>
-          <CardContent className="p-4">
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+        <Card className="border-0 shadow-md hover:shadow-lg transition-shadow duration-200">
+          <CardContent className="p-6">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-sm text-gray-600">Total Members</p>
-                <p className="text-2xl font-bold">{totalMembers}</p>
+                <p className="text-sm font-medium text-gray-600 uppercase tracking-wide">Total Members</p>
+                <p className="text-3xl font-bold text-gray-900 mt-1">{totalMembers}</p>
               </div>
-              <div className="w-8 h-8 bg-blue-100 rounded-full flex items-center justify-center">
-                <Users className="h-4 w-4 text-blue-600" />
+              <div className="w-12 h-12 bg-blue-100 rounded-xl flex items-center justify-center">
+                <Users className="h-6 w-6 text-blue-600" />
               </div>
             </div>
           </CardContent>
         </Card>
-        <Card>
-          <CardContent className="p-4">
+        <Card className="border-0 shadow-md hover:shadow-lg transition-shadow duration-200">
+          <CardContent className="p-6">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-sm text-gray-600">Departments</p>
-                <p className="text-2xl font-bold">{departments.length}</p>
+                <p className="text-sm font-medium text-gray-600 uppercase tracking-wide">Active Projects</p>
+                <p className="text-3xl font-bold text-gray-900 mt-1">12</p>
               </div>
-              <div className="w-8 h-8 bg-purple-100 rounded-full flex items-center justify-center">
-                <Briefcase className="h-4 w-4 text-purple-600" />
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="p-4">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm text-gray-600">Avg. Experience</p>
-                <p className="text-2xl font-bold">
-                  {personnel.length > 0 
-                    ? Math.round(personnel.reduce((sum, m) => sum + (m.years_experience || 0), 0) / personnel.length)
-                    : 0} yrs
-                </p>
-              </div>
-              <div className="w-8 h-8 bg-green-100 rounded-full flex items-center justify-center">
-                <Briefcase className="h-4 w-4 text-green-600" />
+              <div className="w-12 h-12 bg-orange-100 rounded-xl flex items-center justify-center">
+                <Briefcase className="h-6 w-6 text-orange-600" />
               </div>
             </div>
           </CardContent>
         </Card>
       </div>
 
-      {/* Filters */}
-      <div className="flex flex-col sm:flex-row gap-4">
-        <div className="relative flex-1">
-          <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
+      {/* Search Filter */}
+      <div className="max-w-md">
+        <div className="relative">
+          <Search className="absolute left-4 top-1/2 transform -translate-y-1/2 h-5 w-5 text-gray-400" />
           <Input
             placeholder="Search team members..."
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
-            className="pl-10"
+            className="pl-12 h-12 border-gray-200 focus:border-orange-300 focus:ring-orange-200 bg-white shadow-sm"
           />
         </div>
-        <Select value={departmentFilter} onValueChange={setDepartmentFilter}>
-          <SelectTrigger className="w-full sm:w-48">
-            <SelectValue placeholder="Filter by department" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">All Departments</SelectItem>
-            {departments.map((dept) => (
-              <SelectItem key={dept} value={dept || ""}>
-                {dept}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
       </div>
 
       {/* Team Members Grid */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
         {filteredMembers.map((member) => (
-          <Card key={member.id} className="hover:shadow-lg transition-shadow">
-            <CardHeader>
-              <div className="flex items-start justify-between">
-                <div className="flex items-center space-x-3">
-                  <Avatar className="h-12 w-12">
-                    <AvatarImage src={member.avatar_url || ""} alt={member.name} />
-                    <AvatarFallback className="bg-gradient-to-r from-orange-500 to-orange-600 text-white">
-                      {getInitials(member.name)}
-                    </AvatarFallback>
-                  </Avatar>
-                  <div>
-                    <h3 className="font-semibold text-gray-900">{member.name}</h3>
-                    <p className="text-sm text-gray-600">{member.position || "Not specified"}</p>
-                  </div>
-                </div>
-              </div>
-            </CardHeader>
-            <CardContent>
-              <div className="space-y-4">
-                <div className="grid grid-cols-2 gap-4 text-sm">
-                  <div>
-                    <span className="text-gray-500">Department:</span>
-                    <p className="font-medium">{member.department || "Not specified"}</p>
-                  </div>
-                  <div>
-                    <span className="text-gray-500">Experience:</span>
-                    <p className="font-medium">{member.years_experience || 0} years</p>
-                  </div>
+          <Card key={member.id} className="hover:shadow-lg transition-all duration-300 border border-gray-200 hover:border-orange-200 group">
+            <CardContent className="p-6">
+              <div className="flex flex-col items-center text-center space-y-4">
+                {/* Profile Picture */}
+                <div className="relative">
+                  <UserAvatar
+                    avatarUrl={member.avatar_url}
+                    userName={member.name}
+                    size="xl"
+                    className="transition-transform duration-300 group-hover:scale-105 shadow-md"
+                  />
+                  <div className="absolute -bottom-1 -right-1 w-4 h-4 bg-green-500 border-2 border-white rounded-full"></div>
                 </div>
 
-                {member.prc_license && (
-                  <div>
-                    <span className="text-sm text-gray-500">PRC License:</span>
-                    <p className="text-sm font-medium">{member.prc_license}</p>
-                  </div>
-                )}
-
-                <div className="flex items-center justify-between pt-2 border-t">
-                  <div className="flex items-center space-x-4 text-xs text-gray-500">
-                    {member.email && (
-                      <span className="flex items-center">
-                        <Mail className="h-3 w-3 mr-1" />
-                        Email
-                      </span>
-                    )}
-                    {member.phone && (
-                      <span className="flex items-center">
-                        <Phone className="h-3 w-3 mr-1" />
-                        Call
-                      </span>
-                    )}
-                  </div>
-                  <div className="flex items-center space-x-2">
-                    <Button size="sm" variant="outline" onClick={() => handleViewProfile(member)}>
-                      View Profile
-                    </Button>
-                  </div>
+                {/* Member Info */}
+                <div className="space-y-2 w-full">
+                  <h3 className="font-semibold text-lg text-gray-900 leading-tight">{member.name}</h3>
+                  <p className="text-sm text-orange-600 font-medium bg-orange-50 px-3 py-1 rounded-full inline-block">
+                    {member.position || "Team Member"}
+                  </p>
                 </div>
+
+                {/* Contact Icons */}
+                <div className="flex items-center justify-center space-x-4 w-full">
+                  {member.email && (
+                    <div className="flex items-center justify-center w-8 h-8 bg-blue-50 rounded-full hover:bg-blue-100 transition-colors">
+                      <Mail className="h-4 w-4 text-blue-600" />
+                    </div>
+                  )}
+                  {member.phone && (
+                    <div className="flex items-center justify-center w-8 h-8 bg-green-50 rounded-full hover:bg-green-100 transition-colors">
+                      <Phone className="h-4 w-4 text-green-600" />
+                    </div>
+                  )}
+                </div>
+
+                {/* View Profile Button */}
+                <Button 
+                  onClick={() => handleViewProfile(member)} 
+                  className="w-full bg-gradient-to-r from-orange-500 to-orange-600 hover:from-orange-600 hover:to-orange-700 text-white font-medium py-2.5 rounded-lg transition-all duration-200 shadow-sm hover:shadow-md"
+                >
+                  View Profile
+                </Button>
               </div>
             </CardContent>
           </Card>
@@ -223,12 +166,23 @@ export function Team() {
       </div>
 
       {filteredMembers.length === 0 && (
-        <div className="text-center py-12">
-          <div className="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-4">
-            <Users className="h-6 w-6 text-gray-400" />
+        <div className="text-center py-16">
+          <div className="w-24 h-24 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-6">
+            <Users className="h-10 w-10 text-gray-400" />
           </div>
-          <h3 className="text-lg font-medium text-gray-900 mb-2">No team members found</h3>
-          <p className="text-gray-500">Try adjusting your search or filter criteria</p>
+          <h3 className="text-xl font-medium text-gray-900 mb-3">No team members found</h3>
+          <p className="text-gray-500 mb-6 max-w-sm mx-auto">
+            {searchTerm 
+              ? "Try adjusting your search criteria to find team members" 
+              : "Get started by adding your first team member"
+            }
+          </p>
+          {!searchTerm && (
+            <Button className="bg-gradient-to-r from-orange-500 to-orange-600 hover:from-orange-600 hover:to-orange-700">
+              <Plus className="h-4 w-4 mr-2" />
+              Add First Member
+            </Button>
+          )}
         </div>
       )}
 

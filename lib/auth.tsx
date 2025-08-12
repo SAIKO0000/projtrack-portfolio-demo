@@ -24,10 +24,7 @@ interface AuthContextType {
 interface UserData {
   name: string
   position: string
-  department: string
   phone?: string
-  prcLicense?: string
-  yearsExperience?: number
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined)
@@ -195,6 +192,7 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
   const signUp = useCallback(async (email: string, password: string, userData: UserData) => {
     try {
       setLoading(true)
+      
       const { data, error } = await supabase.auth.signUp({
         email,
         password,
@@ -202,10 +200,7 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
           data: {
             name: userData.name,
             position: userData.position,
-            department: userData.department,
             phone: userData.phone,
-            prc_license: userData.prcLicense,
-            years_experience: userData.yearsExperience,
           }
         }
       })
@@ -217,18 +212,20 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
       // Try to create a personnel record (optional - don't fail signup if this fails)
       if (data.user) {
         try {
-          console.log('Creating personnel record for:', userData)
+          // Prepare data - ensure empty strings become null
+          const personnelData = {
+            name: userData.name.trim(),
+            email: email.trim(),
+            position: userData.position?.trim() || null,
+            phone: userData.phone?.trim() || null,
+          }
+          
+          // Use upsert to handle potential duplicates
           const { error: personnelError } = await supabase
             .from('personnel')
-            .insert({
-              // Don't set id - let it auto-increment
-              name: userData.name,
-              email: email,
-              position: userData.position,
-              department: userData.department,
-              phone: userData.phone || null,
-              prc_license: userData.prcLicense || null,
-              years_experience: userData.yearsExperience || null,
+            .upsert(personnelData, { 
+              onConflict: 'email',
+              ignoreDuplicates: false 
             })
 
           if (personnelError) {
@@ -238,7 +235,7 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
             console.log('Personnel record created successfully')
           }
         } catch (personnelCreateError) {
-          console.warn('Personnel table may not exist or have different schema:', personnelCreateError)
+          console.warn('Personnel table error:', personnelCreateError)
           // Continue with signup even if personnel record creation fails
         }
       }

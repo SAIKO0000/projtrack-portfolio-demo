@@ -28,18 +28,24 @@ import {
   Video,
   Music,
   Edit,
+  X,
+  RotateCcw,
 } from "lucide-react"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { ReportUploadModal } from "./report-upload-modal"
 import { EditReportModal } from "./edit-report-modal"
+import { ReviewerNotesModal } from "./reviewer-notes-modal"
 import { useReports, type ReportWithUploader } from "@/lib/hooks/useReports"
 import { useProjects } from "@/lib/hooks/useProjects"
+import { usePersonnel } from "@/lib/hooks/usePersonnel"
+import { useAuth } from "@/lib/auth"
 import { toast } from "react-hot-toast"
 import { supabase } from "@/lib/supabase"
 
 type EnhancedReport = ReportWithUploader & {
   projectName: string
   file_size_mb: string
+  reviewer_notes?: string
 }
 
 export function Reports() {
@@ -49,9 +55,54 @@ export function Reports() {
   const [statusFilter, setStatusFilter] = useState("all")
   const [editingReport, setEditingReport] = useState<EnhancedReport | null>(null)
   const [isEditModalOpen, setIsEditModalOpen] = useState(false)
+  const [reviewerNotesModal, setReviewerNotesModal] = useState<{
+    open: boolean
+    action: 'approved' | 'revision' | 'rejected' | null
+    reportId: string
+    reportName: string
+  }>({
+    open: false,
+    action: null,
+    reportId: '',
+    reportName: ''
+  })
 
-  const { reports, loading, fetchReports, downloadReport, deleteReport } = useReports()
+  // Debug: Log modal state changes
+  useEffect(() => {
+    console.log('reviewerNotesModal state changed:', reviewerNotesModal)
+  }, [reviewerNotesModal])
+
+  const { reports, loading, fetchReports, downloadReport, deleteReport, updateReport } = useReports()
   const { projects } = useProjects()
+  const { personnel } = usePersonnel()
+  const { user } = useAuth()
+
+  // Check user position and admin status
+  const userPosition = user?.user_metadata?.position || "Team Member"
+  const isAdmin = ["Project Manager", "Senior Electrical Engineer", "Field Engineer", "Design Engineer"].includes(userPosition)
+
+  // Helper function to check if current user is the assigned reviewer for a report
+  const isAssignedReviewer = (report: EnhancedReport) => {
+    const currentUserPersonnel = personnel.find(p => p.email === user?.email)
+    const reportWithReviewer = report as typeof report & { assigned_reviewer?: string }
+    const isReviewer = reportWithReviewer.assigned_reviewer === currentUserPersonnel?.id
+    console.log('isAssignedReviewer check:', {
+      currentUserEmail: user?.email,
+      currentUserPersonnel,
+      reportAssignedReviewer: reportWithReviewer.assigned_reviewer,
+      isReviewer
+    })
+    return isReviewer
+  }
+
+  // Helper function to get assigned reviewer name
+  const getAssignedReviewerName = (report: EnhancedReport): string => {
+    const reportWithReviewer = report as typeof report & { assigned_reviewer?: string }
+    if (!reportWithReviewer.assigned_reviewer) return 'No reviewer assigned'
+    
+    const reviewer = personnel.find(p => p.id === reportWithReviewer.assigned_reviewer)
+    return reviewer ? reviewer.name : 'Unknown Reviewer'
+  }
 
   // Capitalize first letter of each word for formal display
   const capitalizeWords = (text: string | null | undefined): string => {
@@ -69,6 +120,68 @@ export function Reports() {
 
   const handleUploadComplete = () => {
     fetchReports()
+  }
+
+  // Handle report status updates with validation
+  const handleReportStatusUpdate = async (reportId: string, status: string) => {
+    console.log('handleReportStatusUpdate called:', { reportId, status })
+    try {
+      const report = reports.find(r => r.id === reportId) as EnhancedReport | undefined
+      console.log('Found report:', report)
+      
+      // Prevent self-approval
+      if (report && report.uploaded_by === user?.id && (status === 'approved' || status === 'revision' || status === 'rejected')) {
+        toast.error("You cannot approve, reject, or request revision on your own report")
+        return
+      }
+
+      // Prevent non-assigned reviewers from approving
+      if (report && !isAssignedReviewer(report) && (status === 'approved' || status === 'revision' || status === 'rejected')) {
+        toast.error("You are not assigned as the reviewer for this report")
+        return
+      }
+
+      // Open the reviewer notes modal for actions that need notes
+      if (status === 'approved' || status === 'revision' || status === 'rejected') {
+        console.log('Opening reviewer notes modal')
+        setReviewerNotesModal({
+          open: true,
+          action: status as 'approved' | 'revision' | 'rejected',
+          reportId: reportId,
+          reportName: report?.file_name || 'Unknown Report'
+        })
+        return
+      }
+
+      // For other status updates (like pending), update directly
+      await updateReport(reportId, { status })
+      toast.success(`Report ${status} successfully`)
+      fetchReports()
+    } catch (error) {
+      console.error("Status update error:", error)
+      toast.error("Failed to update report status")
+    }
+  }
+
+  // Handle reviewer notes submission
+  const handleReviewerNotesSubmit = async (action: 'approved' | 'revision' | 'rejected', notes: string) => {
+    try {
+      await updateReport(reviewerNotesModal.reportId, { 
+        status: action,
+        reviewer_notes: notes 
+      })
+      toast.success(`Report ${action} successfully`)
+      fetchReports()
+      setReviewerNotesModal({
+        open: false,
+        action: null,
+        reportId: '',
+        reportName: ''
+      })
+    } catch (error) {
+      console.error("Status update error:", error)
+      toast.error("Failed to update report status")
+    }
   }
 
   const handleView = async (report: EnhancedReport) => {
@@ -493,6 +606,81 @@ export function Reports() {
                     >
                       <Trash2 className="h-4 w-4 group-hover:scale-110 transition-transform duration-200" />
                     </Button>
+
+                    {/* Approval/Rejection Buttons for Admins */}
+                    {isAdmin && report.status !== 'approved' && report.uploaded_by !== user?.id && isAssignedReviewer(report) && (
+                      <>
+                        <Button 
+                          variant="ghost" 
+                          size="sm" 
+                          onClick={() => handleReportStatusUpdate(report.id, 'approved')}
+                          className="h-8 px-2 hover:bg-green-100 hover:text-green-600 transition-all duration-200 group"
+                          title="Approve report"
+                        >
+                          <CheckCircle className="h-4 w-4 group-hover:scale-110 transition-transform duration-200" />
+                        </Button>
+                        <Button 
+                          variant="ghost" 
+                          size="sm" 
+                          onClick={() => handleReportStatusUpdate(report.id, 'revision')}
+                          className="h-8 px-2 hover:bg-yellow-100 hover:text-yellow-600 transition-all duration-200 group"
+                          title="Request revision"
+                        >
+                          <RotateCcw className="h-4 w-4 group-hover:scale-110 transition-transform duration-200" />
+                        </Button>
+                        <Button 
+                          variant="ghost" 
+                          size="sm" 
+                          onClick={() => handleReportStatusUpdate(report.id, 'rejected')}
+                          className="h-8 px-2 hover:bg-red-100 hover:text-red-600 transition-all duration-200 group"
+                          title="Reject report"
+                        >
+                          <X className="h-4 w-4 group-hover:scale-110 transition-transform duration-200" />
+                        </Button>
+                      </>
+                    )}
+                  </div>
+
+                  {/* Informational Messages */}
+                  <div className="mt-2 space-y-1">
+                    {/* Show message for admin users viewing their own reports */}
+                    {isAdmin && report.uploaded_by === user?.id && report.status !== 'approved' && (
+                      <p className="text-xs text-gray-500 italic">Cannot approve your own report</p>
+                    )}
+
+                    {/* Show assigned reviewer info for non-assigned reviewers */}
+                    {isAdmin && report.uploaded_by !== user?.id && report.status !== 'approved' && !isAssignedReviewer(report) && (
+                      <p className="text-xs text-gray-500 italic">Assigned to: {getAssignedReviewerName(report)}</p>
+                    )}
+
+                    {/* Show reviewer notes if available */}
+                    {report.reviewer_notes && (report.status === 'approved' || report.status === 'revision' || report.status === 'rejected') && (
+                      <div className="mt-2 p-2 bg-gray-50 rounded-md border">
+                        <p className="text-xs font-medium text-gray-700 mb-1">
+                          Reviewer Notes ({capitalizeWords(report.status)}):
+                        </p>
+                        <p className="text-xs text-gray-600">{report.reviewer_notes}</p>
+                      </div>
+                    )}
+
+                    {/* Replace Report Button for report owner when report is rejected/revision */}
+                    {report.uploaded_by === user?.id && (report.status === 'rejected' || report.status === 'revision') && (
+                      <div className="flex gap-1">
+                        <ReportUploadModal 
+                          preselectedProjectId={projects.find(p => p.name === report.projectName)?.id || ""}
+                          replacingReportId={report.id}
+                          onUploadComplete={handleUploadComplete}
+                        >
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            className="h-6 px-2 text-xs bg-blue-50 border-blue-200 text-blue-700 hover:bg-blue-100"
+                          >
+                            Replace Report
+                          </Button>
+                        </ReportUploadModal>
+                      </div>
+                    )}
                   </div>
                 </div>
               ))}
@@ -516,6 +704,14 @@ export function Reports() {
         open={isEditModalOpen}
         onOpenChange={setIsEditModalOpen}
         onReportUpdated={handleUploadComplete}
+      />
+
+      <ReviewerNotesModal
+        open={reviewerNotesModal.open}
+        onOpenChange={(open) => setReviewerNotesModal(prev => ({ ...prev, open }))}
+        onSubmit={handleReviewerNotesSubmit}
+        reportName={reviewerNotesModal.reportName}
+        action={reviewerNotesModal.action}
       />
     </div>
   )

@@ -1,6 +1,8 @@
 import { useState, useEffect, useCallback } from 'react'
+import { useQueryClient } from '@tanstack/react-query'
 import { supabase } from '../supabase'
 import type { Database } from '../supabase.types'
+import { toast } from 'react-hot-toast'
 
 type Tables<T extends keyof Database['public']['Tables']> = Database['public']['Tables'][T]
 type Report = Database['public']['Tables']['reports']['Row']
@@ -8,8 +10,21 @@ type ReportInsert = Database['public']['Tables']['reports']['Insert']
 
 // Extended report type with uploader name and position
 export interface ReportWithUploader extends Report {
+  id: string
+  project_id: string | null
+  file_name: string
+  file_path: string
+  file_size: number | null
+  file_type: string | null
+  category: string | null
+  status: string | null
+  description: string | null
+  uploaded_at: string | null
+  uploaded_by: string | null
   uploader_name?: string
   uploader_position?: string
+  reviewer_notes?: string
+  assigned_reviewer?: string
 }
 
 export function useReports() {
@@ -17,12 +32,13 @@ export function useReports() {
   const [loading, setLoading] = useState(true)
   const [uploading, setUploading] = useState(false)
   const [uploadProgress, setUploadProgress] = useState(0)
+  const queryClient = useQueryClient()
   
   const fetchReports = useCallback(async () => {
     try {
       setLoading(true)
       
-      // Fetch reports first
+      // Fetch reports with basic data
       const { data: reportsData, error: reportsError } = await supabase
         .from('reports')
         .select('*')
@@ -182,7 +198,8 @@ export function useReports() {
     projectId: string,
     category: string,
     status: string = 'pending',
-    description?: string
+    description?: string,
+    assignedReviewer?: string // Single reviewer ID
   ) => {
     try {
       setUploading(true)
@@ -221,7 +238,9 @@ export function useReports() {
       if (uploadError) {
         console.error('Upload error details:', uploadError)
         throw new Error(`Storage upload failed: ${uploadError.message}`)
-      }      setUploadProgress(50)
+      }
+
+      setUploadProgress(50)
 
       // Truncate fields to match database constraints - file_type has 50 char limit
       const truncatedFileName = file.name.length > 255 ? file.name.substring(0, 255) : file.name
@@ -264,7 +283,7 @@ export function useReports() {
       }
       
       // Save report metadata to database
-      const reportData: ReportInsert & { uploader_name?: string; uploader_position?: string } = {
+      const reportData: ReportInsert & { uploader_name?: string; uploader_position?: string; assigned_reviewer?: string } = {
         project_id: projectId,
         file_name: truncatedFileName,
         file_path: filePath,
@@ -276,6 +295,7 @@ export function useReports() {
         uploaded_by: currentUser?.id || null,
         uploader_name: uploaderName,
         uploader_position: uploaderPosition,
+        assigned_reviewer: assignedReviewer || null,
       }
 
       const { data: report, error: dbError } = await supabase
@@ -297,8 +317,10 @@ export function useReports() {
 
       setUploadProgress(100)
 
-      // Refresh reports list
+      // Instantly invalidate and refetch reports data for instant updates
+      queryClient.invalidateQueries({ queryKey: ['reports'] })
       await fetchReports()
+      toast.success('Report uploaded successfully!')
       return report
     } catch (error) {
       console.error('Error uploading report:', error)
@@ -367,15 +389,18 @@ export function useReports() {
 
       if (dbError) throw dbError
 
-      // Refresh reports list
+      // Instantly invalidate and refetch reports data for instant updates
+      queryClient.invalidateQueries({ queryKey: ['reports'] })
       await fetchReports()
+      toast.success('Report deleted successfully!')
     } catch (error) {
       console.error('Error deleting report:', error)
+      toast.error('Failed to delete report')
       throw error
     }
   }
 
-  const updateReport = async (reportId: string, updates: Partial<Pick<Tables<'reports'>['Update'], 'file_name' | 'project_id' | 'category' | 'status' | 'description'>>) => {
+  const updateReport = async (reportId: string, updates: Partial<Pick<Tables<'reports'>['Update'], 'file_name' | 'project_id' | 'category' | 'status' | 'description'>> & { reviewer_notes?: string }) => {
     if (!reportId) {
       throw new Error('Report ID is required')
     }
@@ -392,11 +417,15 @@ export function useReports() {
 
       if (error) throw error
 
+      // Instantly invalidate and refetch reports data for instant updates
+      queryClient.invalidateQueries({ queryKey: ['reports'] })
+      
       // Update local state
       setReports(prev => prev.map(r => 
         r.id === reportId ? { ...r, ...data } : r
       ))
 
+      toast.success('Report updated successfully!')
       return data
       
     } catch (error) {
@@ -543,11 +572,15 @@ export function useReports() {
 
       setUploadProgress(100)
 
+      // Instantly invalidate and refetch reports data for instant updates
+      queryClient.invalidateQueries({ queryKey: ['reports'] })
+
       // Update local state
       setReports(prev => prev.map(r => 
         r.id === reportId ? data : r
       ))
 
+      toast.success('Report replaced successfully!')
       return data
       
     } catch (error) {

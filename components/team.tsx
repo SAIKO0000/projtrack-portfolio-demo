@@ -5,12 +5,21 @@ import { Card, CardContent } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { UserAvatar } from "@/components/user-avatar"
-import { Search, Plus, Mail, Phone, Users, Briefcase } from "lucide-react"
+import { Search, Mail, Phone, Users, Briefcase } from "lucide-react"
 import { usePersonnel } from "@/lib/hooks/usePersonnel"
+import { useProjectsQuery } from "@/lib/hooks/useProjectsOptimized"
 import { ProfileModal } from "./profile-modal"
-import type { Database } from "@/lib/supabase.types"
 
-type Personnel = Database['public']['Tables']['personnel']['Row']
+type Personnel = {
+  id: number
+  name: string
+  email: string
+  position?: string
+  phone?: string
+  avatar_url?: string
+  created_at?: string
+  updated_at?: string
+}
 
 export function Team() {
   const [searchTerm, setSearchTerm] = useState("")
@@ -18,6 +27,7 @@ export function Team() {
   const [isProfileModalOpen, setIsProfileModalOpen] = useState(false)
   
   const { personnel, loading, error } = usePersonnel()
+  const { data: projects = [], isLoading: projectsLoading } = useProjectsQuery()
 
   const filteredMembers = personnel.filter((member) => {
     const matchesSearch =
@@ -28,13 +38,14 @@ export function Team() {
   })
 
   const totalMembers = personnel.length
+  const activeProjects = projects.length
 
   const handleViewProfile = (member: Personnel) => {
     setSelectedPersonnel(member)
     setIsProfileModalOpen(true)
   }
 
-  if (loading) {
+  if (loading || projectsLoading) {
     return (
       <div className="flex items-center justify-center h-full">
         <div className="text-center">
@@ -57,43 +68,39 @@ export function Team() {
   }
 
   return (
-    <div className="p-8 space-y-8 overflow-y-auto h-full bg-gray-50/30">
+    <div className="p-4 sm:p-6 space-y-4 sm:space-y-6 overflow-y-auto h-full bg-gray-50/30">
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-3xl font-bold text-gray-900">Team</h1>
-          <p className="text-gray-600 mt-1">Manage your electrical engineering team and workload</p>
+          <h1 className="text-xl sm:text-2xl font-bold text-gray-900">Team</h1>
+          <p className="text-sm text-gray-600 mt-1">Manage your electrical engineering team and workload</p>
         </div>
-        <Button className="bg-gradient-to-r from-orange-500 to-orange-600 hover:from-orange-600 hover:to-orange-700 shadow-md hover:shadow-lg transition-all duration-200">
-          <Plus className="h-4 w-4 mr-2" />
-          Add Member
-        </Button>
       </div>
 
       {/* Team Stats */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-        <Card className="border-0 shadow-md hover:shadow-lg transition-shadow duration-200">
-          <CardContent className="p-6">
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-3 sm:gap-4">
+        <Card className="border-l-4 border-l-blue-500">
+          <CardContent className="p-4">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-sm font-medium text-gray-600 uppercase tracking-wide">Total Members</p>
-                <p className="text-3xl font-bold text-gray-900 mt-1">{totalMembers}</p>
+                <p className="text-xs sm:text-sm font-medium text-gray-600 uppercase tracking-wide">Total Members</p>
+                <p className="text-lg sm:text-xl font-bold text-gray-900 mt-1">{totalMembers}</p>
               </div>
-              <div className="w-12 h-12 bg-blue-100 rounded-xl flex items-center justify-center">
-                <Users className="h-6 w-6 text-blue-600" />
+              <div className="w-8 h-8 bg-blue-100 rounded-xl flex items-center justify-center">
+                <Users className="h-4 w-4 text-blue-600" />
               </div>
             </div>
           </CardContent>
         </Card>
-        <Card className="border-0 shadow-md hover:shadow-lg transition-shadow duration-200">
-          <CardContent className="p-6">
+        <Card className="border-l-4 border-l-orange-500">
+          <CardContent className="p-4">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-sm font-medium text-gray-600 uppercase tracking-wide">Active Projects</p>
-                <p className="text-3xl font-bold text-gray-900 mt-1">12</p>
+                <p className="text-xs sm:text-sm font-medium text-gray-600 uppercase tracking-wide">Active Projects</p>
+                <p className="text-lg sm:text-xl font-bold text-gray-900 mt-1">{activeProjects}</p>
               </div>
-              <div className="w-12 h-12 bg-orange-100 rounded-xl flex items-center justify-center">
-                <Briefcase className="h-6 w-6 text-orange-600" />
+              <div className="w-8 h-8 bg-orange-100 rounded-xl flex items-center justify-center">
+                <Briefcase className="h-4 w-4 text-orange-600" />
               </div>
             </div>
           </CardContent>
@@ -103,51 +110,51 @@ export function Team() {
       {/* Search Filter */}
       <div className="max-w-md">
         <div className="relative">
-          <Search className="absolute left-4 top-1/2 transform -translate-y-1/2 h-5 w-5 text-gray-400" />
+          <Search className="absolute left-4 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
           <Input
             placeholder="Search team members..."
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
-            className="pl-12 h-12 border-gray-200 focus:border-orange-300 focus:ring-orange-200 bg-white shadow-sm"
+            className="pl-10 h-10 border-gray-200 focus:border-orange-300 focus:ring-orange-200 bg-white shadow-sm"
           />
         </div>
       </div>
 
       {/* Team Members Grid */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
         {filteredMembers.map((member) => (
           <Card key={member.id} className="hover:shadow-lg transition-all duration-300 border border-gray-200 hover:border-orange-200 group">
-            <CardContent className="p-6">
-              <div className="flex flex-col items-center text-center space-y-4">
+            <CardContent className="p-4">
+              <div className="flex flex-col items-center text-center space-y-3">
                 {/* Profile Picture */}
                 <div className="relative">
                   <UserAvatar
                     avatarUrl={member.avatar_url}
                     userName={member.name}
-                    size="xl"
+                    size="lg"
                     className="transition-transform duration-300 group-hover:scale-105 shadow-md"
                   />
-                  <div className="absolute -bottom-1 -right-1 w-4 h-4 bg-green-500 border-2 border-white rounded-full"></div>
+                  <div className="absolute -bottom-1 -right-1 w-3 h-3 bg-green-500 border-2 border-white rounded-full"></div>
                 </div>
 
                 {/* Member Info */}
-                <div className="space-y-2 w-full">
-                  <h3 className="font-semibold text-lg text-gray-900 leading-tight">{member.name}</h3>
-                  <p className="text-sm text-orange-600 font-medium bg-orange-50 px-3 py-1 rounded-full inline-block">
+                <div className="space-y-1 w-full">
+                  <h3 className="font-semibold text-sm text-gray-900 leading-tight">{member.name}</h3>
+                  <p className="text-xs text-orange-600 font-medium bg-orange-50 px-2 py-1 rounded-full inline-block">
                     {member.position || "Team Member"}
                   </p>
                 </div>
 
                 {/* Contact Icons */}
-                <div className="flex items-center justify-center space-x-4 w-full">
+                <div className="flex items-center justify-center space-x-3 w-full">
                   {member.email && (
-                    <div className="flex items-center justify-center w-8 h-8 bg-blue-50 rounded-full hover:bg-blue-100 transition-colors">
-                      <Mail className="h-4 w-4 text-blue-600" />
+                    <div className="flex items-center justify-center w-7 h-7 bg-blue-50 rounded-full hover:bg-blue-100 transition-colors">
+                      <Mail className="h-3 w-3 text-blue-600" />
                     </div>
                   )}
                   {member.phone && (
-                    <div className="flex items-center justify-center w-8 h-8 bg-green-50 rounded-full hover:bg-green-100 transition-colors">
-                      <Phone className="h-4 w-4 text-green-600" />
+                    <div className="flex items-center justify-center w-7 h-7 bg-green-50 rounded-full hover:bg-green-100 transition-colors">
+                      <Phone className="h-3 w-3 text-green-600" />
                     </div>
                   )}
                 </div>
@@ -155,7 +162,7 @@ export function Team() {
                 {/* View Profile Button */}
                 <Button 
                   onClick={() => handleViewProfile(member)} 
-                  className="w-full bg-gradient-to-r from-orange-500 to-orange-600 hover:from-orange-600 hover:to-orange-700 text-white font-medium py-2.5 rounded-lg transition-all duration-200 shadow-sm hover:shadow-md"
+                  className="w-full bg-gradient-to-r from-orange-500 to-orange-600 hover:from-orange-600 hover:to-orange-700 text-white font-medium py-2 rounded-lg transition-all duration-200 shadow-sm hover:shadow-md text-sm"
                 >
                   View Profile
                 </Button>
@@ -166,23 +173,17 @@ export function Team() {
       </div>
 
       {filteredMembers.length === 0 && (
-        <div className="text-center py-16">
-          <div className="w-24 h-24 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-6">
-            <Users className="h-10 w-10 text-gray-400" />
+        <div className="text-center py-12">
+          <div className="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-4">
+            <Users className="h-8 w-8 text-gray-400" />
           </div>
-          <h3 className="text-xl font-medium text-gray-900 mb-3">No team members found</h3>
-          <p className="text-gray-500 mb-6 max-w-sm mx-auto">
+          <h3 className="text-lg font-medium text-gray-900 mb-2">No team members found</h3>
+          <p className="text-gray-500 mb-4 max-w-sm mx-auto">
             {searchTerm 
               ? "Try adjusting your search criteria to find team members" 
               : "Get started by adding your first team member"
             }
           </p>
-          {!searchTerm && (
-            <Button className="bg-gradient-to-r from-orange-500 to-orange-600 hover:from-orange-600 hover:to-orange-700">
-              <Plus className="h-4 w-4 mr-2" />
-              Add First Member
-            </Button>
-          )}
         </div>
       )}
 

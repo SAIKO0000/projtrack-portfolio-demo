@@ -52,9 +52,7 @@ interface TaskFormData {
   start_date: Date | undefined
   end_date: Date | undefined
   status: string
-  priority: string
   phase: string
-  category: string
   assignees: string[] // Changed from assignee to assignees
 }
 
@@ -77,9 +75,7 @@ export function TaskEditModalOptimized({ task, open, onOpenChangeAction, onTaskU
     start_date: undefined,
     end_date: undefined,
     status: "not-started",
-    priority: "medium",
     phase: "Planning",
-    category: "planning",
     assignees: [], // Changed from assignee: "" to assignees: []
   })
 
@@ -106,9 +102,7 @@ export function TaskEditModalOptimized({ task, open, onOpenChangeAction, onTaskU
         start_date: parseDateFromDatabase(task.start_date),
         end_date: parseDateFromDatabase(task.end_date),
         status: task.status || "not-started",
-        priority: task.priority || "medium",
         phase: task.phase || "Planning",
-        category: task.category || "planning",
         assignees: existingAssignees, // Use parsed assignees array
       })
     }
@@ -171,10 +165,10 @@ export function TaskEditModalOptimized({ task, open, onOpenChangeAction, onTaskU
         start_date: formData.start_date ? formatDateForDatabase(formData.start_date) : null,
         end_date: formData.end_date ? formatDateForDatabase(formData.end_date) : null,
         status: formData.status,
-        priority: formData.priority,
+        priority: "medium", // Set default priority
         progress: 0, // We don't track progress anymore
         phase: formData.phase,
-        category: formData.category as "planning" | "pre-construction" | "construction" | "finishing" | "closeout" | null,
+        category: "planning", // Set default category
         assignee: formData.assignees.length > 0 ? formData.assignees.join(", ") : null, // Join multiple assignees
       })
 
@@ -425,7 +419,7 @@ export function TaskEditModalOptimized({ task, open, onOpenChangeAction, onTaskU
             </div>
           </div>
 
-          {/* Status and Priority */}
+          {/* Status and Phase */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
               <Label htmlFor="status">Status</Label>
@@ -444,24 +438,6 @@ export function TaskEditModalOptimized({ task, open, onOpenChangeAction, onTaskU
             </div>
 
             <div>
-              <Label htmlFor="priority">Priority</Label>
-              <Select value={formData.priority} onValueChange={(value) => handleInputChange('priority', value)}>
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="low">Low</SelectItem>
-                  <SelectItem value="medium">Medium</SelectItem>
-                  <SelectItem value="high">High</SelectItem>
-                  <SelectItem value="urgent">Urgent</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-          </div>
-
-          {/* Phase and Category */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div>
               <Label htmlFor="phase">Phase</Label>
               <Select value={formData.phase} onValueChange={(value) => handleInputChange('phase', value)}>
                 <SelectTrigger>
@@ -474,22 +450,6 @@ export function TaskEditModalOptimized({ task, open, onOpenChangeAction, onTaskU
                   <SelectItem value="Testing">Testing</SelectItem>
                   <SelectItem value="Deployment">Deployment</SelectItem>
                   <SelectItem value="Maintenance">Maintenance</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-
-            <div>
-              <Label htmlFor="category">Category</Label>
-              <Select value={formData.category} onValueChange={(value) => handleInputChange('category', value)}>
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="planning">Planning</SelectItem>
-                  <SelectItem value="pre-construction">Pre-Construction</SelectItem>
-                  <SelectItem value="construction">Construction</SelectItem>
-                  <SelectItem value="finishing">Finishing</SelectItem>
-                  <SelectItem value="closeout">Closeout</SelectItem>
                 </SelectContent>
               </Select>
             </div>

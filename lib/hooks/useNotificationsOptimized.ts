@@ -21,15 +21,36 @@ export function useNotificationsQuery() {
               project:projects(id, name)
             `)
             .order('upload_date', { ascending: false })
-            .limit(10)
-            .then(result => {
+            .limit(20)
+            .then(async (result) => {
               if (result.error && result.error.code === 'PGRST116') {
                 // Handle missing foreign key relation gracefully
-                return supabase
+                const photosResult = await supabase
                   .from('photos')
                   .select('id, description, storage_path, upload_date, created_at, uploaded_by, project_id')
                   .order('upload_date', { ascending: false })
-                  .limit(10)
+                  .limit(20)
+                
+                // If we have photos but no project relation, fetch projects separately
+                if (photosResult.data && photosResult.data.length > 0) {
+                  const projectIds = [...new Set(photosResult.data.map(p => p.project_id).filter(Boolean))]
+                  if (projectIds.length > 0) {
+                    const projectsResult = await supabase
+                      .from('projects')
+                      .select('id, name')
+                      .in('id', projectIds)
+                    
+                    if (projectsResult.data) {
+                      // Map projects back to photos
+                      const projectsMap = Object.fromEntries(projectsResult.data.map(p => [p.id, p]))
+                      photosResult.data = photosResult.data.map(photo => ({
+                        ...photo,
+                        project: photo.project_id ? projectsMap[photo.project_id] : null
+                      }))
+                    }
+                  }
+                }
+                return photosResult
               }
               return result
             }),
@@ -42,14 +63,34 @@ export function useNotificationsQuery() {
               project:projects(id, name)
             `)
             .order('uploaded_at', { ascending: false })
-            .limit(10)
-            .then(result => {
+            .limit(20)
+            .then(async (result) => {
               if (result.error && result.error.code === 'PGRST116') {
-                return supabase
+                const reportsResult = await supabase
                   .from('reports')
                   .select('id, file_name, file_path, uploaded_at, uploaded_by, description, project_id')
                   .order('uploaded_at', { ascending: false })
-                  .limit(10)
+                  .limit(20)
+                
+                // Fetch projects separately if needed
+                if (reportsResult.data && reportsResult.data.length > 0) {
+                  const projectIds = [...new Set(reportsResult.data.map(r => r.project_id).filter(Boolean))]
+                  if (projectIds.length > 0) {
+                    const projectsResult = await supabase
+                      .from('projects')
+                      .select('id, name')
+                      .in('id', projectIds)
+                    
+                    if (projectsResult.data) {
+                      const projectsMap = Object.fromEntries(projectsResult.data.map(p => [p.id, p]))
+                      reportsResult.data = reportsResult.data.map(report => ({
+                        ...report,
+                        project: report.project_id ? projectsMap[report.project_id] : null
+                      }))
+                    }
+                  }
+                }
+                return reportsResult
               }
               return result
             }),
@@ -63,14 +104,37 @@ export function useNotificationsQuery() {
               assignee:personnel(name)
             `)
             .order('updated_at', { ascending: false })
-            .limit(10)
-            .then(result => {
+            .limit(20)
+            .then(async (result) => {
               if (result.error && result.error.code === 'PGRST116') {
-                return supabase
+                const tasksResult = await supabase
                   .from('tasks')
                   .select('id, name, status, priority, due_date, created_at, updated_at, project_id, assigned_to')
                   .order('updated_at', { ascending: false })
-                  .limit(10)
+                  .limit(20)
+                
+                // Fetch related data separately
+                if (tasksResult.data && tasksResult.data.length > 0) {
+                  const [projectIds, personnelIds] = [
+                    [...new Set(tasksResult.data.map(t => t.project_id).filter(Boolean))],
+                    [...new Set(tasksResult.data.map(t => t.assigned_to).filter(Boolean))]
+                  ]
+                  
+                  const [projectsResult, personnelResult] = await Promise.all([
+                    projectIds.length > 0 ? supabase.from('projects').select('id, name').in('id', projectIds) : { data: [] },
+                    personnelIds.length > 0 ? supabase.from('personnel').select('id, name').in('id', personnelIds) : { data: [] }
+                  ])
+                  
+                  const projectsMap = Object.fromEntries((projectsResult.data || []).map(p => [p.id, p]))
+                  const personnelMap = Object.fromEntries((personnelResult.data || []).map(p => [p.id, p]))
+                  
+                  tasksResult.data = tasksResult.data.map(task => ({
+                    ...task,
+                    project: task.project_id ? projectsMap[task.project_id] : null,
+                    assignee: task.assigned_to ? personnelMap[task.assigned_to] : null
+                  }))
+                }
+                return tasksResult
               }
               return result
             }),
@@ -83,14 +147,34 @@ export function useNotificationsQuery() {
               project:projects(id, name)
             `)
             .order('created_at', { ascending: false })
-            .limit(10)
-            .then(result => {
+            .limit(20)
+            .then(async (result) => {
               if (result.error && result.error.code === 'PGRST116') {
-                return supabase
+                const eventsResult = await supabase
                   .from('events')
                   .select('id, title, date, time, type, created_at, project_id')
                   .order('created_at', { ascending: false })
-                  .limit(10)
+                  .limit(20)
+                
+                // Fetch projects separately if needed
+                if (eventsResult.data && eventsResult.data.length > 0) {
+                  const projectIds = [...new Set(eventsResult.data.map(e => e.project_id).filter(Boolean))]
+                  if (projectIds.length > 0) {
+                    const projectsResult = await supabase
+                      .from('projects')
+                      .select('id, name')
+                      .in('id', projectIds)
+                    
+                    if (projectsResult.data) {
+                      const projectsMap = Object.fromEntries(projectsResult.data.map(p => [p.id, p]))
+                      eventsResult.data = eventsResult.data.map(event => ({
+                        ...event,
+                        project: event.project_id ? projectsMap[event.project_id] : null
+                      }))
+                    }
+                  }
+                }
+                return eventsResult
               }
               return result
             })
@@ -219,14 +303,19 @@ export function useNotificationsQuery() {
       const projectName = photoWithProject.project?.name || 'Unknown Project'
       const projectId = photoWithProject.project?.id || photo.project_id || 'unknown'
       
+      // Better photo title handling
+      const photoTitle = photo.description && photo.description.trim() && photo.description !== 'null' 
+        ? photo.description 
+        : `Photo from ${new Date(photo.upload_date || photo.created_at).toLocaleDateString()}`
+      
       notifications.push({
         id: `photo_${photo.id}`,
         type: 'photo',
-        title: `New photo uploaded: ${photo.description || 'Untitled'}`,
+        title: photoTitle,
         project: projectName,
         projectId: projectId,
         timestamp: photo.upload_date || photo.created_at || new Date().toISOString(),
-        description: photo.description || undefined
+        description: `Uploaded to ${projectName}`
       })
     })
 
@@ -239,11 +328,11 @@ export function useNotificationsQuery() {
       notifications.push({
         id: `report_${report.id}`,
         type: 'report',
-        title: `New report uploaded: ${report.file_name}`,
+        title: report.file_name || 'Document Upload',
         project: projectName,
         projectId: projectId,
         timestamp: report.uploaded_at || new Date().toISOString(),
-        description: report.description || undefined
+        description: report.description || `Report uploaded to ${projectName}`
       })
     })
 
@@ -257,14 +346,19 @@ export function useNotificationsQuery() {
       const projectId = taskWithRels.project?.id || task.project_id || 'unknown'
       const assigneeName = taskWithRels.assignee?.name || 'Unassigned'
       
+      // Better task title handling
+      const taskTitle = task.name && task.name.trim() && task.name !== 'null' 
+        ? task.name 
+        : `Task in ${projectName}`
+      
       notifications.push({
         id: `task_${task.id}`,
         type: 'task',
-        title: `Task activity: ${task.name || 'Untitled Task'}`,
+        title: taskTitle,
         project: projectName,
         projectId: projectId,
         timestamp: task.updated_at || task.created_at || new Date().toISOString(),
-        description: `Assigned to ${assigneeName}`,
+        description: `Assigned to ${assigneeName} • Status: ${task.status || 'pending'}`,
         status: task.status || undefined,
         priority: task.priority || undefined
       })
@@ -276,13 +370,19 @@ export function useNotificationsQuery() {
       const projectName = eventWithProject.project?.name || 'Unknown Project'
       const projectId = eventWithProject.project?.id || event.project_id || 'unknown'
       
+      // Better event title handling
+      const eventTitle = event.title && event.title.trim() && event.title !== 'null'
+        ? event.title
+        : `${event.type || 'Event'} in ${projectName}`
+      
       notifications.push({
         id: `event_${event.id}`,
         type: 'event',
-        title: `New event: ${event.title}`,
+        title: eventTitle,
         project: projectName,
         projectId: projectId,
         timestamp: event.created_at || new Date().toISOString(),
+        description: `${event.type || 'Event'} scheduled for ${new Date(event.date).toLocaleDateString()}`,
         status: event.type || undefined
       })
     })
@@ -290,7 +390,7 @@ export function useNotificationsQuery() {
     // Sort by timestamp descending
     return notifications.sort((a, b) => 
       new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime()
-    ).slice(0, 15) // Limit to 15 most recent notifications
+    ).slice(0, 30) // Show more recent notifications
   }, [query.data])
 
   return {

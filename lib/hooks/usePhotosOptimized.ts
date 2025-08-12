@@ -2,9 +2,11 @@ import { useQuery, useQueryClient, useMutation } from '@tanstack/react-query'
 import { useEffect, useMemo, useState } from 'react'
 import { supabase, queryKeys } from '@/lib/supabase-query'
 import type { Database } from '@/lib/supabase.types'
+import { useAuth } from '@/lib/auth'
 
 type Photo = Database['public']['Tables']['photos']['Row'] & {
   project?: { id: string; name: string }
+  uploader_name?: string
 }
 
 // Optimized Photos Hook - Fetches all photos once and caches them
@@ -15,11 +17,11 @@ export function usePhotosOptimized(projectId?: string) {
     queryKey: projectId ? queryKeys.photosByProject(projectId) : queryKeys.photos(),
     queryFn: async () => {
       let query = supabase
-        .from('photos')
+        .from('photos_with_uploader_names')
         .select(`
-          id, description, file_name, file_size, file_type, storage_path, 
+          id, title, description, file_name, file_size, file_type, storage_path, 
           upload_date, uploaded_by, project_id, created_at, updated_at,
-          project:projects(id, name)
+          uploader_name, project_name
         `)
         .order('created_at', { ascending: false })
 
@@ -34,14 +36,19 @@ export function usePhotosOptimized(projectId?: string) {
         throw error
       }
       
-      console.log('Fetched photos data:', data)
-      return data || []
+      // The view already includes uploader names, so we can use them directly
+      const photosWithNames = (data || []).map(photo => ({
+        ...photo,
+        project: photo.project_name ? { id: photo.project_id, name: photo.project_name } : undefined,
+        uploader_name: photo.uploader_name || 'Unknown User'
+      }))
+      
+      console.log('Fetched photos with uploader names:', photosWithNames)
+      return photosWithNames
     },
     staleTime: 10 * 60 * 1000, // 10 minutes - photos don't change frequently
     gcTime: 30 * 60 * 1000, // 30 minutes cache
-  })
-
-  // Set up realtime subscription for photos
+  })  // Set up realtime subscription for photos
   useEffect(() => {
     const channel = supabase
       .channel('photos_changes')
@@ -156,6 +163,7 @@ export function useRecentPhotos(limit: number = 10) {
 // Photo operations hook - for upload, download, delete operations
 export function usePhotoOperations() {
   const queryClient = useQueryClient()
+  const { user: currentUser } = useAuth()
   const [uploading, setUploading] = useState(false)
   const [uploadProgress, setUploadProgress] = useState(0)
 
@@ -163,7 +171,8 @@ export function usePhotoOperations() {
     files: File[], 
     dateString: string,
     projectId?: string, 
-    description?: string
+    description?: string,
+    title?: string
   ): Promise<Photo[]> => {
     try {
       setUploading(true)
@@ -191,6 +200,7 @@ export function usePhotoOperations() {
 
         // Insert record in database
         const photoRecord = {
+          title: title || file.name.replace(/\.[^/.]+$/, ""), // Use title or fallback to filename without extension
           file_name: file.name,
           file_size: file.size,
           file_type: file.type,
@@ -198,6 +208,7 @@ export function usePhotoOperations() {
           project_id: projectId || null, // Allow null if no project is selected
           description: description || '',
           upload_date: dateString, // Use the provided date string
+          uploaded_by: currentUser?.id || null, // Set the current user as uploader
         }
         
         console.log('Inserting photo record:', photoRecord)

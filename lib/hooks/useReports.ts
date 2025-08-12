@@ -25,6 +25,7 @@ export interface ReportWithUploader extends Report {
   uploader_position?: string
   reviewer_notes?: string
   assigned_reviewer?: string
+  title?: string
 }
 
 export function useReports() {
@@ -199,7 +200,8 @@ export function useReports() {
     category: string,
     status: string = 'pending',
     description?: string,
-    assignedReviewer?: string // Single reviewer ID
+    assignedReviewer?: string, // Single reviewer ID
+    title?: string // Report title
   ) => {
     try {
       setUploading(true)
@@ -283,7 +285,7 @@ export function useReports() {
       }
       
       // Save report metadata to database
-      const reportData: ReportInsert & { uploader_name?: string; uploader_position?: string; assigned_reviewer?: string } = {
+      const reportData: ReportInsert & { uploader_name?: string; uploader_position?: string; assigned_reviewer?: string; title?: string } = {
         project_id: projectId,
         file_name: truncatedFileName,
         file_path: filePath,
@@ -296,6 +298,7 @@ export function useReports() {
         uploader_name: uploaderName,
         uploader_position: uploaderPosition,
         assigned_reviewer: assignedReviewer || null,
+        title: title || null,
       }
 
       const { data: report, error: dbError } = await supabase
@@ -441,7 +444,8 @@ export function useReports() {
     file: File,
     category?: string,
     status: string = 'pending',
-    description?: string
+    description?: string,
+    title?: string // Report title
   ) => {
     try {
       setUploading(true)
@@ -542,7 +546,7 @@ export function useReports() {
       }
 
       // Update report metadata in database
-      const updateData: Partial<ReportInsert> & { uploader_name?: string; uploader_position?: string } = {
+      const updateData: Partial<ReportInsert> & { uploader_name?: string; uploader_position?: string; title?: string } = {
         file_name: truncatedFileName,
         file_path: filePath,
         file_type: truncatedFileType,
@@ -554,9 +558,10 @@ export function useReports() {
         uploader_position: uploaderPosition,
       }
 
-      // Only update category and description if provided
+      // Only update category, description, and title if provided
       if (category) updateData.category = truncatedCategory
       if (description !== undefined) updateData.description = truncatedDescription
+      if (title !== undefined) updateData.title = title
 
       const { data, error } = await supabase
         .from('reports')

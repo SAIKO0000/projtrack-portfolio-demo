@@ -48,7 +48,13 @@ type EnhancedReport = ReportWithUploader & {
   reviewer_notes?: string
 }
 
-export function Reports() {
+interface ReportsProps {
+  onTabChangeAction?: (tab: string) => void
+}
+
+export function Reports({ onTabChangeAction }: ReportsProps = {}) {
+  // Suppress unused warning - this prop is passed down for future use
+  void onTabChangeAction
   const [searchTerm, setSearchTerm] = useState("")
   const [projectFilter, setProjectFilter] = useState("all")
   const [categoryFilter, setCategoryFilter] = useState("all")
@@ -93,6 +99,25 @@ export function Reports() {
       isReviewer
     })
     return isReviewer
+  }
+
+  // Helper function to format report display name as "Title (File Name)" or just file name if no title
+  const getReportDisplayName = (report: EnhancedReport): { title: string; fileName: string; hasTitle: boolean } => {
+    const reportWithTitle = report as EnhancedReport & { title?: string }
+    
+    if (reportWithTitle.title?.trim()) {
+      return {
+        title: reportWithTitle.title,
+        fileName: report.file_name,
+        hasTitle: true
+      }
+    }
+    
+    return {
+      title: report.file_name,
+      fileName: '',
+      hasTitle: false
+    }
   }
 
   // Helper function to get assigned reviewer name
@@ -364,9 +389,11 @@ export function Reports() {
   })
 
   const filteredReports = enhancedReports.filter((report) => {
+    const reportWithTitle = report as EnhancedReport & { title?: string }
     const matchesSearch =
       report.file_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      report.projectName.toLowerCase().includes(searchTerm.toLowerCase())
+      report.projectName.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      (reportWithTitle.title?.toLowerCase().includes(searchTerm.toLowerCase()) || false)
     const matchesProject = projectFilter === "all" || report.projectName === projectFilter
     const matchesCategory = categoryFilter === "all" || report.category === categoryFilter
     const matchesStatus = statusFilter === "all" || report.status === statusFilter
@@ -383,78 +410,68 @@ export function Reports() {
   }
 
   return (
-    <div className="p-4 sm:p-6 space-y-6 overflow-y-auto h-full max-w-full">
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-        <div>
-          <h1 className="text-2xl font-bold text-gray-900">Reports & Documents</h1>
-          <p className="text-gray-600">Manage project documents, reports, and files</p>
-        </div>
-        <div className="flex items-center space-x-3">
-          <ReportUploadModal onUploadComplete={handleUploadComplete}>
-            <Button className="bg-gradient-to-r from-orange-500 to-orange-600 hover:from-orange-600 hover:to-orange-700">
-              <Upload className="h-4 w-4 mr-2" />
-              Upload Document
-            </Button>
-          </ReportUploadModal>
-        </div>
+    <div className="p-3 sm:p-4 lg:p-6 space-y-4 sm:space-y-6 overflow-y-auto h-full max-w-full">
+      <div className="text-center sm:text-left">
+        <h1 className="text-xl sm:text-2xl lg:text-3xl font-bold text-gray-900">Reports & Documents</h1>
+        <p className="text-sm text-gray-600">Manage project documents, reports, and files</p>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+      <div className="grid grid-cols-2 sm:grid-cols-2 lg:grid-cols-4 gap-2 sm:gap-3 lg:gap-4">
         <Card>
-          <CardContent className="p-4">
+          <CardContent className="p-3 sm:p-4">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-sm text-gray-600">Total Documents</p>
-                <p className="text-2xl font-bold">{enhancedReports.length}</p>
+                <p className="text-xs sm:text-sm text-gray-600">Total Documents</p>
+                <p className="text-lg sm:text-2xl font-bold">{enhancedReports.length}</p>
               </div>
-              <div className="w-8 h-8 bg-blue-100 rounded-full flex items-center justify-center">
-                <FileText className="h-4 w-4 text-blue-600" />
+              <div className="w-6 h-6 sm:w-8 sm:h-8 bg-blue-100 rounded-full flex items-center justify-center">
+                <FileText className="h-3 w-3 sm:h-4 sm:w-4 text-blue-600" />
               </div>
             </div>
           </CardContent>
         </Card>
         <Card>
-          <CardContent className="p-4">
+          <CardContent className="p-3 sm:p-4">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-sm text-gray-600">Pending Review</p>
-                <p className="text-2xl font-bold">{enhancedReports.filter((r) => r.status === "pending").length}</p>
+                <p className="text-xs sm:text-sm text-gray-600">Pending Review</p>
+                <p className="text-lg sm:text-2xl font-bold">{enhancedReports.filter((r) => r.status === "pending").length}</p>
               </div>
-              <div className="w-8 h-8 bg-yellow-100 rounded-full flex items-center justify-center">
-                <Clock className="h-4 w-4 text-yellow-600" />
+              <div className="w-6 h-6 sm:w-8 sm:h-8 bg-yellow-100 rounded-full flex items-center justify-center">
+                <Clock className="h-3 w-3 sm:h-4 sm:w-4 text-yellow-600" />
               </div>
             </div>
           </CardContent>
         </Card>
         <Card>
-          <CardContent className="p-4">
+          <CardContent className="p-3 sm:p-4">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-sm text-gray-600">Approved</p>
-                <p className="text-2xl font-bold">{enhancedReports.filter((r) => r.status === "approved").length}</p>
+                <p className="text-xs sm:text-sm text-gray-600">Approved</p>
+                <p className="text-lg sm:text-2xl font-bold">{enhancedReports.filter((r) => r.status === "approved").length}</p>
               </div>
-              <div className="w-8 h-8 bg-green-100 rounded-full flex items-center justify-center">
-                <CheckCircle className="h-4 w-4 text-green-600" />
+              <div className="w-6 h-6 sm:w-8 sm:h-8 bg-green-100 rounded-full flex items-center justify-center">
+                <CheckCircle className="h-3 w-3 sm:h-4 sm:w-4 text-green-600" />
               </div>
             </div>
           </CardContent>
         </Card>
         <Card>
-          <CardContent className="p-4">
+          <CardContent className="p-3 sm:p-4">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-sm text-gray-600">Need Revision</p>
-                <p className="text-2xl font-bold">{enhancedReports.filter((r) => r.status === "revision").length}</p>
+                <p className="text-xs sm:text-sm text-gray-600">Need Revision</p>
+                <p className="text-lg sm:text-2xl font-bold">{enhancedReports.filter((r) => r.status === "revision").length}</p>
               </div>
-              <div className="w-8 h-8 bg-orange-100 rounded-full flex items-center justify-center">
-                <AlertCircle className="h-4 w-4 text-orange-600" />
+              <div className="w-6 h-6 sm:w-8 sm:h-8 bg-orange-100 rounded-full flex items-center justify-center">
+                <AlertCircle className="h-3 w-3 sm:h-4 sm:w-4 text-orange-600" />
               </div>
             </div>
           </CardContent>
         </Card>
       </div>
 
-      <div className="flex flex-col sm:flex-row gap-4">
+      <div className="flex flex-col gap-4">
         <div className="relative flex-1">
           <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
           <Input
@@ -464,9 +481,9 @@ export function Reports() {
             className="pl-10"
           />
         </div>
-        <div className="flex flex-col sm:flex-row gap-3 sm:gap-4">
+        <div className="grid grid-cols-2 gap-3">
           <Select value={projectFilter} onValueChange={setProjectFilter}>
-            <SelectTrigger className="w-full sm:w-48">
+            <SelectTrigger className="w-full">
               <SelectValue placeholder="Filter by project" />
             </SelectTrigger>
             <SelectContent>
@@ -479,7 +496,7 @@ export function Reports() {
             </SelectContent>
           </Select>
           <Select value={categoryFilter} onValueChange={setCategoryFilter}>
-            <SelectTrigger className="w-full sm:w-40">
+            <SelectTrigger className="w-full">
               <SelectValue placeholder="Filter by category" />
             </SelectTrigger>
             <SelectContent>
@@ -492,7 +509,7 @@ export function Reports() {
             </SelectContent>
           </Select>
           <Select value={statusFilter} onValueChange={setStatusFilter}>
-            <SelectTrigger className="w-full sm:w-36">
+            <SelectTrigger className="w-full">
               <SelectValue placeholder="Filter by status" />
             </SelectTrigger>
             <SelectContent>
@@ -503,12 +520,19 @@ export function Reports() {
               <SelectItem value="rejected">Rejected</SelectItem>
             </SelectContent>
           </Select>
+          <ReportUploadModal onUploadComplete={handleUploadComplete}>
+            <Button className="bg-gradient-to-r from-orange-500 to-orange-600 hover:from-orange-600 hover:to-orange-700 w-full">
+              <Upload className="h-4 w-4 mr-2" />
+              <span className="hidden sm:inline">Upload Document</span>
+              <span className="sm:hidden">Upload</span>
+            </Button>
+          </ReportUploadModal>
         </div>
       </div>
 
       <Card>
-        <CardHeader>
-          <CardTitle>Documents</CardTitle>
+        <CardHeader className="pb-4">
+          <CardTitle className="text-lg">Documents</CardTitle>
           <CardDescription>All project documents and reports</CardDescription>
         </CardHeader>
         <CardContent className="p-0">
@@ -520,48 +544,72 @@ export function Reports() {
               <p className="text-gray-500">Loading documents...</p>
             </div>
           ) : (
-            <div className="space-y-1">
-              {filteredReports.map((report, index) => (
+            <div className="space-y-2">
+              {filteredReports.map((report) => (
                 <div
                   key={report.id}
-                  className={`flex flex-col sm:flex-row sm:items-center space-y-3 sm:space-y-0 sm:space-x-4 p-4 hover:bg-gray-50 transition-colors border-b last:border-b-0 ${
-                    index % 2 === 0 ? 'bg-white' : 'bg-gray-50/50'
-                  }`}
+                  className="bg-white p-3 rounded-lg border border-gray-200 hover:shadow-md transition-shadow"
                 >
-                  <div className="flex-shrink-0 self-start sm:self-center">
-                    {getFileIcon(report.file_type, report.file_name)}
-                  </div>
-                  <div className="flex-1 min-w-0 space-y-2">
-                    <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-2">
-                      <h3 className="text-sm font-medium text-gray-900 break-words leading-tight">
-                        {report.file_name}
-                      </h3>
-                      <div className="flex flex-wrap items-center gap-2">
-                        <Badge className={getStatusColor(report.status || "pending")}>
-                          {capitalizeWords(report.status) || "Pending"}
-                        </Badge>
-                        <Badge className={getCategoryColor(report.category || "Other")}>
-                          {report.category || "Other"}
-                        </Badge>
+                  <div className="flex items-start space-x-3">
+                    <div className="flex-shrink-0">
+                      {getFileIcon(report.file_type, report.file_name)}
+                    </div>
+                    <div className="flex-1 min-w-0 space-y-1">
+                      <div className="flex flex-col gap-1">
+                        <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-2">
+                          <div className="flex-1 min-w-0">
+                            <h3 className="text-sm font-medium text-gray-900 break-words leading-tight">
+                              {getReportDisplayName(report).title}
+                            </h3>
+                            {getReportDisplayName(report).hasTitle && (
+                              <p className="text-xs text-gray-500 font-normal break-words leading-tight mt-0.5">
+                                {getReportDisplayName(report).fileName}
+                              </p>
+                            )}
+                          </div>
+                          <div className="flex flex-wrap items-center gap-1">
+                            <Badge className={getStatusColor(report.status || "pending")}>
+                              {capitalizeWords(report.status) || "Pending"}
+                            </Badge>
+                            <Badge className={getCategoryColor(report.category || "Other")}>
+                              {report.category || "Other"}
+                            </Badge>
+                          </div>
+                        </div>
+                        
+                        {/* Show reviewer notes right after status if available */}
+                        {report.reviewer_notes && (report.status === 'approved' || report.status === 'revision' || report.status === 'rejected') && (
+                          <div className="mt-5 p-1 ">
+                            <p className="text-xs font-medium text-gray-700 mb-1">
+                              Reviewer Notes ({capitalizeWords(report.status)}):
+                            </p>
+                            <p className="text-xs text-gray-600">{report.reviewer_notes}</p>
+                          </div>
+                        )}
+                        
+                        <p className="text-sm font-medium text-gray-700">{report.projectName}</p>
+                        <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-4 text-xs text-gray-500">
+                          <div className="flex items-center">
+                            <User className="h-3 w-3 mr-1" />
+                            <div className="flex flex-col">
+                              <span className="text-xs font-medium">{report.uploader_name || "Unknown"}</span>
+                              <span className="text-xs text-gray-400">{report.uploader_position || "Unknown Position"}</span>
+                            </div>
+                          </div>
+                          <div className="flex items-center gap-3">
+                            <span className="flex items-center">
+                              <Calendar className="h-3 w-3 mr-1" />
+                              {formatDate(report.uploaded_at)}
+                            </span>
+                            <span className="font-medium">{report.file_size_mb}</span>
+                          </div>
+                        </div>
                       </div>
                     </div>
-                    <p className="text-sm text-gray-600 font-medium">{report.projectName}</p>
-                    <div className="flex flex-wrap items-center gap-4 text-xs text-gray-500">
-                      <span className="flex items-center">
-                        <User className="h-3 w-3 mr-1" />
-                        <div className="flex flex-col">
-                          <span className="text-xs font-medium">{report.uploader_name || "Unknown"}</span>
-                          <span className="text-xs text-gray-400">{report.uploader_position || "Unknown Position"}</span>
-                        </div>
-                      </span>
-                      <span className="flex items-center">
-                        <Calendar className="h-3 w-3 mr-1" />
-                        {formatDate(report.uploaded_at)}
-                      </span>
-                      <span className="font-medium">{report.file_size_mb}</span>
-                    </div>
                   </div>
-                  <div className="flex flex-row sm:flex-col lg:flex-row items-start sm:items-center gap-1">
+                  
+                  {/* Action Buttons - Mobile Optimized */}
+                  <div className="flex flex-wrap items-center justify-center sm:justify-end gap-1 pt-2 border-t border-gray-100">
                     <Button 
                       variant="ghost" 
                       size="sm" 
@@ -569,7 +617,8 @@ export function Reports() {
                       className="h-8 px-2 hover:bg-blue-100 hover:text-blue-600 transition-all duration-200 group"
                       title="View file"
                     >
-                      <Eye className="h-4 w-4 group-hover:scale-110 transition-transform duration-200" />
+                      <Eye className="h-4 w-4 mr-1 group-hover:scale-110 transition-transform duration-200" />
+                      <span className="hidden sm:inline">View</span>
                     </Button>
                     <Button 
                       variant="ghost" 
@@ -578,7 +627,8 @@ export function Reports() {
                       className="h-8 px-2 hover:bg-orange-100 hover:text-orange-600 transition-all duration-200 group"
                       title="Edit document"
                     >
-                      <Edit className="h-4 w-4 group-hover:scale-110 transition-transform duration-200" />
+                      <Edit className="h-4 w-4 mr-1 group-hover:scale-110 transition-transform duration-200" />
+                      <span className="hidden sm:inline">Edit</span>
                     </Button>
                     <Button 
                       variant="ghost" 
@@ -587,7 +637,8 @@ export function Reports() {
                       className="h-8 px-2 hover:bg-green-100 hover:text-green-600 transition-all duration-200 group"
                       title="Download file"
                     >
-                      <Download className="h-4 w-4 group-hover:scale-110 transition-transform duration-200" />
+                      <Download className="h-4 w-4 mr-1 group-hover:scale-110 transition-transform duration-200" />
+                      <span className="hidden sm:inline">Download</span>
                     </Button>
                     <Button 
                       variant="ghost" 
@@ -595,7 +646,8 @@ export function Reports() {
                       className="h-8 px-2 hover:bg-purple-100 hover:text-purple-600 transition-all duration-200 group"
                       title="Share file"
                     >
-                      <Share className="h-4 w-4 group-hover:scale-110 transition-transform duration-200" />
+                      <Share className="h-4 w-4 mr-1 group-hover:scale-110 transition-transform duration-200" />
+                      <span className="hidden sm:inline">Share</span>
                     </Button>
                     <Button 
                       variant="ghost" 
@@ -604,7 +656,8 @@ export function Reports() {
                       className="h-8 px-2 hover:bg-red-100 hover:text-red-600 transition-all duration-200 group"
                       title="Delete document"
                     >
-                      <Trash2 className="h-4 w-4 group-hover:scale-110 transition-transform duration-200" />
+                      <Trash2 className="h-4 w-4 mr-1 group-hover:scale-110 transition-transform duration-200" />
+                      <span className="hidden sm:inline">Delete</span>
                     </Button>
 
                     {/* Approval/Rejection Buttons for Admins */}
@@ -617,7 +670,8 @@ export function Reports() {
                           className="h-8 px-2 hover:bg-green-100 hover:text-green-600 transition-all duration-200 group"
                           title="Approve report"
                         >
-                          <CheckCircle className="h-4 w-4 group-hover:scale-110 transition-transform duration-200" />
+                          <CheckCircle className="h-4 w-4 mr-1 group-hover:scale-110 transition-transform duration-200" />
+                          <span className="hidden sm:inline">Approve</span>
                         </Button>
                         <Button 
                           variant="ghost" 
@@ -626,7 +680,8 @@ export function Reports() {
                           className="h-8 px-2 hover:bg-yellow-100 hover:text-yellow-600 transition-all duration-200 group"
                           title="Request revision"
                         >
-                          <RotateCcw className="h-4 w-4 group-hover:scale-110 transition-transform duration-200" />
+                          <RotateCcw className="h-4 w-4 mr-1 group-hover:scale-110 transition-transform duration-200" />
+                          <span className="hidden sm:inline">Revision</span>
                         </Button>
                         <Button 
                           variant="ghost" 
@@ -635,7 +690,8 @@ export function Reports() {
                           className="h-8 px-2 hover:bg-red-100 hover:text-red-600 transition-all duration-200 group"
                           title="Reject report"
                         >
-                          <X className="h-4 w-4 group-hover:scale-110 transition-transform duration-200" />
+                          <X className="h-4 w-4 mr-1 group-hover:scale-110 transition-transform duration-200" />
+                          <span className="hidden sm:inline">Reject</span>
                         </Button>
                       </>
                     )}
@@ -651,16 +707,6 @@ export function Reports() {
                     {/* Show assigned reviewer info for non-assigned reviewers */}
                     {isAdmin && report.uploaded_by !== user?.id && report.status !== 'approved' && !isAssignedReviewer(report) && (
                       <p className="text-xs text-gray-500 italic">Assigned to: {getAssignedReviewerName(report)}</p>
-                    )}
-
-                    {/* Show reviewer notes if available */}
-                    {report.reviewer_notes && (report.status === 'approved' || report.status === 'revision' || report.status === 'rejected') && (
-                      <div className="mt-2 p-2 bg-gray-50 rounded-md border">
-                        <p className="text-xs font-medium text-gray-700 mb-1">
-                          Reviewer Notes ({capitalizeWords(report.status)}):
-                        </p>
-                        <p className="text-xs text-gray-600">{report.reviewer_notes}</p>
-                      </div>
                     )}
 
                     {/* Replace Report Button for report owner when report is rejected/revision */}
@@ -708,8 +754,8 @@ export function Reports() {
 
       <ReviewerNotesModal
         open={reviewerNotesModal.open}
-        onOpenChange={(open) => setReviewerNotesModal(prev => ({ ...prev, open }))}
-        onSubmit={handleReviewerNotesSubmit}
+        onOpenChangeAction={(open) => setReviewerNotesModal(prev => ({ ...prev, open }))}
+        onSubmitAction={handleReviewerNotesSubmit}
         reportName={reviewerNotesModal.reportName}
         action={reviewerNotesModal.action}
       />

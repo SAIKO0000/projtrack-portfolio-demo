@@ -2,10 +2,13 @@
 
 import React from "react"
 import { useState } from "react"
+import Image from "next/image"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog"
+import { Input } from "@/components/ui/input"
+import { Checkbox } from "@/components/ui/checkbox"
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import {
   DropdownMenu,
@@ -29,17 +32,25 @@ import {
   Eye,
   ArrowRight,
   Edit,
+  Search,
 } from "lucide-react"
 import { EventFormModal } from "./event-form-modal"
 import { DeleteEventDialog } from "./delete-event-dialog"
 import { useEvents } from "@/lib/hooks/useEvents"
 import { useProjectsQuery } from "@/lib/hooks/useProjectsOptimized"
 import { usePhotosOptimized, usePhotoCountsByDate, usePhotosForDate, usePhotoOperations } from "@/lib/hooks/usePhotosOptimized"
-import type { Database } from "@/lib/supabase.types"
 import { toast } from "react-hot-toast"
 
-type Photo = Database['public']['Tables']['photos']['Row']
-type Event = Database['public']['Tables']['events']['Row']
+// Simple interfaces for type safety
+interface Photo {
+  id: string
+  storage_path: string
+  file_name: string
+  title?: string
+  description?: string
+  project_id?: string
+  uploaded_at: string
+}
 
 // Utility function to format dates consistently in local timezone
 const formatDateToLocal = (date: Date): string => {
@@ -77,16 +88,24 @@ const PhotoCountBadge: React.FC<PhotoCountBadgeProps> = ({ date, photoCounts }) 
 export function Calendar() {
   const [selectedDate, setSelectedDate] = useState(new Date())
   const [selectedProject, setSelectedProject] = useState("all")
+  const [searchQuery, setSearchQuery] = useState("")
   const [selectedDay, setSelectedDay] = useState<Date | null>(null)
   const [showDayModal, setShowDayModal] = useState(false)
   const [deleteEventId, setDeleteEventId] = useState<string | null>(null)
   const [deleteEventTitle, setDeleteEventTitle] = useState<string>("")
   const [editingEvent, setEditingEvent] = useState<Event | null>(null)
   const [uploadFiles, setUploadFiles] = useState<File[]>([])
+  const [photoTitle, setPhotoTitle] = useState<string>("")
   const [photoPreview, setPhotoPreview] = useState<string | null>(null)
   
+  // Selection state for multi-select functionality
+  const [selectedPhotos, setSelectedPhotos] = useState<Set<string>>(new Set())
+  const [selectedEvents, setSelectedEvents] = useState<Set<string>>(new Set())
+  const [isEventSelectionMode, setIsEventSelectionMode] = useState(false)
+  const [isPhotoSelectionMode, setIsPhotoSelectionMode] = useState(false)
+  
   // Use optimized hooks - single data fetch instead of hundreds of requests
-  const { events, loading: eventsLoading, fetchEvents } = useEvents()
+  const { events, loading: eventsLoading, fetchEvents, deleteEvent } = useEvents()
   const { data: projects = [], isLoading: projectsLoading } = useProjectsQuery()
   const { data: photos = [] } = usePhotosOptimized(selectedProject)
   const { uploadPhotos, getPhotoUrl, downloadPhoto, deletePhoto, uploading, uploadProgress } = usePhotoOperations()
@@ -96,7 +115,14 @@ export function Calendar() {
   
   // Get photos for selected day - always call the hook
   const dayPhotosFromHook = usePhotosForDate(photos, selectedDay || new Date(), selectedProject)
-  const dayPhotos = selectedDay ? dayPhotosFromHook : []
+  const dayPhotos = selectedDay ? dayPhotosFromHook.filter((photo) => {
+    if (searchQuery === "") return true
+    return (
+      (photo.title && photo.title.toLowerCase().includes(searchQuery.toLowerCase())) ||
+      photo.file_name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      (photo.description && photo.description.toLowerCase().includes(searchQuery.toLowerCase()))
+    )
+  }) : []
 
   const monthNames = [
     "January", "February", "March", "April", "May", "June",
@@ -126,14 +152,19 @@ export function Calendar() {
     return days
   }
 
-  // Updated getEventsForDate function using local timezone
+  // Updated getEventsForDate function using local timezone with search functionality
   const getEventsForDate = (date: Date | null) => {
     if (!date) return []
     const dateString = formatDateToLocal(date)
     return events.filter((event) => {
       const matchesDate = event.date === dateString
       const matchesProject = selectedProject === "all" || event.project_id === selectedProject
-      return matchesDate && matchesProject
+      const matchesSearch = searchQuery === "" || 
+        event.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        event.description?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        event.location?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        event.type.toLowerCase().includes(searchQuery.toLowerCase())
+      return matchesDate && matchesProject && matchesSearch
     })
   }
 
@@ -153,6 +184,25 @@ export function Calendar() {
         return "bg-indigo-100 text-indigo-800"
       default:
         return "bg-gray-100 text-gray-800"
+    }
+  }
+
+  const getEventTypeDotColor = (type: string) => {
+    switch (type) {
+      case "inspection":
+        return "bg-blue-500"
+      case "delivery":
+        return "bg-green-500"
+      case "meeting":
+        return "bg-orange-500"
+      case "training":
+        return "bg-purple-500"
+      case "review":
+        return "bg-yellow-500"
+      case "task":
+        return "bg-indigo-500"
+      default:
+        return "bg-gray-500"
     }
   }
 
@@ -222,8 +272,9 @@ export function Calendar() {
 
     try {
       const dateString = formatDateToLocal(selectedDay)
-      await uploadPhotos(uploadFiles, dateString, selectedProject !== "all" ? selectedProject : undefined)
+      await uploadPhotos(uploadFiles, dateString, selectedProject !== "all" ? selectedProject : undefined, "", photoTitle)
       setUploadFiles([])
+      setPhotoTitle("")
       // Photos will be automatically refreshed via React Query invalidation
       toast.success(`Successfully uploaded ${uploadFiles.length} photos`)
     } catch (error) {
@@ -266,6 +317,55 @@ export function Calendar() {
     setDeleteEventTitle(eventTitle)
   }
 
+  // Selection handlers
+  const togglePhotoSelection = (photoId: string) => {
+    setSelectedPhotos(prev => {
+      const newSet = new Set(prev)
+      if (newSet.has(photoId)) {
+        newSet.delete(photoId)
+      } else {
+        newSet.add(photoId)
+      }
+      return newSet
+    })
+  }
+
+  const toggleEventSelection = (eventId: string) => {
+    setSelectedEvents(prev => {
+      const newSet = new Set(prev)
+      if (newSet.has(eventId)) {
+        newSet.delete(eventId)
+      } else {
+        newSet.add(eventId)
+      }
+      return newSet
+    })
+  }
+
+  const selectAllPhotos = () => {
+    setSelectedPhotos(new Set(dayPhotos.map(photo => photo.id)))
+  }
+
+  const deselectAllPhotos = () => {
+    setSelectedPhotos(new Set())
+  }
+
+  const selectAllEvents = () => {
+    const dayEvents = selectedDay ? getEventsForDate(selectedDay) : []
+    setSelectedEvents(new Set(dayEvents.map(event => event.id)))
+  }
+
+  const deselectAllEvents = () => {
+    setSelectedEvents(new Set())
+  }
+
+  const clearAllSelections = () => {
+    setSelectedPhotos(new Set())
+    setSelectedEvents(new Set())
+    setIsEventSelectionMode(false)
+    setIsPhotoSelectionMode(false)
+  }
+
   const handleEditEvent = (event: Event) => {
     setEditingEvent(event)
   }
@@ -288,9 +388,15 @@ export function Calendar() {
   const today = new Date()
   const todayEvents = getEventsForDate(today)
   
-  const filteredEvents = events.filter((event) => 
-    selectedProject === "all" || event.project_id === selectedProject
-  )  // Function to get all upcoming events (excluding today)
+  const filteredEvents = events.filter((event) => {
+    const matchesProject = selectedProject === "all" || event.project_id === selectedProject
+    const matchesSearch = searchQuery === "" || 
+      event.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      event.description?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      event.location?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      event.type.toLowerCase().includes(searchQuery.toLowerCase())
+    return matchesProject && matchesSearch
+  })  // Function to get all upcoming events (excluding today)
   const getAllUpcomingEvents = () => {
     const todayString = formatDateToLocal(today)
     return events
@@ -298,7 +404,12 @@ export function Calendar() {
         const eventDate = new Date(event.date + 'T00:00:00')
         const eventDateString = formatDateToLocal(eventDate)
         const matchesProject = selectedProject === "all" || event.project_id === selectedProject
-        return eventDateString > todayString && matchesProject
+        const matchesSearch = searchQuery === "" || 
+          event.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
+          event.description?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+          event.location?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+          event.type.toLowerCase().includes(searchQuery.toLowerCase())
+        return eventDateString > todayString && matchesProject && matchesSearch
       })
       .sort((a, b) => {
         // Sort by date first, then by time
@@ -316,7 +427,12 @@ export function Calendar() {
         const eventDate = new Date(event.date + 'T00:00:00')
         const eventDateString = formatDateToLocal(eventDate)
         const matchesProject = selectedProject === "all" || event.project_id === selectedProject
-        return eventDateString < todayString && matchesProject
+        const matchesSearch = searchQuery === "" || 
+          event.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
+          event.description?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+          event.location?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+          event.type.toLowerCase().includes(searchQuery.toLowerCase())
+        return eventDateString < todayString && matchesProject && matchesSearch
       })
       .sort((a, b) => {
         // Sort by date descending (most recent first), then by time
@@ -360,8 +476,6 @@ export function Calendar() {
   const upcomingEvents = getAllUpcomingEvents()
   const pastEvents = getAllPastEvents()
 
-  const selectedProjectName = projects.find((p) => p.id === selectedProject)?.name || "All Projects"
-
   if (eventsLoading || projectsLoading) {
     return (
       <div className="flex items-center justify-center h-full">
@@ -374,50 +488,90 @@ export function Calendar() {
   }
 
   return (
-    <div className="p-6 space-y-6 overflow-y-auto h-full">      {/* Header */}
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-bold text-gray-900">Calendar</h1>
-          <p className="text-gray-600">Schedule and track project activities</p>
+    <div className="p-2 sm:p-4 lg:p-6 space-y-3 sm:space-y-4 overflow-y-auto h-full bg-gray-50">
+      {/* Mobile-optimized Header */}
+      <div className="bg-white p-3 sm:p-4 rounded-lg shadow-sm">
+        <div className="flex items-center justify-between gap-3 sm:gap-4">
+          <div className="text-left flex-1">
+            <h1 className="text-lg sm:text-xl font-bold text-gray-900">Calendar</h1>
+            <p className="text-xs sm:text-sm text-gray-600">Schedule and track project activities</p>
+          </div>
+          <div className="flex justify-end">
+            <EventFormModal onEventCreated={handleEventCreated} />
+          </div>
         </div>
-        <EventFormModal onEventCreated={handleEventCreated} />
       </div>
 
-      {/* Project Filter */}
-      <Card>
-        <CardContent className="p-4">
-          <div className="flex items-center space-x-4">
-            <div className="flex items-center space-x-2">
-              <span className="text-sm font-medium text-gray-700">Filter by Project:</span>
-              <Select value={selectedProject} onValueChange={setSelectedProject}>
-                <SelectTrigger className="w-[200px]">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">All Projects</SelectItem>
-                  {projects.map((project) => (
-                    <SelectItem key={project.id} value={project.id}>
-                      {project.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="text-sm text-gray-600">
-              Showing {filteredEvents.length} events for {selectedProjectName}
-            </div>
+      {/* Project Filter and Search - Mobile Optimized */}
+      <div className="bg-white p-3 sm:p-4 rounded-lg shadow-sm border">
+        <div className="flex flex-col sm:flex-row gap-3 sm:gap-4 sm:items-center">
+          {/* Project Filter */}
+          <div className="flex items-center gap-2 sm:flex-none">
+            <span className="text-sm text-gray-700 hidden sm:inline">Filter:</span>
+            <Select value={selectedProject} onValueChange={setSelectedProject}>
+              <SelectTrigger className="w-full sm:w-48 h-9">
+                <SelectValue placeholder="All Projects" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Projects</SelectItem>
+                {projects.map((project) => (
+                  <SelectItem key={project.id} value={project.id}>
+                    {project.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
           </div>
-        </CardContent>
-      </Card>      <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
-        {/* Calendar */}
-        <Card className="lg:col-span-3">          <CardHeader>
-            <div className="flex items-center justify-between">
-              <div className="flex items-center space-x-4">
-                <div className="flex items-center space-x-2">
+          
+          {/* Search */}
+          <div className="relative flex-1 sm:w-80">
+            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
+            <Input
+              placeholder="Search events..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="pl-10 h-9"
+            />
+            {searchQuery && (
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => setSearchQuery("")}
+                className="absolute right-2 top-1/2 transform -translate-y-1/2 text-gray-500 hover:text-gray-700 h-6 w-6 p-0"
+              >
+                <X className="h-3 w-3" />
+              </Button>
+            )}
+          </div>
+          
+          {/* Event count */}
+          <div className="flex items-center justify-center sm:justify-start">
+            <span className="text-xs sm:text-sm text-gray-600 bg-gray-50 px-3 py-1 rounded-full">
+              {filteredEvents.length} events
+            </span>
+          </div>
+        </div>
+      </div>      {/* Mobile-responsive calendar layout */}
+      <div className="flex flex-col lg:grid lg:grid-cols-4 gap-4">
+        {/* Calendar - Full width on mobile, 3/4 on desktop - Shows FIRST on mobile */}
+        <Card className="lg:col-span-3 order-1 lg:order-1">          <CardHeader>
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+              <div className="flex items-center space-x-2 sm:space-x-4">
+                {/* Navigation arrows and dropdowns aligned together */}
+                <div className="flex items-center space-x-1 sm:space-x-2">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => navigateMonth("prev")}
+                    className="h-8 sm:h-10 w-8 sm:w-10 p-0"
+                  >
+                    <ChevronLeft className="h-4 w-4" />
+                  </Button>
                   <Select value={selectedDate.getMonth().toString()} onValueChange={handleMonthChange}>
-                    <SelectTrigger className="w-[130px]">
+                    <SelectTrigger className="w-[110px] sm:w-[130px] h-8 sm:h-10">
                       <SelectValue />
-                    </SelectTrigger>                    <SelectContent>
+                    </SelectTrigger>
+                    <SelectContent>
                       {monthNames.map((month, index) => (
                         <SelectItem key={month} value={index.toString()}>
                           {month}
@@ -426,7 +580,7 @@ export function Calendar() {
                     </SelectContent>
                   </Select>
                   <Select value={selectedDate.getFullYear().toString()} onValueChange={handleYearChange}>
-                    <SelectTrigger className="w-[100px]">
+                    <SelectTrigger className="w-[80px] sm:w-[100px] h-8 sm:h-10">
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
@@ -437,43 +591,42 @@ export function Calendar() {
                       ))}
                     </SelectContent>
                   </Select>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => navigateMonth("next")}
+                    className="h-8 sm:h-10 w-8 sm:w-10 p-0"
+                  >
+                    <ChevronRight className="h-4 w-4" />
+                  </Button>
                 </div>
                 <Button
                   variant="outline"
                   size="sm"
                   onClick={goToToday}
-                  className="text-orange-600 border-orange-200 hover:bg-orange-50"
+                  className="text-orange-600 border-orange-200 hover:bg-orange-50 h-8 sm:h-10 px-2 sm:px-3 text-xs sm:text-sm"
                 >
                   Today
-                </Button>
-              </div>
-              <div className="flex items-center space-x-2">
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => navigateMonth("prev")}
-                >
-                  <ChevronLeft className="h-4 w-4" />
-                </Button>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => navigateMonth("next")}
-                >
-                  <ChevronRight className="h-4 w-4" />
                 </Button>
               </div>
             </div>
           </CardHeader>
           <CardContent>
-            <div className="grid grid-cols-7 gap-0 mb-4">
-              {["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"].map((day) => (
-                <div key={day} className="p-2 text-center text-sm font-medium text-gray-500">
-                  {day}
+            {/* Mobile-responsive day headers */}
+            <div className="grid grid-cols-7 gap-0.5 sm:gap-1 mb-2 sm:mb-4">
+              {["S", "M", "T", "W", "T", "F", "S"].map((day, index) => (
+                <div key={`day-header-${index}`} className="p-1 sm:p-2 text-center text-xs sm:text-sm font-medium text-gray-500">
+                  <span className="sm:hidden">{day}</span>
+                  <span className="hidden sm:inline">
+                    {["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"][index]}
+                  </span>
                 </div>
               ))}
-            </div>            <div className="bg-gray-50 p-3 rounded-lg">
-              <div className="grid grid-cols-7 gap-1 p-1">
+            </div>
+            
+            {/* Mobile-responsive calendar grid */}
+            <div className="bg-gray-50 p-1 sm:p-3 rounded-lg">
+              <div className="grid grid-cols-7 gap-0.5 sm:gap-1 p-0.5 sm:p-1">
                 {days.map((day, index) => {
                 const dayEvents = day ? getEventsForDate(day) : []
                 const isToday = day ? isSameDay(day, today) : false
@@ -483,9 +636,9 @@ export function Calendar() {
                   <div
                     key={day ? formatDateToLocal(day) : `empty-${index}`}
                     className={`
-                      min-h-[120px] p-2 border border-gray-200 rounded-lg cursor-pointer transition-all duration-200
+                      min-h-[80px] sm:min-h-[120px] p-1 sm:p-2 border border-gray-200 rounded-md sm:rounded-lg cursor-pointer transition-all duration-200
                       hover:shadow-lg hover:-translate-y-1 hover:border-gray-300
-                      ${isToday ? 'bg-orange-50 ring-2 ring-orange-200 shadow-md' : 'bg-white hover:bg-gray-50'}
+                      ${isToday ? 'bg-orange-50 ring-1 sm:ring-2 ring-orange-200 shadow-md' : 'bg-white hover:bg-gray-50'}
                       ${!isCurrentMonth ? 'bg-gray-50 text-gray-400 hover:bg-gray-100' : ''}
                     `}
                     onClick={() => handleDayClick(day)}
@@ -493,71 +646,104 @@ export function Calendar() {
                     {day && (
                       <>
                         <div className="flex justify-between items-start mb-1">
-                          <div className={`text-sm font-medium ${isToday ? 'text-orange-600' : ''}`}>
+                          <div className={`text-xs sm:text-sm font-medium ${isToday ? 'text-orange-600' : ''}`}>
                             {day.getDate()}
                           </div>
                           <PhotoCountBadge date={day} photoCounts={photoCounts} />
                         </div>
-                        <div className="space-y-1">{dayEvents.slice(0, 3).map((event) => (
-                            <div
-                              key={event.id}
-                              className={`text-xs p-1 rounded truncate ${getEventTypeColor(event.type)}`}
-                            >
-                              {event.title}
-                            </div>
-                          ))}
-                          {dayEvents.length > 3 && (
-                            <div className="text-xs text-gray-500">
-                              +{dayEvents.length - 3} more
-                            </div>
-                          )}
+                        
+                        {/* Mobile-optimized event display */}
+                        <div className="space-y-0.5 sm:space-y-1">
+                          {/* On mobile: Show dots for events, on desktop: Show event titles */}
+                          <div className="sm:hidden">
+                            {dayEvents.length > 0 && (
+                              <div className="flex flex-wrap gap-0.5 justify-center">
+                                {dayEvents.slice(0, 4).map((event) => (
+                                  <div
+                                    key={`dot-${event.id}`}
+                                    className={`w-1.5 h-1.5 rounded-full ${getEventTypeDotColor(event.type)}`}
+                                    title={event.title}
+                                  />
+                                ))}
+                                {dayEvents.length > 4 && (
+                                  <div className="text-[10px] text-gray-500 ml-1">
+                                    +{dayEvents.length - 4}
+                                  </div>
+                                )}
+                              </div>
+                            )}
+                          </div>
+                          
+                          {/* Desktop: Show event titles */}
+                          <div className="hidden sm:block">
+                            {dayEvents.slice(0, 3).map((event) => (
+                              <div
+                                key={event.id}
+                                className={`text-xs p-1 rounded truncate ${getEventTypeColor(event.type)}`}
+                              >
+                                {event.title}
+                              </div>
+                            ))}
+                            {dayEvents.length > 3 && (
+                              <div className="text-xs text-gray-500">
+                                +{dayEvents.length - 3} more
+                              </div>
+                            )}
+                          </div>
                         </div>
                       </>
                     )}
-                  </div>                )
+                  </div>
+                )
               })}
               </div>
             </div>
           </CardContent>
         </Card>
 
-        {/* Sidebar with Today's Events and Upcoming Events */}
-        <div className="space-y-6">
-          {/* Today's Events */}
+        {/* Mobile-responsive sidebar - Shows BELOW calendar on mobile, side on desktop */}
+        <div className="space-y-4 order-2 lg:order-2">
+          {/* Today's Events - Collapsible on mobile */}
           <Card>
-            <CardHeader>
-              <CardTitle className="text-lg font-semibold flex items-center">
-                <CalendarIcon className="h-5 w-5 mr-2 text-orange-500" />
+            <CardHeader className="pb-2">
+              <CardTitle className="text-sm sm:text-base font-semibold flex items-center">
+                <CalendarIcon className="h-4 w-4 mr-2 text-orange-500" />
                 Today&apos;s Events
+                <Badge variant="secondary" className="ml-auto text-xs bg-orange-100 text-orange-700">
+                  {todayEvents.length}
+                </Badge>
               </CardTitle>
             </CardHeader>
-            <CardContent>
+            <CardContent className="pt-0">
               {todayEvents.length === 0 ? (
                 <p className="text-gray-500 text-sm">No events today</p>
-              ) : (                <div className="space-y-3 max-h-48 overflow-y-auto">
+              ) : (
+                <div className="space-y-2 max-h-32 sm:max-h-40 overflow-y-auto">
                   {todayEvents.map((event) => {
                     const eventProject = projects.find(p => p.id === event.project_id)
                     
                     return (
-                      <div key={event.id} className="p-3 bg-gray-50 rounded-lg">
+                      <div key={event.id} className="p-2 bg-gray-50 rounded">
                         <div className="flex items-start justify-between">
-                          <div className="flex-1">
-                            <h4 className="font-medium text-sm">{event.title}</h4>
+                          <div className="flex-1 min-w-0">
+                            <h4 className="font-medium text-xs truncate">{event.title}</h4>
                             {eventProject && (
-                              <p className="text-xs text-gray-500 mt-1">
+                              <p className="text-xs text-gray-500 mt-0.5 truncate">
                                 {eventProject.name}
                               </p>
                             )}
-                            <div className="flex items-center mt-1 text-xs text-gray-600">
-                              <Clock className="h-3 w-3 mr-1" />
-                              {formatTime(event.time)}
+                            <div className="flex items-center mt-0.5 text-xs text-gray-600">
+                              <Clock className="h-3 w-3 mr-1 flex-shrink-0" />
+                              <span className="truncate">{formatTime(event.time)}</span>
                             </div>
-                            <div className="flex items-center mt-1 text-xs text-gray-600">
-                              <MapPin className="h-3 w-3 mr-1" />
-                              {event.location}
-                            </div>
+                            {event.location && (
+                              <div className="flex items-center mt-0.5 text-xs text-gray-600">
+                                <MapPin className="h-3 w-3 mr-1 flex-shrink-0" />
+                                <span className="truncate">{event.location}</span>
+                              </div>
+                            )}
                           </div>
-                          <Badge variant="secondary" className={`text-xs ${getEventTypeColor(event.type)}`}>
+                          <Badge variant="secondary" className={`text-[10px] sm:text-xs ml-2 flex-shrink-0 ${getEventTypeColor(event.type)}`}>
                             {event.type}
                           </Badge>
                         </div>
@@ -569,13 +755,14 @@ export function Calendar() {
             </CardContent>
           </Card>
 
-          {/* Upcoming Events */}
+          {/* Upcoming Events - Mobile optimized */}
           <Card>
-            <CardHeader>
-              <CardTitle className="text-lg font-semibold flex items-center justify-between">
+            <CardHeader className="pb-2">
+              <CardTitle className="text-sm sm:text-base font-semibold flex items-center justify-between">
                 <div className="flex items-center">
-                  <Clock className="h-5 w-5 mr-2 text-blue-500" />
-                  Upcoming Events
+                  <Clock className="h-4 w-4 mr-2 text-blue-500" />
+                  <span className="hidden sm:inline">Upcoming Events</span>
+                  <span className="sm:hidden">Upcoming</span>
                 </div>
                 {upcomingEvents.length > 0 && (
                   <Badge variant="secondary" className="text-xs bg-blue-100 text-blue-700">
@@ -584,11 +771,12 @@ export function Calendar() {
                 )}
               </CardTitle>
             </CardHeader>
-            <CardContent>
+            <CardContent className="pt-0">
               {upcomingEvents.length === 0 ? (
                 <p className="text-gray-500 text-sm">No upcoming events</p>
               ) : (
-                <div className="space-y-3 max-h-48 overflow-y-auto">                  {upcomingEvents.slice(0, 10).map((event) => {
+                <div className="space-y-2 sm:space-y-3 max-h-40 sm:max-h-48 overflow-y-auto">
+                  {upcomingEvents.slice(0, 8).map((event) => {
                     const eventDate = new Date(event.date + 'T00:00:00')
                     const isThisWeek = (eventDate.getTime() - today.getTime()) / (1000 * 60 * 60 * 24) <= 7
                     const relativeDate = getRelativeDateDescription(eventDate)
@@ -601,37 +789,36 @@ export function Calendar() {
                           : 'bg-gray-50 hover:bg-gray-100 border-l-gray-300'
                       }`}>
                         <div className="flex items-start justify-between">
-                          <div className="flex-1">
-                            <h4 className="font-medium text-sm">{event.title}</h4>
+                          <div className="flex-1 min-w-0">
+                            <h4 className="font-medium text-xs sm:text-sm truncate">{event.title}</h4>
                             {eventProject && (
-                              <p className="text-xs text-gray-500 mt-1">
+                              <p className="text-xs text-gray-500 mt-1 truncate">
                                 {eventProject.name}
                               </p>
                             )}
                             <div className="flex items-center mt-1 text-xs text-gray-600">
-                              <CalendarIcon className="h-3 w-3 mr-1" />
-                              <span 
-                                className={`font-medium ${isThisWeek ? 'text-blue-700' : 'text-blue-600'}`}
-                                title={`Exact date: ${eventDate.toLocaleDateString()}`}
-                              >
+                              <CalendarIcon className="h-3 w-3 mr-1 flex-shrink-0" />
+                              <span className={`font-medium truncate ${isThisWeek ? 'text-blue-700' : 'text-blue-600'}`}>
                                 {relativeDate}
                               </span>
-                              <span className="mx-1">•</span>
-                              {eventDate.toLocaleDateString('en-US', {
-                                month: 'short',
-                                day: 'numeric',
-                                year: eventDate.getFullYear() !== today.getFullYear() ? 'numeric' : undefined
-                              })}
+                              <span className="mx-1 hidden sm:inline">•</span>
+                              <span className="hidden sm:inline truncate">
+                                {eventDate.toLocaleDateString('en-US', {
+                                  month: 'short',
+                                  day: 'numeric',
+                                  year: eventDate.getFullYear() !== today.getFullYear() ? 'numeric' : undefined
+                                })}
+                              </span>
                             </div>
                             <div className="flex items-center mt-1 text-xs text-gray-600">
-                              <Clock className="h-3 w-3 mr-1" />
-                              {formatTime(event.time)}
+                              <Clock className="h-3 w-3 mr-1 flex-shrink-0" />
+                              <span className="truncate">{formatTime(event.time)}</span>
                             </div>
                           </div>
-                          <div className="flex flex-col items-end space-y-1">
+                          <div className="flex flex-col items-end space-y-1 ml-2 flex-shrink-0">
                             <Badge 
                               variant="secondary" 
-                              className={`text-xs ${getEventTypeColor(event.type)} ${isThisWeek ? 'ring-2 ring-blue-200' : ''}`}
+                              className={`text-[10px] sm:text-xs ${getEventTypeColor(event.type)} ${isThisWeek ? 'ring-2 ring-blue-200' : ''}`}
                             >
                               {event.type}
                             </Badge>
@@ -639,7 +826,7 @@ export function Calendar() {
                               size="sm"
                               variant="ghost"
                               onClick={() => navigateToEventDate(event.date)}
-                              className="h-6 px-2 text-xs text-blue-600 hover:text-blue-700 hover:bg-blue-50"
+                              className="h-5 sm:h-6 w-5 sm:w-6 p-0 text-blue-600 hover:text-blue-700 hover:bg-blue-50"
                               title={`Go to ${eventDate.toLocaleDateString()}`}
                             >
                               <ArrowRight className="h-3 w-3" />
@@ -649,15 +836,16 @@ export function Calendar() {
                       </div>
                     )
                   })}
-                  {upcomingEvents.length > 10 && (
+                  {upcomingEvents.length > 8 && (
                     <div className="text-center py-2">
                       <p className="text-xs text-gray-500">
-                        +{upcomingEvents.length - 10} more events
+                        +{upcomingEvents.length - 8} more events
                       </p>
                     </div>
                   )}
                 </div>
-              )}            </CardContent>
+              )}
+            </CardContent>
           </Card>
 
           {/* Past Events */}
@@ -751,68 +939,181 @@ export function Calendar() {
       </div>
 
       {/* Day Detail Modal */}
-      <Dialog open={showDayModal} onOpenChange={setShowDayModal}>
-        <DialogContent className="max-w-4xl max-h-[80vh] overflow-y-auto">
-          <DialogHeader>
-            <DialogTitle className="flex items-center">
-              <CalendarIcon className="h-5 w-5 mr-2" />
-              {selectedDay && `${monthNames[selectedDay.getMonth()]} ${selectedDay.getDate()}, ${selectedDay.getFullYear()}`}
-            </DialogTitle>
-            <DialogDescription>
-              Events and photos for this day
-            </DialogDescription>
+      <Dialog open={showDayModal} onOpenChange={(open) => {
+        setShowDayModal(open)
+        if (!open) {
+          clearAllSelections()
+        }
+      }}>
+        <DialogContent className="w-[95vw] max-w-4xl max-h-[85vh] overflow-hidden flex flex-col p-0">
+          <DialogHeader className="p-3 sm:p-4 border-b border-gray-200 flex-shrink-0">
+            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+              <div className="flex-1 min-w-0">
+                <DialogTitle className="flex items-center text-base sm:text-lg">
+                  <CalendarIcon className="h-4 w-4 sm:h-5 sm:w-5 mr-2 flex-shrink-0" />
+                  <span className="truncate">
+                    {selectedDay && `${monthNames[selectedDay.getMonth()]} ${selectedDay.getDate()}, ${selectedDay.getFullYear()}`}
+                  </span>
+                </DialogTitle>
+              </div>
+            </div>
           </DialogHeader>
 
-          <div className="space-y-6">
+          <div className="overflow-y-auto p-3 sm:p-4">
+            <div className="space-y-3">
+
             {/* Events Section */}
-            <div>
-              <div className="flex items-center justify-between mb-4">
-                <h3 className="text-lg font-semibold">Events</h3>
-                <EventFormModal
-                  selectedDate={selectedDay || undefined}
-                  onEventCreated={handleEventCreated}
-                  trigger={
-                    <Button size="sm" variant="outline">
-                      <CalendarIcon className="h-4 w-4 mr-2" />
-                      Add Event
-                    </Button>
-                  }
-                />
+            <div className="space-y-2">
+              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+                <div className="flex flex-col sm:flex-row sm:items-center gap-2">
+                  <h3 className="text-base sm:text-lg font-semibold">Events</h3>
+                  {selectedDay && getEventsForDate(selectedDay).length > 0 && (
+                    <div className="flex flex-wrap items-center gap-1.5">
+                      <Button
+                        size="sm"
+                        variant={isEventSelectionMode ? "default" : "outline"}
+                        onClick={() => {
+                          setIsEventSelectionMode(!isEventSelectionMode)
+                          if (!isEventSelectionMode) {
+                            setSelectedEvents(new Set())
+                          }
+                        }}
+                        className="text-xs"
+                      >
+                        {isEventSelectionMode ? 'Exit Selection' : 'Select Events'}
+                      </Button>
+                      {isEventSelectionMode && (
+                        <>
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={selectAllEvents}
+                            className="text-xs"
+                          >
+                            Select All
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={deselectAllEvents}
+                            className="text-xs"
+                          >
+                            Deselect All
+                          </Button>
+                          {selectedEvents.size > 0 && (
+                            <Badge variant="secondary" className="text-xs">
+                              {selectedEvents.size} selected
+                            </Badge>
+                          )}
+                        </>
+                      )}
+                    </div>
+                  )}
+                </div>
+                <div className="flex justify-start sm:justify-end">
+                  <EventFormModal
+                    selectedDate={selectedDay || undefined}
+                    onEventCreated={handleEventCreated}
+                    trigger={
+                      <Button size="sm" variant="outline" className="text-xs sm:text-sm">
+                        <CalendarIcon className="h-3 w-3 sm:h-4 sm:w-4 mr-1 sm:mr-2" />
+                        Add Event
+                      </Button>
+                    }
+                  />
+                </div>
               </div>
               
+              {/* Selection Summary for Events */}
+              {isEventSelectionMode && selectedEvents.size > 0 && (
+                <div className="bg-blue-50 border border-blue-200 rounded-lg p-2 sm:p-3">
+                  <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+                    <div className="flex flex-col sm:flex-row sm:items-center gap-1 sm:gap-2">
+                      <h4 className="font-medium text-blue-900 text-sm">Event Selection</h4>
+                      <div className="flex items-center gap-1">
+                        <Badge variant="secondary" className="text-xs">
+                          {selectedEvents.size} events selected
+                        </Badge>
+                      </div>
+                    </div>
+                    <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-1.5">
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() => setSelectedEvents(new Set())}
+                        className="text-xs"
+                      >
+                        Clear Selection
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="destructive"
+                        onClick={async () => {
+                          if (confirm(`Are you sure you want to delete ${selectedEvents.size} selected events?`)) {
+                            // Handle bulk event deletion
+                            try {
+                              await Promise.all(
+                                Array.from(selectedEvents).map(eventId => deleteEvent(eventId))
+                              )
+                              setSelectedEvents(new Set())
+                              await fetchEvents() // Refresh events after deletion
+                            } catch (error) {
+                              console.error('Error deleting events:', error)
+                              alert('Failed to delete some events. Please try again.')
+                            }
+                          }
+                        }}
+                        className="text-xs"
+                      >
+                        Delete Selected Events
+                      </Button>
+                    </div>
+                  </div>
+                </div>
+              )}
+
               {selectedDay && getEventsForDate(selectedDay).length === 0 ? (
-                <p className="text-gray-500 text-center py-8">No events scheduled for this day</p>
+                <p className="text-gray-500 text-center py-3">No events scheduled for this day</p>
               ) : (
-                <div className="space-y-3">
+                <div className="space-y-2">
                   {selectedDay && getEventsForDate(selectedDay).map((event) => (
-                    <div key={event.id} className="p-4 border border-gray-200 rounded-lg">
+                    <div key={event.id} className="p-3 border border-gray-200 rounded-lg">
                       <div className="flex items-start justify-between">
-                        <div className="flex-1">
-                          <div className="flex items-center space-x-2 mb-2">
-                            <h4 className="font-medium">{event.title}</h4>
-                            <Badge className={getEventTypeColor(event.type)}>
-                              {event.type}
-                            </Badge>
-                          </div>
-                          <div className="space-y-1 text-sm text-gray-600">
-                            <div className="flex items-center">
-                              <Clock className="h-4 w-4 mr-2" />
-                              {formatTime(event.time)}
+                        <div className="flex items-start space-x-3 flex-1">
+                          {isEventSelectionMode && (
+                            <Checkbox
+                              checked={selectedEvents.has(event.id)}
+                              onCheckedChange={() => toggleEventSelection(event.id)}
+                              className="mt-1"
+                            />
+                          )}
+                          <div className="flex-1">
+                            <div className="flex items-center space-x-2 mb-2">
+                              <h4 className="font-medium">{event.title}</h4>
+                              <Badge className={getEventTypeColor(event.type)}>
+                                {event.type}
+                              </Badge>
                             </div>
-                            <div className="flex items-center">
-                              <MapPin className="h-4 w-4 mr-2" />
-                              {event.location}
-                            </div>
-                            {event.attendees && event.attendees.length > 0 && (
+                            <div className="space-y-1 text-sm text-gray-600">
                               <div className="flex items-center">
-                                <Users className="h-4 w-4 mr-2" />
-                                {event.attendees.length} attendees
+                                <Clock className="h-4 w-4 mr-2" />
+                                {formatTime(event.time)}
                               </div>
+                              <div className="flex items-center">
+                                <MapPin className="h-4 w-4 mr-2" />
+                                {event.location}
+                              </div>
+                              {event.attendees && event.attendees.length > 0 && (
+                                <div className="flex items-center">
+                                  <Users className="h-4 w-4 mr-2" />
+                                  {event.attendees.length} attendees
+                                </div>
+                              )}
+                            </div>
+                            {event.description && (
+                              <p className="mt-2 text-sm text-gray-700">{event.description}</p>
                             )}
                           </div>
-                          {event.description && (
-                            <p className="mt-2 text-sm text-gray-700">{event.description}</p>
-                          )}
                         </div>
                         <DropdownMenu>
                           <DropdownMenuTrigger asChild>
@@ -841,10 +1142,54 @@ export function Calendar() {
             </div>
 
             {/* Photos Section */}
-            <div>
-              <div className="flex items-center justify-between mb-4">
-                <h3 className="text-lg font-semibold">Photos</h3>
-                <div className="flex items-center space-x-2">                  <input
+            <div className="space-y-2">
+              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+                <div className="flex flex-col sm:flex-row sm:items-center gap-2">
+                  <h3 className="text-base sm:text-lg font-semibold">Photos</h3>
+                  {dayPhotos.length > 0 && (
+                    <div className="flex flex-wrap items-center gap-1.5">
+                      <Button
+                        size="sm"
+                        variant={isPhotoSelectionMode ? "default" : "outline"}
+                        onClick={() => {
+                          setIsPhotoSelectionMode(!isPhotoSelectionMode)
+                          if (!isPhotoSelectionMode) {
+                            setSelectedPhotos(new Set())
+                          }
+                        }}
+                        className="text-xs"
+                      >
+                        {isPhotoSelectionMode ? 'Exit Selection' : 'Select Photos'}
+                      </Button>
+                      {isPhotoSelectionMode && (
+                        <>
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={selectAllPhotos}
+                            className="text-xs"
+                          >
+                            Select All
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={deselectAllPhotos}
+                            className="text-xs"
+                          >
+                            Deselect All
+                          </Button>
+                          {selectedPhotos.size > 0 && (
+                            <Badge variant="secondary" className="text-xs">
+                              {selectedPhotos.size} selected
+                            </Badge>
+                          )}
+                        </>
+                      )}
+                    </div>
+                  )}
+                </div>
+                <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2">                  <input
                     type="file"
                     id="photo-upload"
                     multiple
@@ -857,25 +1202,26 @@ export function Calendar() {
                     size="sm"
                     variant="outline"
                     onClick={() => document.getElementById('photo-upload')?.click()}
+                    className="text-xs sm:text-sm"
                   >
-                    <Upload className="h-4 w-4 mr-2" />
-                    Select Photos
+                    <Upload className="h-3 w-3 sm:h-4 sm:w-4 mr-1 sm:mr-2" />
+                    Upload Photos
                   </Button>
                   {uploadFiles.length > 0 && (
                     <Button
                       size="sm"
                       onClick={handleUploadAll}
                       disabled={uploading}
-                      className="bg-orange-500 hover:bg-orange-600"
+                      className="bg-orange-500 hover:bg-orange-600 text-xs sm:text-sm"
                     >
                       {uploading ? (
                         <>
-                          <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
+                          <div className="animate-spin rounded-full h-3 w-3 sm:h-4 sm:w-4 border-b-2 border-white mr-1 sm:mr-2"></div>
                           Uploading... ({Math.round(uploadProgress)}%)
                         </>
                       ) : (
                         <>
-                          <Upload className="h-4 w-4 mr-2" />
+                          <Upload className="h-3 w-3 sm:h-4 sm:w-4 mr-1 sm:mr-2" />
                           Upload All ({uploadFiles.length})
                         </>
                       )}
@@ -884,16 +1230,82 @@ export function Calendar() {
                 </div>
               </div>
 
+              {/* Selection Summary for Photos */}
+              {isPhotoSelectionMode && selectedPhotos.size > 0 && (
+                <div className="bg-blue-50 border border-blue-200 rounded-lg p-2 sm:p-3">
+                  <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+                    <div className="flex flex-col sm:flex-row sm:items-center gap-1 sm:gap-2">
+                      <h4 className="font-medium text-blue-900 text-sm">Photo Selection</h4>
+                      <div className="flex items-center gap-1">
+                        <Badge variant="secondary" className="text-xs">
+                          {selectedPhotos.size} photos selected
+                        </Badge>
+                      </div>
+                    </div>
+                    <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-1.5">
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() => setSelectedPhotos(new Set())}
+                        className="text-xs"
+                      >
+                        Clear Selection
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="destructive"
+                        onClick={() => {
+                          if (confirm(`Are you sure you want to delete ${selectedPhotos.size} selected photos?`)) {
+                            // Handle bulk photo deletion
+                            selectedPhotos.forEach(photoId => {
+                              const photo = dayPhotos.find(p => p.id === photoId)
+                              if (photo) handlePhotoDelete(photo)
+                            })
+                            setSelectedPhotos(new Set())
+                          }
+                        }}
+                        className="text-xs"
+                      >
+                        Delete Selected Photos
+                      </Button>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* Photo Title Input */}
+              {uploadFiles.length > 0 && (
+                <div className="space-y-2">
+                  <div className="flex flex-col sm:flex-row sm:items-center gap-1.5">
+                    <div className="flex-1">
+                      <Input
+                        type="text"
+                        placeholder="Enter photo title"
+                        value={photoTitle}
+                        onChange={(e) => setPhotoTitle(e.target.value)}
+                        className="w-full text-sm"
+                      />
+                    </div>
+                    {uploadFiles.length > 0 && (
+                      <div className="text-xs text-gray-500 sm:whitespace-nowrap">
+                        ({uploadFiles.map(f => f.name).join(", ")})
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
+
               {/* File Queue */}
               {uploadFiles.length > 0 && (
-                <div className="mb-4 p-4 bg-gray-50 rounded-lg">
-                  <h4 className="text-sm font-medium mb-2">Files to Upload:</h4>
-                  <div className="space-y-2">                    {uploadFiles.map((file, index) => (
+                <div className="p-2 sm:p-3 bg-gray-50 rounded-lg space-y-1.5">
+                  <h4 className="text-sm font-medium">Files to Upload:</h4>
+                  <div className="space-y-1.5">
+                    {uploadFiles.map((file, index) => (
                       <div key={`upload-${file.name}-${file.size}`} className="flex items-center justify-between p-2 bg-white rounded border">
-                        <div className="flex items-center space-x-2">
-                          <ImageIcon className="h-4 w-4 text-gray-400" />
-                          <span className="text-sm">{file.name}</span>
-                          <span className="text-xs text-gray-500">
+                        <div className="flex items-center gap-2 flex-1 min-w-0">
+                          <ImageIcon className="h-4 w-4 text-gray-400 flex-shrink-0" />
+                          <span className="text-sm truncate">{file.name}</span>
+                          <span className="text-xs text-gray-500 flex-shrink-0">
                             ({(file.size / 1024 / 1024).toFixed(2)} MB)
                           </span>
                         </div>
@@ -901,6 +1313,7 @@ export function Calendar() {
                           size="sm"
                           variant="ghost"
                           onClick={() => removeFile(index)}
+                          className="ml-2 flex-shrink-0"
                         >
                           <X className="h-4 w-4" />
                         </Button>
@@ -908,28 +1321,42 @@ export function Calendar() {
                     ))}
                   </div>
                 </div>
-              )}              {/* Uploaded Photos */}
+              )}
+
+              {/* Uploaded Photos */}
               {dayPhotos.length === 0 && uploadFiles.length === 0 ? (
-                <div className="border-2 border-dashed border-gray-300 rounded-lg p-8 text-center">
-                  <ImageIcon className="h-12 w-12 text-gray-400 mx-auto mb-4" />
-                  <p className="text-gray-500 mb-4">No photos uploaded for this day</p>
+                <div className="border-2 border-dashed border-gray-300 rounded-lg p-4 text-center">
+                  <ImageIcon className="h-6 w-6 text-gray-400 mx-auto mb-2" />
+                  <p className="text-gray-500 mb-2 text-sm">No photos uploaded for this day</p>
                   <Button
                     size="sm"
                     variant="outline"
                     onClick={() => document.getElementById('photo-upload')?.click()}
-                    className="border-dashed"
+                    className="border-dashed text-xs"
                   >
-                    <Upload className="h-4 w-4 mr-2" />
+                    <Upload className="h-3 w-3 mr-1" />
                     Upload First Photo
                   </Button>
                 </div>
-              ) : (                <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+              ) : (
+                <div className="grid grid-cols-2 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-2 sm:gap-3">
                   {dayPhotos.map((photo) => (
-                    <div key={photo.id} className="bg-white rounded-lg border border-gray-200 overflow-hidden">                      <div className="relative group">
-                        <img
+                    <div key={photo.id} className="bg-white rounded-lg border border-gray-200 overflow-hidden">
+                      {isPhotoSelectionMode && (
+                        <div className="p-1.5 border-b border-gray-200">
+                          <Checkbox
+                            checked={selectedPhotos.has(photo.id)}
+                            onCheckedChange={() => togglePhotoSelection(photo.id)}
+                          />
+                        </div>
+                      )}
+                      <div className="relative group">
+                        <Image
                           src={getPhotoUrl(photo.storage_path)}
                           alt={photo.file_name}
-                          className="w-full h-32 object-cover cursor-pointer hover:opacity-40 transition-opacity duration-300"
+                          width={300}
+                          height={128}
+                          className="w-full h-24 sm:h-32 object-cover cursor-pointer hover:opacity-40 transition-opacity duration-300"
                           onClick={() => handlePhotoView(photo)}
                         />                        {/* Remove button - top right */}                        {/* Remove button - top right */}
                         <button
@@ -971,16 +1398,22 @@ export function Calendar() {
                             <Download className="h-5 w-5" />
                           </Button>
                         </div>
-                      </div><div className="p-2">
-                        <p className="text-xs text-gray-600 truncate" title={photo.file_name}>
-                          {photo.file_name}
+                      </div><div className="p-1.5 sm:p-2">
+                        <p className="text-xs font-medium text-gray-900 truncate" title={photo.title || photo.file_name}>
+                          {photo.title || photo.file_name}
                         </p>
-                        <p className="text-xs text-gray-400 mt-1">
+                        <p className="text-xs text-gray-500 truncate" title={photo.file_name} style={{ fontSize: '0.625rem', fontWeight: 'normal' }}>
+                          ({photo.file_name})
+                        </p>
+                        <p className="text-xs text-gray-400 mt-0.5">
                           {new Date(photo.created_at).toLocaleTimeString('en-US', {
                             hour: 'numeric',
                             minute: '2-digit',
                             hour12: true
                           })}
+                        </p>
+                        <p className="text-xs text-gray-500 truncate">
+                          by {photo.uploader_name || 'Unknown User'}
                         </p>
                       </div>
                     </div>
@@ -988,22 +1421,28 @@ export function Calendar() {
                 </div>
               )}
             </div>
+            </div>
           </div>
         </DialogContent>
       </Dialog>      {/* Photo Preview Modal */}
       <Dialog open={!!photoPreview} onOpenChange={() => setPhotoPreview(null)}>
-        <DialogContent className="max-w-4xl max-h-[90vh]">
-          <DialogHeader>
-            <DialogTitle>Photo Preview</DialogTitle>
+        <DialogContent className="w-[95vw] max-w-4xl h-[90vh] max-h-[90vh] overflow-hidden flex flex-col p-0">
+          <DialogHeader className="p-4 sm:p-6 border-b border-gray-200 flex-shrink-0">
+            <DialogTitle className="text-base sm:text-lg">Photo Preview</DialogTitle>
           </DialogHeader>
-          {photoPreview && (
-            <div className="flex justify-center">              <img
-                src={photoPreview}
-                alt="Selected photo preview"
-                className="max-w-full max-h-[70vh] object-contain rounded-lg"
-              />
-            </div>
-          )}
+          <div className="flex-1 overflow-auto p-4 sm:p-6">
+            {photoPreview && (
+              <div className="flex justify-center">
+                <Image
+                  src={photoPreview}
+                  alt="Selected photo preview"
+                  width={800}
+                  height={600}
+                  className="max-w-full max-h-full object-contain rounded-lg"
+                />
+              </div>
+            )}
+          </div>
         </DialogContent>
       </Dialog>      {/* Edit Event Modal */}
       {editingEvent && (

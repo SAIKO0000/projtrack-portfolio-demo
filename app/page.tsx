@@ -10,8 +10,10 @@ import { Calendar } from "@/components/calendar"
 import { Team } from "@/components/team"
 import { Reports } from "@/components/reports"
 import { Notifications } from "@/components/notifications"
+import { DeadlineNotificationPopup } from "@/components/deadline-notification-popup"
 import { useAuth } from "@/lib/auth"
 import { useAutoNotifications } from "@/lib/hooks/useAutoNotifications"
+import { useNotificationManager } from "@/lib/hooks/useNotificationManager"
 
 export default function Home() {
   const [activeTab, setActiveTab] = useState("dashboard")
@@ -21,6 +23,31 @@ export default function Home() {
 
   // Auto-trigger notifications when user logs in
   useAutoNotifications()
+
+  // Manage notification popup state
+  const {
+    showPopup,
+    upcomingTasks,
+    dismissPopup,
+    handleTaskClick,
+    isMobileCompatible
+  } = useNotificationManager()
+
+  // Listen for task navigation events from notifications
+  useEffect(() => {
+    const handleNotificationTaskClick = (event: CustomEvent) => {
+      const { taskId } = event.detail;
+      setActiveTab("gantt");
+      // You could set selectedProjectId based on the task if needed
+      console.log('Navigating to task from notification:', taskId);
+    };
+
+    window.addEventListener('notification-task-click', handleNotificationTaskClick as EventListener);
+    
+    return () => {
+      window.removeEventListener('notification-task-click', handleNotificationTaskClick as EventListener);
+    };
+  }, []);
 
   useEffect(() => {
     if (!loading && !user) {
@@ -54,9 +81,9 @@ export default function Home() {
       case "team":
         return <Team />
       case "notifications":
-        return <Notifications />
+        return <Notifications onTabChangeAction={handleTabChange} />
       case "reports":
-        return <Reports />
+        return <Reports onTabChangeAction={handleTabChange} />
       default:
         return <Dashboard />
     }
@@ -87,6 +114,25 @@ export default function Home() {
           {renderContent()}
         </div>
       </main>
+      
+      {/* Deadline Notification Popup */}
+      <DeadlineNotificationPopup
+        tasks={upcomingTasks}
+        isVisible={showPopup}
+        onClose={dismissPopup}
+        onTaskClick={handleTaskClick}
+        onViewAllClick={() => {
+          dismissPopup();
+          setActiveTab("gantt");
+        }}
+      />
+      
+      {/* Mobile compatibility indicator */}
+      {!isMobileCompatible && (
+        <div className="fixed bottom-4 left-4 p-2 bg-yellow-100 border border-yellow-300 rounded text-xs text-yellow-800 max-w-xs">
+          ⚠️ Notifications may not work on this device/browser
+        </div>
+      )}
     </div>
   )
 }

@@ -223,8 +223,7 @@ export const useAutoNotifications = () => {
     } else {
       console.log('⏳ Waiting for user and session');
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [user, session]); // Intentionally excluding triggerLoginNotifications to prevent excessive re-renders
+  }, [user, session, triggerLoginNotifications]);
 
   return {
     triggerLoginNotifications

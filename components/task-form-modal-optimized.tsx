@@ -38,9 +38,7 @@ interface TaskFormData {
   start_date: Date | undefined
   end_date: Date | undefined
   status: string
-  priority: string
   phase: string
-  category: string
   assignees: string[] // Changed from single assignee to multiple
 }
 
@@ -61,9 +59,7 @@ export function TaskFormModalOptimized({ onTaskCreated }: TaskFormModalProps) {
     start_date: undefined,
     end_date: undefined,
     status: "not-started",
-    priority: "medium",
     phase: "Planning",
-    category: "planning",
     assignees: [] // Changed from assignee: "" to assignees: []
   })
 
@@ -126,10 +122,10 @@ export function TaskFormModalOptimized({ onTaskCreated }: TaskFormModalProps) {
         end_date: formatDateToLocal(endDate),
         due_date: formatDateToLocal(endDate),
         status: formData.status,
-        priority: formData.priority,
+        priority: "medium", // Set default priority
         progress: 0, // Always start at 0 since we don't track progress
         phase: formData.phase || null,
-        category: formData.category as "planning" | "pre-construction" | "construction" | "finishing" | "closeout",
+        category: "planning", // Set default category
         assignee: formData.assignees.length > 0 ? formData.assignees.join(", ") : null, // Join multiple assignees
         assigned_to: null,
         estimated_hours: duration * 8, // Assume 8 hours per day
@@ -151,9 +147,7 @@ export function TaskFormModalOptimized({ onTaskCreated }: TaskFormModalProps) {
         start_date: undefined,
         end_date: undefined,
         status: "not-started",
-        priority: "medium",
         phase: "Planning",
-        category: "planning",
         assignees: [] // Reset to empty array
       })
       
@@ -412,7 +406,7 @@ export function TaskFormModalOptimized({ onTaskCreated }: TaskFormModalProps) {
             </div>
           </div>
 
-          {/* Status and Priority */}
+          {/* Status and Phase */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
               <Label htmlFor="status">Status</Label>
@@ -434,27 +428,6 @@ export function TaskFormModalOptimized({ onTaskCreated }: TaskFormModalProps) {
             </div>
 
             <div>
-              <Label htmlFor="priority">Priority</Label>
-              <Select 
-                value={formData.priority} 
-                onValueChange={(value) => handleInputChange("priority", value)}
-              >
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="low">Low</SelectItem>
-                  <SelectItem value="medium">Medium</SelectItem>
-                  <SelectItem value="high">High</SelectItem>
-                  <SelectItem value="urgent">Urgent</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-          </div>
-
-          {/* Phase and Category */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div>
               <Label htmlFor="phase">Phase</Label>
               <Select 
                 value={formData.phase} 
@@ -470,25 +443,6 @@ export function TaskFormModalOptimized({ onTaskCreated }: TaskFormModalProps) {
                   <SelectItem value="Testing">Testing</SelectItem>
                   <SelectItem value="Deployment">Deployment</SelectItem>
                   <SelectItem value="Maintenance">Maintenance</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-
-            <div>
-              <Label htmlFor="category">Category</Label>
-              <Select 
-                value={formData.category} 
-                onValueChange={(value) => handleInputChange("category", value)}
-              >
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="planning">Planning</SelectItem>
-                  <SelectItem value="pre-construction">Pre-Construction</SelectItem>
-                  <SelectItem value="construction">Construction</SelectItem>
-                  <SelectItem value="finishing">Finishing</SelectItem>
-                  <SelectItem value="closeout">Closeout</SelectItem>
                 </SelectContent>
               </Select>
             </div>

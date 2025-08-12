@@ -25,6 +25,7 @@ interface ReportUploadModalProps {
 export function ReportUploadModal({ children, onUploadComplete, preselectedProjectId, replacingReportId }: ReportUploadModalProps) {
   const [open, setOpen] = useState(false)
   const [selectedFile, setSelectedFile] = useState<File | null>(null)
+  const [title, setTitle] = useState("")
   const [projectId, setProjectId] = useState(preselectedProjectId || "")
   const [category, setCategory] = useState("")
   const [status, setStatus] = useState("pending")
@@ -93,6 +94,11 @@ export function ReportUploadModal({ children, onUploadComplete, preselectedProje
       return
     }
 
+    if (!title.trim()) {
+      toast.error("Please enter a title for the report")
+      return
+    }
+
     if (!replacingReportId && !projectId) {
       toast.error("Please select a project")
       return
@@ -111,16 +117,17 @@ export function ReportUploadModal({ children, onUploadComplete, preselectedProje
     try {
       if (replacingReportId) {
         // Replace existing report
-        await replaceReport(replacingReportId, selectedFile, category, status, description)
+        await replaceReport(replacingReportId, selectedFile, category, status, description, title)
         toast.success("Report replaced successfully!")
       } else {
         // Upload new report with single reviewer
-        await uploadReport(selectedFile, projectId, category, status, description, assignedReviewer)
+        await uploadReport(selectedFile, projectId, category, status, description, assignedReviewer, title)
         toast.success("Report uploaded successfully!")
       }
       
       // Reset form
       setSelectedFile(null)
+      setTitle("")
       setProjectId(preselectedProjectId || "")
       setCategory("")
       setStatus("pending") // Always reset to pending
@@ -302,6 +309,30 @@ export function ReportUploadModal({ children, onUploadComplete, preselectedProje
                   <X className="h-4 w-4" />
                 </Button>
               </div>
+            )}
+          </div>
+
+          {/* Title Field */}
+          <div className="space-y-2">
+            <Label className="text-sm font-medium text-gray-700 flex items-center">
+              <FileText className="h-4 w-4 mr-2 text-gray-500" />
+              Report Title *
+            </Label>
+            <div className="relative">
+              <FileText className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
+              <Input
+                value={title}
+                onChange={(e) => setTitle(e.target.value)}
+                placeholder="Enter a descriptive title for this report"
+                className="pl-10"
+                required
+              />
+            </div>
+            {selectedFile && (
+              <p className="text-xs text-gray-500 flex items-center font-normal">
+                <span>File: </span>
+                <span className="ml-1 text-gray-600">{selectedFile.name}</span>
+              </p>
             )}
           </div>          {/* Project Selection - Hidden when replacing */}
           {!replacingReportId && (

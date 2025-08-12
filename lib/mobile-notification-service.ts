@@ -157,8 +157,31 @@ export class MobileNotificationService {
   private async registerMobileServiceWorker(): Promise<void> {
     try {
       if ('serviceWorker' in navigator) {
-        const registration = await navigator.serviceWorker.register('/firebase-messaging-sw.js');
-        console.log('✅ Mobile service worker registered:', registration);
+        // Try to register our enhanced service worker first
+        let registration;
+        try {
+          registration = await navigator.serviceWorker.register('/sw.js', {
+            scope: '/'
+          });
+          console.log('✅ Enhanced mobile service worker registered:', registration);
+        } catch (error) {
+          console.warn('⚠️ Enhanced service worker failed, trying Firebase fallback:', error);
+          // Fallback to Firebase service worker
+          registration = await navigator.serviceWorker.register('/firebase-messaging-sw.js');
+          console.log('✅ Firebase service worker registered as fallback:', registration);
+        }
+        
+        // Listen for service worker updates
+        registration.addEventListener('updatefound', () => {
+          const newWorker = registration.installing;
+          if (newWorker) {
+            newWorker.addEventListener('statechange', () => {
+              if (newWorker.state === 'installed' && navigator.serviceWorker.controller) {
+                console.log('📱 New service worker available, will update on next page load');
+              }
+            });
+          }
+        });
         
         // Listen for service worker messages
         navigator.serviceWorker.addEventListener('message', (event) => {
@@ -192,20 +215,57 @@ export class MobileNotificationService {
 
       if (Notification.permission === 'denied') {
         console.warn('❌ Notification permission denied - user must enable manually in browser settings');
+        // For Android Chrome, provide specific instructions
+        if (this.browserInfo.isAndroid && this.browserInfo.isChrome) {
+          console.log('📱 Android Chrome: Go to Settings > Site Settings > Notifications to enable');
+        }
         return false;
       }
 
       console.log('📱 Requesting notification permission for mobile browser...');
       
-      // For mobile browsers, we need to be more explicit about the request
+      // Enhanced mobile browser handling
       let permission: NotificationPermission;
       
       if (this.browserInfo.isMobile) {
-        // Mobile browsers are stricter - add a small delay and ensure user gesture
-        await new Promise(resolve => setTimeout(resolve, 100));
-        permission = await Notification.requestPermission();
+        // For mobile browsers, ensure we're in a user gesture context
+        if (this.browserInfo.isAndroid) {
+          // Android-specific handling
+          console.log('📱 Android browser detected - using enhanced permission request');
+          
+          // Add user-friendly prompt for Android
+          const userConfirmed = confirm(
+            'ProjTrack would like to send you notifications about task deadlines. ' +
+            'This will help you stay on top of important project milestones. Allow notifications?'
+          );
+          
+          if (!userConfirmed) {
+            console.log('📱 User declined notification prompt');
+            return false;
+          }
+          
+          // Request with retry logic for Android
+          await new Promise(resolve => setTimeout(resolve, 200));
+          permission = await Notification.requestPermission();
+          
+          // Android Chrome sometimes needs a second attempt
+          if (permission === 'default') {
+            console.log('📱 Android: First attempt returned default, retrying...');
+            await new Promise(resolve => setTimeout(resolve, 1000));
+            permission = await Notification.requestPermission();
+          }
+        } else if (this.browserInfo.isIOS) {
+          // iOS-specific handling
+          console.log('📱 iOS browser detected - using iOS-optimized request');
+          await new Promise(resolve => setTimeout(resolve, 100));
+          permission = await Notification.requestPermission();
+        } else {
+          // General mobile handling
+          await new Promise(resolve => setTimeout(resolve, 100));
+          permission = await Notification.requestPermission();
+        }
         
-        // Additional mobile-specific handling
+        // Additional mobile-specific retry logic
         if (permission === 'default') {
           console.log('📱 Permission dialog dismissed, trying again...');
           await new Promise(resolve => setTimeout(resolve, 500));
@@ -219,12 +279,28 @@ export class MobileNotificationService {
       console.log(`📱 Permission result: ${permission} (granted: ${granted})`);
       
       if (!granted && this.browserInfo.isMobile) {
-        console.log('📱 Mobile permission help: Check browser settings for notifications');
+        if (this.browserInfo.isAndroid && this.browserInfo.isChrome) {
+          console.log('📱 Android Chrome help: Check browser settings for notifications');
+          console.log('📱 Path: Chrome Settings > Site Settings > Notifications > Allow');
+        } else if (this.browserInfo.isIOS) {
+          console.log('📱 iOS help: Check Safari settings and ensure notifications are enabled');
+        }
       }
       
       return granted;
     } catch (error) {
       console.error('❌ Error requesting notification permission:', error);
+      
+      // Additional error context for mobile debugging
+      if (this.browserInfo.isMobile) {
+        console.log('📱 Mobile notification permission error details:', {
+          userAgent: this.browserInfo.userAgent,
+          isSecure: this.browserInfo.isSecure,
+          supportsNotifications: this.browserInfo.supportsNotifications,
+          currentPermission: typeof Notification !== 'undefined' ? Notification.permission : 'undefined'
+        });
+      }
+      
       return false;
     }
   }

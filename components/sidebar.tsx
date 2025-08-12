@@ -189,22 +189,22 @@ export function Sidebar({ activeTab, onTabChangeAction }: SidebarProps) {
             </div>
 
             {/* Mobile User Profile */}
-            <div className="p-4 border-t border-gray-200">
+            <div className="p-3 border-t border-gray-200">
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
                   <Button variant="ghost" className="w-full p-0 h-auto hover:bg-transparent group">
-                    <div className="flex items-center space-x-3 p-3 bg-gray-50 rounded-lg w-full transition-all duration-200 group-hover:bg-gray-100 group-hover:shadow-sm">
+                    <div className="flex items-center space-x-3 p-3 bg-gradient-to-r from-gray-50 to-gray-100 rounded-lg w-full transition-all duration-200 group-hover:from-orange-50 group-hover:to-orange-100 group-hover:shadow-sm border border-gray-200 group-hover:border-orange-200">
                       <UserAvatar 
                         avatarUrl={personnel?.avatar_url}
                         userName={userName}
                         size="sm"
-                        className="transition-transform duration-200 group-hover:scale-105"
+                        className="transition-transform duration-200 group-hover:scale-105 ring-2 ring-white shadow-sm"
                       />
-                      <div className="flex-1 min-w-0 text-left">
-                        <p className="text-sm font-medium text-gray-900 truncate">{userName}</p>
-                        <p className="text-xs text-gray-500 truncate">{userPosition}</p>
+                      <div className="flex-1 text-left">
+                        <p className="text-sm font-semibold text-gray-900 truncate group-hover:text-orange-700">{userName}</p>
+                        <p className="text-xs text-gray-500 truncate group-hover:text-orange-600">{userPosition}</p>
                       </div>
-                      <Settings className="h-4 w-4 text-gray-500 transition-colors duration-200 group-hover:text-gray-700" />
+                      <Settings className="h-4 w-4 text-gray-400 transition-all duration-200 group-hover:text-orange-600 group-hover:rotate-90" />
                     </div>
                   </Button>
                 </DropdownMenuTrigger>
@@ -213,18 +213,19 @@ export function Sidebar({ activeTab, onTabChangeAction }: SidebarProps) {
                   side="top"
                   alignOffset={-10}
                   sideOffset={16}
-                  className="w-72 p-2 shadow-lg border-gray-200"
+                  className="w-80 p-2 shadow-lg border-gray-200"
                 >
-                  <div className="flex items-center space-x-3 p-3 mb-2 bg-gray-50 rounded-lg">
+                  <div className="flex items-center space-x-3 p-3 mb-2 bg-gradient-to-r from-gray-50 to-gray-100 rounded-lg border border-gray-200">
                     <UserAvatar 
                       avatarUrl={personnel?.avatar_url}
                       userName={userName}
                       size="md"
+                      className="ring-2 ring-white shadow-sm flex-shrink-0"
                     />
-                    <div className="flex-1">
-                      <p className="text-sm font-semibold text-gray-900">{userName}</p>
-                      <p className="text-xs text-gray-500">{userPosition}</p>
-                      <p className="text-xs text-gray-400">{userEmail}</p>
+                    <div className="flex-1 min-w-0 space-y-0.5">
+                      <p className="text-sm font-semibold text-gray-900 truncate">{userName}</p>
+                      <p className="text-xs text-gray-500 truncate">{userPosition}</p>
+                      <p className="text-xs text-gray-400 break-all leading-tight">{userEmail}</p>
                     </div>
                   </div>
                   <DropdownMenuSeparator />
@@ -340,31 +341,31 @@ export function Sidebar({ activeTab, onTabChangeAction }: SidebarProps) {
         </div>
 
         {/* User Profile - Fixed at bottom */}
-        <div className="p-4 border-t border-gray-200 flex-shrink-0">
+        <div className="p-3 border-t border-gray-200 flex-shrink-0">
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <Button variant="ghost" className="w-full p-0 h-auto hover:bg-transparent group">
                 {!collapsed ? (
-                  <div className="flex items-center space-x-3 p-3 bg-gray-50 rounded-lg w-full transition-all duration-200 group-hover:bg-gray-100 group-hover:shadow-sm">
+                  <div className="flex items-center space-x-3 p-3 bg-gradient-to-r from-gray-50 to-gray-100 rounded-lg w-full transition-all duration-200 group-hover:from-orange-50 group-hover:to-orange-100 group-hover:shadow-md border border-gray-200 group-hover:border-orange-200">
                     <UserAvatar 
                       avatarUrl={personnel?.avatar_url}
                       userName={userName}
                       size="sm"
-                      className="transition-transform duration-200 group-hover:scale-105"
+                      className="transition-transform duration-200 group-hover:scale-105 ring-2 ring-white shadow-sm"
                     />
                     <div className="flex-1 min-w-0 text-left">
-                      <p className="text-sm font-medium text-gray-900 truncate">{userName}</p>
-                      <p className="text-xs text-gray-500 truncate">{userPosition}</p>
+                      <p className="text-sm font-semibold text-gray-900 truncate group-hover:text-orange-700">{userName}</p>
+                      <p className="text-xs text-gray-500 truncate group-hover:text-orange-600">{userPosition}</p>
                     </div>
-                    <Settings className="h-4 w-4 text-gray-500 transition-colors duration-200 group-hover:text-gray-700" />
+                    <Settings className="h-4 w-4 text-gray-400 transition-all duration-200 group-hover:text-orange-600 group-hover:rotate-90" />
                   </div>
                 ) : (
-                  <div className="flex justify-center p-2 rounded-lg transition-all duration-200 group-hover:bg-gray-100">
+                  <div className="flex justify-center p-2 rounded-lg transition-all duration-200 group-hover:bg-gradient-to-r group-hover:from-orange-50 group-hover:to-orange-100 border border-transparent group-hover:border-orange-200">
                     <UserAvatar 
                       avatarUrl={personnel?.avatar_url}
                       userName={userName}
                       size="sm"
-                      className="transition-transform duration-200 group-hover:scale-110 group-hover:shadow-md"
+                      className="transition-transform duration-200 group-hover:scale-110 ring-2 ring-white shadow-sm group-hover:shadow-md"
                     />
                   </div>
                 )}
@@ -378,11 +379,12 @@ export function Sidebar({ activeTab, onTabChangeAction }: SidebarProps) {
               className="w-72 p-2 shadow-lg border-gray-200"
               style={{ transform: 'translateY(-20px)' }}
             >
-              <div className="flex items-center space-x-3 p-3 mb-2 bg-gray-50 rounded-lg">
+              <div className="flex items-center space-x-3 p-3 mb-2 bg-gradient-to-r from-gray-50 to-gray-100 rounded-lg border border-gray-200">
                 <UserAvatar 
                   avatarUrl={personnel?.avatar_url}
                   userName={userName}
                   size="md"
+                  className="ring-2 ring-white shadow-sm"
                 />
                 <div className="flex-1">
                   <p className="text-sm font-semibold text-gray-900">{userName}</p>

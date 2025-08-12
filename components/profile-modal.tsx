@@ -6,7 +6,6 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
-import { Separator } from "@/components/ui/separator"
 import { Badge } from "@/components/ui/badge"
 import { ProfilePictureUpload } from "@/components/profile-picture-upload"
 import { 
@@ -16,9 +15,7 @@ import {
   Phone, 
   Edit3, 
   Save, 
-  Loader2,
-  Lock,
-  Calendar
+  Loader2
 } from "lucide-react"
 import { useCurrentUserPersonnel } from "@/lib/hooks/useCurrentUserPersonnel"
 import { useAuth } from "@/lib/auth"
@@ -202,9 +199,9 @@ export function ProfileModal({ isOpen, onCloseAction, personnel: viewingPersonne
           </div>
         </DialogHeader>
 
-        <div className="space-y-6">
-          {/* Profile Header */}
-          <div className="flex items-center space-x-6 p-6 bg-gradient-to-r from-orange-50 to-orange-100 rounded-xl border border-orange-200">
+        <div className="space-y-4">
+          {/* Compact Profile Header */}
+          <div className="flex items-start space-x-4 p-4 bg-gradient-to-r from-orange-50 to-orange-100 rounded-lg border border-orange-200">
             {isOwnProfile ? (
               <ProfilePictureUpload
                 key={displayedPersonnel?.avatar_url || 'no-avatar'}
@@ -212,39 +209,57 @@ export function ProfileModal({ isOpen, onCloseAction, personnel: viewingPersonne
                 personnelId={displayedPersonnel?.id || ''}
                 userName={userName}
                 onAvatarUpdateAction={handleAvatarUpdateAction}
-                size="lg"
+                size="md"
                 editable={true}
               />
             ) : (
-              <Avatar className="h-24 w-24 ring-4 ring-white shadow-lg">
+              <Avatar className="h-16 w-16 ring-2 ring-white shadow-md">
                 <AvatarImage src={displayedPersonnel?.avatar_url || ""} alt={userName} />
-                <AvatarFallback className="bg-gradient-to-r from-orange-500 to-orange-600 text-white text-2xl font-semibold">
+                <AvatarFallback className="bg-gradient-to-r from-orange-500 to-orange-600 text-white text-lg font-semibold">
                   {getInitials(userName)}
                 </AvatarFallback>
               </Avatar>
             )}
-            <div className="flex-1">
-              <h2 className="text-3xl font-bold text-gray-900">{userName}</h2>
-              <div className="flex items-center gap-2 mt-2">
-                <Badge variant="secondary" className="bg-orange-100 text-orange-800 border-orange-200">
+            <div className="flex-1 min-w-0">
+              <h2 className="text-xl font-bold text-gray-900 truncate">{userName}</h2>
+              <div className="flex items-center justify-between mt-1">
+                <Badge variant="secondary" className="bg-orange-100 text-orange-800 border-orange-200 text-xs">
+                  <Briefcase className="h-3 w-3 mr-1" />
                   {userPosition}
                 </Badge>
+                {displayedPersonnel?.created_at && (
+                  <div className="text-right">
+                    <p className="text-xs text-gray-500">Member Since</p>
+                    <p className="text-xs font-medium text-gray-700">
+                      {new Date(displayedPersonnel.created_at).toLocaleDateString('en-US', {
+                        month: 'short',
+                        year: 'numeric'
+                      })}
+                    </p>
+                  </div>
+                )}
+              </div>
+              <div className="mt-2">
+                <div className="flex items-center gap-1 text-xs text-gray-600">
+                  <Mail className="h-3 w-3" />
+                  <span className="truncate">{userEmail}</span>
+                </div>
               </div>
             </div>
           </div>
 
-          {/* Editable Fields Section */}
-          <div className="space-y-6">
+          {/* Compact Editable Fields */}
+          <div className="space-y-3">
             <div className="flex items-center gap-2">
-              <h3 className="text-lg font-semibold text-gray-800">Personal Information</h3>
-              {isEditing && <Badge variant="outline" className="text-xs">Editing Mode</Badge>}
+              <h3 className="text-sm font-semibold text-gray-800">Contact Information</h3>
+              {isEditing && <Badge variant="outline" className="text-xs">Editing</Badge>}
             </div>
             
-            <div className="grid grid-cols-1 gap-6">
+            <div className="space-y-3">
               {/* Name Field */}
-              <div className="space-y-2">
-                <Label htmlFor="name" className="text-sm font-medium text-gray-700 flex items-center gap-2">
-                  <User className="h-4 w-4" />
+              <div className="space-y-1">
+                <Label htmlFor="name" className="text-xs font-medium text-gray-600 flex items-center gap-1">
+                  <User className="h-3 w-3" />
                   Full Name
                 </Label>
                 {isEditing && isOwnProfile ? (
@@ -254,19 +269,19 @@ export function ProfileModal({ isOpen, onCloseAction, personnel: viewingPersonne
                     value={formData.name}
                     onChange={(e) => handleInputChange('name', e.target.value)}
                     placeholder="Enter your full name"
-                    className="border-gray-300 focus:border-orange-500 focus:ring-orange-500"
+                    className="h-8 text-sm border-gray-300 focus:border-orange-500 focus:ring-orange-500"
                   />
                 ) : (
-                  <div className="p-3 bg-gray-50 rounded-lg border border-gray-200">
-                    <p className="font-medium text-gray-900">{displayedPersonnel?.name || 'Not specified'}</p>
+                  <div className="px-2 py-1 bg-gray-50 rounded text-sm font-medium text-gray-900">
+                    {displayedPersonnel?.name || 'Not specified'}
                   </div>
                 )}
               </div>
 
               {/* Phone Field */}
-              <div className="space-y-2">
-                <Label htmlFor="phone" className="text-sm font-medium text-gray-700 flex items-center gap-2">
-                  <Phone className="h-4 w-4" />
+              <div className="space-y-1">
+                <Label htmlFor="phone" className="text-xs font-medium text-gray-600 flex items-center gap-1">
+                  <Phone className="h-3 w-3" />
                   Phone Number
                 </Label>
                 {isEditing && isOwnProfile ? (
@@ -276,79 +291,16 @@ export function ProfileModal({ isOpen, onCloseAction, personnel: viewingPersonne
                     value={formData.phone}
                     onChange={(e) => handleInputChange('phone', e.target.value)}
                     placeholder="Enter your phone number"
-                    className="border-gray-300 focus:border-orange-500 focus:ring-orange-500"
+                    className="h-8 text-sm border-gray-300 focus:border-orange-500 focus:ring-orange-500"
                   />
                 ) : (
-                  <div className="p-3 bg-gray-50 rounded-lg border border-gray-200">
-                    <p className="font-medium text-gray-900">{displayedPersonnel?.phone || 'Not specified'}</p>
+                  <div className="px-2 py-1 bg-gray-50 rounded text-sm font-medium text-gray-900">
+                    {displayedPersonnel?.phone || 'Not specified'}
                   </div>
                 )}
               </div>
-
             </div>
           </div>
-
-          <Separator />
-
-          {/* Read-Only Fields Section */}
-          <div className="space-y-4">
-            <div className="flex items-center gap-2">
-              <h3 className="text-lg font-semibold text-gray-800">Professional Information</h3>
-              <Badge variant="secondary" className="text-xs bg-gray-100 text-gray-600">
-                <Lock className="h-3 w-3 mr-1" />
-                Read Only
-              </Badge>
-            </div>
-            
-            <div className="grid grid-cols-1 gap-4">
-              {/* Email Field (Read-only) */}
-              <div className="space-y-2">
-                <Label className="text-sm font-medium text-gray-700 flex items-center gap-2">
-                  <Mail className="h-4 w-4" />
-                  Email Address
-                </Label>
-                <div className="p-3 bg-gray-50 rounded-lg border border-gray-200 opacity-75">
-                  <p className="font-medium text-gray-600">{userEmail}</p>
-                  <p className="text-xs text-gray-500 mt-1">Email cannot be changed here</p>
-                </div>
-              </div>
-
-              {/* Position Field (Read-only) */}
-              <div className="space-y-2">
-                <Label className="text-sm font-medium text-gray-700 flex items-center gap-2">
-                  <Briefcase className="h-4 w-4" />
-                  Position
-                </Label>
-                <div className="p-3 bg-gray-50 rounded-lg border border-gray-200 opacity-75">
-                  <p className="font-medium text-gray-600">{userPosition}</p>
-                  <p className="text-xs text-gray-500 mt-1">Position is managed by administrators</p>
-                </div>
-              </div>
-            </div>
-          </div>
-
-          {/* Additional Information */}
-          {displayedPersonnel?.created_at && (
-            <>
-              <Separator />
-              <div className="space-y-4">
-                <h3 className="text-lg font-semibold text-gray-800">Account Information</h3>
-                <div className="p-4 bg-gradient-to-r from-blue-50 to-indigo-50 rounded-lg border border-blue-200">
-                  <div className="flex items-center gap-2 text-blue-800">
-                    <Calendar className="h-4 w-4" />
-                    <span className="text-sm font-medium">Member Since</span>
-                  </div>
-                  <p className="font-medium text-blue-900 mt-1">
-                    {new Date(displayedPersonnel.created_at).toLocaleDateString('en-US', {
-                      year: 'numeric',
-                      month: 'long',
-                      day: 'numeric'
-                    })}
-                  </p>
-                </div>
-              </div>
-            </>
-          )}
         </div>
       </DialogContent>
     </Dialog>

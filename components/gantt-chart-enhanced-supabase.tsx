@@ -11,6 +11,8 @@ import { useProjects } from "@/lib/hooks/useProjects"
 import { useGanttTasks } from "@/lib/hooks/useGanttTasks"
 import { TaskFormModalOptimized } from "./task-form-modal-optimized"
 import { TaskEditModalOptimized } from "./task-edit-modal-optimized"
+import { StructuredExportControls } from "./structured-export-controls"
+import { useStructuredExport } from "@/lib/hooks/useStructuredExport"
 import { toast } from "react-hot-toast"
 import {
   BarChart3,
@@ -77,12 +79,40 @@ interface GanttChartEnhancedProps {
 export function GanttChartEnhanced({ selectedProjectId }: GanttChartEnhancedProps) {
   const { projects, loading: projectsLoading, error: projectsError, fetchProjects } = useProjects()
   const { tasks, loading: tasksLoading, error: tasksError, refetch: refetchTasks, deleteTask } = useGanttTasks()
+  // Transform tasks for export compatibility
+  const transformedTasks = useMemo(() => {
+    return (tasks || []).map(task => {
+      const t = task as Record<string, unknown>; // Type casting to access properties
+      return {
+        id: String(t.id || ''),
+        title: String(t.title || ''),
+        description: t.description ? String(t.description) : undefined,
+        project_id: String(t.project_id || ''),
+        project_name: t.project_name ? String(t.project_name) : undefined,
+        start_date: t.start_date ? String(t.start_date) : undefined,
+        end_date: t.end_date ? String(t.end_date) : undefined,
+        status: String(t.status || 'unknown'),
+        priority: t.priority ? String(t.priority) : undefined,
+        assignee: t.assignee ? String(t.assignee) : (t.assigned_to ? String(t.assigned_to) : undefined),
+        progress: typeof t.progress === 'number' ? t.progress : 0,
+        phase: t.phase ? String(t.phase) : undefined,
+        category: t.category ? String(t.category) : undefined,
+        estimated_hours: typeof t.estimated_hours === 'number' ? t.estimated_hours : undefined,
+        is_overdue: Boolean(t.is_overdue),
+        days_until_deadline: typeof t.days_until_deadline === 'number' ? t.days_until_deadline : undefined
+      }
+    })
+  }, [tasks])
+
+  const { exportStructuredReport, isExporting } = useStructuredExport({
+    projects: projects || [],
+    tasks: transformedTasks
+  })
   
   const [statusFilter, setStatusFilter] = useState("all")
-  const [priorityFilter, setPriorityFilter] = useState("all")
   const [projectFilter, setProjectFilter] = useState("all")
   const [currentPeriod, setCurrentPeriod] = useState(new Date())
-  const [viewMode, setViewMode] = useState<"daily" | "weekly" | "full">("weekly")
+  const [viewMode, setViewMode] = useState<"daily" | "weekly" | "monthly" | "full">("weekly")
   const [searchTerm, setSearchTerm] = useState("")
   const [editingTask, setEditingTask] = useState<EnhancedTask | null>(null)
   const [isEditModalOpen, setIsEditModalOpen] = useState(false)
@@ -184,19 +214,6 @@ export function GanttChartEnhanced({ selectedProjectId }: GanttChartEnhancedProp
         return <AlertTriangle className="h-4 w-4 text-red-500" />
       default:
         return <Clock className="h-4 w-4 text-gray-500" />
-    }
-  }
-
-  const getPriorityColor = (priority: string | null) => {
-    switch (priority) {
-      case "high":
-        return "bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200"
-      case "medium":
-        return "bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200"
-      case "low":
-        return "bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200"
-      default:
-        return "bg-gray-100 text-gray-800 dark:bg-gray-800 dark:text-gray-200"
     }
   }
 
@@ -338,6 +355,24 @@ export function GanttChartEnhanced({ selectedProjectId }: GanttChartEnhancedProp
           isQuarter: false,
         })
       }
+    } else if (viewMode === "monthly") {
+      // Monthly view - show 6 months around current period
+      const startDate = new Date(currentPeriod.getFullYear(), currentPeriod.getMonth() - 2, 1)
+      
+      for (let i = 0; i < 6; i++) {
+        const monthStart = new Date(startDate.getFullYear(), startDate.getMonth() + i, 1)
+        const monthEnd = new Date(startDate.getFullYear(), startDate.getMonth() + i + 1, 0)
+        monthEnd.setHours(23, 59, 59, 999)
+        
+        months.push({
+          label: monthStart.toLocaleDateString("en-US", { month: "short", year: "numeric" }),
+          date: new Date(monthStart),
+          endDate: new Date(monthEnd),
+          quarter: Math.floor(monthStart.getMonth() / 3) + 1,
+          year: monthStart.getFullYear(),
+          isQuarter: false,
+        })
+      }
     } else if (viewMode === "daily") {
       // Daily view - show 14 days (2 weeks) around current period
       const startDate = new Date(currentPeriod)
@@ -398,7 +433,6 @@ export function GanttChartEnhanced({ selectedProjectId }: GanttChartEnhancedProp
     const effectiveStatus = getEffectiveStatus(task.status, taskIsOverdue)
     const matchesStatus = statusFilter === "all" || 
       (statusFilter === "delayed" ? effectiveStatus === "delayed" : task.status === statusFilter)
-    const matchesPriority = priorityFilter === "all" || task.priority === priorityFilter
     const matchesProject = projectFilter === "all" || task.project_id === projectFilter
     const matchesSearch =
       searchTerm === "" ||
@@ -406,7 +440,7 @@ export function GanttChartEnhanced({ selectedProjectId }: GanttChartEnhancedProp
       task.project_name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
       task.project_client?.toLowerCase().includes(searchTerm.toLowerCase()) ||
       task.description?.toLowerCase().includes(searchTerm.toLowerCase())
-    return matchesStatus && matchesPriority && matchesProject && matchesSearch
+    return matchesStatus && matchesProject && matchesSearch
   })
 
   const timelineMonths = getTimelineMonths()
@@ -419,6 +453,9 @@ export function GanttChartEnhanced({ selectedProjectId }: GanttChartEnhancedProp
     } else if (viewMode === "weekly") {
       // Navigate by 4 weeks (28 days) to show the next/previous set of 4 weeks
       newPeriod.setDate(newPeriod.getDate() + (direction === "next" ? 28 : -28))
+    } else if (viewMode === "monthly") {
+      // Navigate by 1 month to show the next/previous month
+      newPeriod.setMonth(newPeriod.getMonth() + (direction === "next" ? 1 : -1))
     }
     // For "full" mode, navigation is not applicable as it shows entire timeline
     
@@ -461,6 +498,31 @@ export function GanttChartEnhanced({ selectedProjectId }: GanttChartEnhancedProp
     setIsEditModalOpen(false)
   }
 
+  const handleStructuredExport = useCallback(async (options: {
+    exportType: 'all-projects' | 'specific-project'
+    projectId?: string
+    includeTaskDetails?: boolean
+    includeResourceAnalysis?: boolean
+    includeTimeline?: boolean
+    includeTechnicalSpecs?: boolean
+  }) => {
+    try {
+      // Provide default values to ensure all required fields are present
+      const exportOptions = {
+        exportType: options.exportType,
+        projectId: options.projectId,
+        includeTaskDetails: options.includeTaskDetails ?? true,
+        includeResourceAnalysis: options.includeResourceAnalysis ?? true,
+        includeTimeline: options.includeTimeline ?? true,
+        includeTechnicalSpecs: options.includeTechnicalSpecs ?? true
+      }
+      await exportStructuredReport(exportOptions)
+    } catch (error) {
+      console.error('Structured export failed:', error)
+      toast.error('Export failed. Please try again.')
+    }
+  }, [exportStructuredReport])
+
   const overallStats = useMemo(() => {
     const total = filteredTasks.length
     const completed = filteredTasks.filter((t) => t.status === "completed").length
@@ -501,16 +563,17 @@ export function GanttChartEnhanced({ selectedProjectId }: GanttChartEnhancedProp
   }
 
   return (
-    <div className="p-2 sm:p-4 md:p-6 space-y-2 sm:space-y-3 md:space-y-4 overflow-y-auto h-full bg-gray-50 dark:bg-gray-950">
+    <div className="p-2 sm:p-4 md:p-6 space-y-1 sm:space-y-2 md:space-y-3 overflow-y-auto h-full bg-gray-50 dark:bg-gray-950">
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 sm:gap-3">
-        <div>
+        <div className="text-center sm:text-left">
           <h1 className="text-lg sm:text-xl md:text-2xl font-bold text-gray-900 dark:text-white">Task Gantt Chart</h1>
           <p className="text-gray-600 dark:text-gray-400 text-xs sm:text-sm">
             Task timelines, deadlines, and progress tracking
           </p>
         </div>
-        <div className="flex flex-col sm:flex-row items-stretch sm:items-center space-y-2 sm:space-y-0 sm:space-x-3">
+        {/* Add Task button - Hidden on mobile, visible on desktop */}
+        <div className="hidden sm:flex sm:flex-row items-stretch sm:items-center space-y-2 sm:space-y-0 sm:space-x-3">
           <TaskFormModalOptimized onTaskCreated={() => {
             fetchProjects(true)
             refetchTasks()
@@ -621,17 +684,13 @@ export function GanttChartEnhanced({ selectedProjectId }: GanttChartEnhancedProp
                 </SelectContent>
               </Select>
 
-              <Select value={priorityFilter} onValueChange={setPriorityFilter}>
-                <SelectTrigger className="h-9 sm:h-9 lg:h-10 bg-white dark:bg-gray-900 text-xs sm:text-sm lg:text-sm">
-                  <SelectValue placeholder="Priority" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">All Priorities</SelectItem>
-                  <SelectItem value="high">High</SelectItem>
-                  <SelectItem value="medium">Medium</SelectItem>
-                  <SelectItem value="low">Low</SelectItem>
-                </SelectContent>
-              </Select>
+              {/* Add Task button - Visible on mobile only, beside Status dropdown */}
+              <div className="sm:hidden">
+                <TaskFormModalOptimized onTaskCreated={() => {
+                  fetchProjects(true)
+                  refetchTasks()
+                }} />
+              </div>
             </div>
             
             {/* View Mode Buttons */}
@@ -659,6 +718,18 @@ export function GanttChartEnhanced({ selectedProjectId }: GanttChartEnhancedProp
                 }`}
               >
                 Weekly
+              </Button>
+              <Button
+                variant={viewMode === "monthly" ? "default" : "ghost"}
+                size="sm"
+                onClick={() => setViewMode("monthly")}
+                className={`h-7 sm:h-8 text-xs px-2 sm:px-3 whitespace-nowrap flex-1 transition-all duration-200 ${
+                  viewMode === "monthly" 
+                    ? "bg-white dark:bg-gray-700 shadow-sm text-gray-900 dark:text-white hover:bg-white dark:hover:bg-gray-700" 
+                    : "text-gray-600 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white hover:bg-white/50 dark:hover:bg-gray-700/50 hover:shadow-none"
+                }`}
+              >
+                Monthly
               </Button>
               <Button
                 variant={viewMode === "full" ? "default" : "ghost"}
@@ -689,7 +760,9 @@ export function GanttChartEnhanced({ selectedProjectId }: GanttChartEnhancedProp
                     ? `Daily - ${currentPeriod.toLocaleDateString("en-PH", { month: "short", day: "numeric" })}`
                     : viewMode === "weekly"
                       ? `Weekly - ${currentPeriod.toLocaleDateString("en-PH", { month: "short", day: "numeric" })}`
-                      : "Full Timeline"
+                      : viewMode === "monthly"
+                        ? `Monthly - ${currentPeriod.toLocaleDateString("en-PH", { month: "long", year: "numeric" })}`
+                        : "Full Timeline"
                 }
               </CardTitle>
               <Badge variant="outline" className="text-xs w-fit">
@@ -770,6 +843,23 @@ export function GanttChartEnhanced({ selectedProjectId }: GanttChartEnhancedProp
                           index < timelineMonths.length - 1 ? 'border-r border-gray-400 dark:border-gray-500' : ''
                         }`} style={{ minWidth: '140px' }}>
                           <div className="truncate">{week.label}</div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                </>
+              ) : viewMode === "monthly" ? (
+                <>
+                  <div className="text-center text-base font-bold text-gray-800 dark:text-gray-200 mb-2">
+                    Monthly View - {currentPeriod.toLocaleDateString("en-PH", { year: "numeric" })}
+                  </div>
+                  <div className="overflow-x-auto">
+                    <div className="grid grid-cols-6 gap-1 min-w-max" style={{ minWidth: '720px' }}>
+                      {timelineMonths.map((month, index) => (
+                        <div key={month.label + index} className={`text-xs text-center text-gray-600 dark:text-gray-400 font-medium px-2 py-1 ${
+                          index < timelineMonths.length - 1 ? 'border-r border-gray-400 dark:border-gray-500' : ''
+                        }`} style={{ minWidth: '120px' }}>
+                          <div className="truncate">{month.label}</div>
                         </div>
                       ))}
                     </div>
@@ -868,14 +958,16 @@ export function GanttChartEnhanced({ selectedProjectId }: GanttChartEnhancedProp
           </div>
 
           {/* Mobile Timeline Header */}
-          <div className="sm:hidden mb-3 p-2 bg-gray-100 dark:bg-gray-800 rounded-lg">
-            <div className="text-center">
+          <div className="sm:hidden mb-3 p-3 bg-gray-100 dark:bg-gray-800 rounded-lg">
+            <div className="flex flex-col items-center justify-center text-center space-y-1">
               <div className="text-sm font-medium text-gray-800 dark:text-gray-200">
                 {viewMode === "daily" 
                   ? currentPeriod.toLocaleDateString("en-PH", { month: "short", day: "numeric" })
                   : viewMode === "weekly"
                     ? `Week of ${currentPeriod.toLocaleDateString("en-PH", { month: "short", day: "numeric" })}`
-                    : "Timeline Overview"
+                    : viewMode === "monthly"
+                      ? currentPeriod.toLocaleDateString("en-PH", { month: "long", year: "numeric" })
+                      : "Timeline Overview"
                 }
               </div>
               <div className="text-xs text-gray-500 dark:text-gray-400">
@@ -885,7 +977,7 @@ export function GanttChartEnhanced({ selectedProjectId }: GanttChartEnhancedProp
           </div>
 
           {/* Task Rows */}
-          <div className="space-y-2 sm:space-y-4">
+          <div className="space-y-3 sm:space-y-4">
             {filteredTasks.map((task, index) => {
               const position = getTaskPosition(task, timelineMonths)
               const daysUntilDeadline = getDaysUntilDeadline(task.end_date, task.status)
@@ -895,14 +987,14 @@ export function GanttChartEnhanced({ selectedProjectId }: GanttChartEnhancedProp
                 <div key={task.id}>
                   {/* Desktop Layout */}
                   <div
-                    className={`hidden sm:grid grid-cols-12 gap-2 items-center py-3 px-3 rounded-lg transition-colors group relative ${
+                    className={`hidden sm:grid grid-cols-12 gap-2 items-center py-2 px-3 rounded-lg transition-colors group relative ${
                       index % 2 === 0 
                         ? 'bg-white dark:bg-gray-900 hover:bg-gray-50 dark:hover:bg-gray-800' 
                         : 'bg-gray-50 dark:bg-gray-800 hover:bg-gray-100 dark:hover:bg-gray-700'
                     }`}
                   >
                     {/* Task Info - Desktop */}
-                    <div className="col-span-4 space-y-2">
+                    <div className="col-span-4 space-y-1">
                       <div className="flex items-start justify-between">
                         <div className="flex-1 min-w-0">
                           <h3 className="text-sm font-medium text-gray-900 dark:text-white truncate">{task.title}</h3>
@@ -943,9 +1035,6 @@ export function GanttChartEnhanced({ selectedProjectId }: GanttChartEnhancedProp
                             {getEffectiveStatus(task.status, overdue)?.replace("-", " ") || 'Unknown'}
                           </span>
                         </span>
-                      </Badge>
-                      <Badge className={getPriorityColor(task.priority || 'medium')}>
-                        {task.priority || 'medium'}
                       </Badge>
                     </div>
 
@@ -994,6 +1083,7 @@ export function GanttChartEnhanced({ selectedProjectId }: GanttChartEnhancedProp
                            style={{ 
                              minWidth: viewMode === "daily" ? '800px' : 
                                       viewMode === "weekly" ? '600px' : 
+                                      viewMode === "monthly" ? '720px' :
                                       `${timelineMonths.length * 60}px` 
                            }}>
                         {position.isVisible && (
@@ -1041,6 +1131,31 @@ export function GanttChartEnhanced({ selectedProjectId }: GanttChartEnhancedProp
                                 break
                               }
                             }
+                          } else if (viewMode === "monthly") {
+                            // For monthly view, find which month contains today
+                            for (let i = 0; i < timelineMonths.length; i++) {
+                              const monthStart = new Date(timelineMonths[i].date)
+                              monthStart.setHours(0, 0, 0, 0) // Start of day
+                              const monthEnd = new Date(timelineMonths[i].endDate)
+                              monthEnd.setHours(23, 59, 59, 999) // End of day
+                              
+                              // Check if today falls within this month
+                              if (today >= monthStart && today <= monthEnd) {
+                                // Today is in this month, calculate position within the month
+                                const monthColumnWidth = 100 / timelineMonths.length // Each month takes up equal width
+                                const monthStartPosition = i * monthColumnWidth
+                                
+                                // Calculate the day within the month for more precise positioning
+                                const monthTotalDays = monthEnd.getDate()
+                                const todayDayOfMonth = today.getDate()
+                                const dayRatio = (todayDayOfMonth - 1) / (monthTotalDays - 1) // -1 because days are 1-indexed
+                                const positionWithinMonth = dayRatio * monthColumnWidth
+                                
+                                todayPosition = monthStartPosition + positionWithinMonth
+                                isTodayVisible = true
+                                break
+                              }
+                            }
                           } else {
                             // For daily and full timeline views, use the original logic
                             const timelineStart = timelineMonths[0].date
@@ -1081,7 +1196,7 @@ export function GanttChartEnhanced({ selectedProjectId }: GanttChartEnhancedProp
                       : 'bg-gray-50 dark:bg-gray-800'
                   }`}>
                     {/* Task Header - Mobile - More Compact */}
-                    <div className="flex items-center justify-between mb-2">
+                    <div className="flex items-center justify-between mb-1">
                       <div className="flex-1 min-w-0 mr-2">
                         <div className="flex items-center gap-2 mb-1">
                           <h3 className="text-sm font-medium text-gray-900 dark:text-white truncate">{task.title}</h3>
@@ -1091,9 +1206,6 @@ export function GanttChartEnhanced({ selectedProjectId }: GanttChartEnhancedProp
                         </div>
                         <div className="flex items-center gap-3 text-xs text-gray-500 dark:text-gray-400">
                           <span className="truncate">{task.project_name}</span>
-                          <Badge className={`${getPriorityColor(task.priority || 'medium')} text-xs px-1.5 py-0.5`}>
-                            {task.priority || 'medium'}
-                          </Badge>
                         </div>
                       </div>
                       <DropdownMenu>
@@ -1123,7 +1235,7 @@ export function GanttChartEnhanced({ selectedProjectId }: GanttChartEnhancedProp
                     </div>
 
                     {/* Timeline Bar - Mobile - More Prominent */}
-                    <div className="mb-2">
+                    <div className="mb-1">
                       <div className="relative h-4 bg-gray-200 dark:bg-gray-700 rounded-md overflow-hidden">
                         {position.isVisible && (
                           <div
@@ -1242,6 +1354,14 @@ export function GanttChartEnhanced({ selectedProjectId }: GanttChartEnhancedProp
           )}
         </CardContent>
       </Card>
+
+      {/* Export Controls - Positioned at Bottom */}
+      <StructuredExportControls
+        onExport={handleStructuredExport}
+        projects={projects || []}
+        totalTasks={filteredTasks.length}
+        isLoading={isExporting || projectsLoading || tasksLoading}
+      />
 
       {/* Edit Task Modal */}
       <TaskEditModalOptimized

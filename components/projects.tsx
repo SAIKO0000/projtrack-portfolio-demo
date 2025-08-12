@@ -25,7 +25,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
 import { useProjects } from "@/lib/hooks/useProjects"
 import { useTasks } from "@/lib/hooks/useTasks"
-import { useReports } from "@/lib/hooks/useReports"
+import { useReports, type ReportWithUploader } from "@/lib/hooks/useReports"
 import { usePersonnel } from "@/lib/hooks/usePersonnel"
 import { useAuth } from "@/lib/auth"
 import { ProjectFormModal } from "@/components/project-form-modal"
@@ -35,11 +35,20 @@ import { ReviewerNotesModal } from "@/components/reviewer-notes-modal"
 import { SimpleNotesModal } from "@/components/simple-notes-modal"
 import { DocumentViewerWithNotesModal } from "@/components/document-viewer-with-notes-modal"
 import { toast } from "react-hot-toast"
-import { Database } from "@/lib/supabase.types"
 import { supabase } from "@/lib/supabase"
 
-type Project = Database['public']['Tables']['projects']['Row']
-type Report = Database['public']['Tables']['reports']['Row']
+type Project = {
+  id: string
+  name: string
+  description?: string
+  status: string
+  priority: string
+  location?: string
+  start_date: string
+  end_date: string
+  created_at: string
+  updated_at: string
+}
 
 interface ProjectsProps {
   readonly onProjectSelect?: (projectId: string) => void
@@ -54,7 +63,11 @@ export function Projects({ onProjectSelect }: ProjectsProps) {
   const [searchTerm, setSearchTerm] = useState("")
   const [statusFilter, setStatusFilter] = useState("all")
   const [editingProject, setEditingProject] = useState<Project | null>(null)
-  const [viewingReports, setViewingReports] = useState<{ projectId: string; projectName: string } | null>(null)
+  const [viewingReports, setViewingReports] = useState<{ 
+    projectId: string; 
+    projectName: string; 
+    highlightReportId?: string 
+  } | null>(null)
   const [reviewerNotesModal, setReviewerNotesModal] = useState<{
     open: boolean
     action: 'approved' | 'revision' | 'rejected' | null
@@ -81,7 +94,7 @@ export function Projects({ onProjectSelect }: ProjectsProps) {
   // New state for document viewer with notes
   const [documentViewerModal, setDocumentViewerModal] = useState<{
     open: boolean
-    report: Report | null
+    report: ReportWithUploader | null
   }>({
     open: false,
     report: null
@@ -115,6 +128,38 @@ export function Projects({ onProjectSelect }: ProjectsProps) {
       isAssigned: isReviewer
     })
     return isReviewer
+  }
+
+  // Get reports assigned to current user for review (supports both single and multiple reviewer systems)
+  const getAssignedReportsForCurrentUser = () => {
+    const currentUserPersonnel = personnel.find(p => p.email === user?.email)
+    if (!currentUserPersonnel) return []
+
+    return reports.filter(report => {
+      if (report.status !== 'pending') return false
+
+      // Check single reviewer system (legacy)
+      const reportWithReviewer = report as typeof report & { assigned_reviewer?: string }
+      if (reportWithReviewer.assigned_reviewer === currentUserPersonnel.id) {
+        return true
+      }
+
+      // Check multiple reviewer system
+      const reportWithReviewers = report as typeof report & { 
+        report_reviewers?: Array<{
+          reviewer_id: string
+          status: string | null
+        }>
+      }
+      
+      if (reportWithReviewers.report_reviewers?.some(rr => 
+        rr.reviewer_id === currentUserPersonnel.id && rr.status === 'pending'
+      )) {
+        return true
+      }
+
+      return false
+    })
   }
 
   // Helper function to get uploader name and position
@@ -160,6 +205,25 @@ export function Projects({ onProjectSelect }: ProjectsProps) {
       reviewerPosition: rr.personnel?.position || 'Unknown Position',
       status: rr.status || 'pending'
     }))
+  }
+
+  // Helper function to format report display name as "Title (File Name)" or just file name if no title
+  const getReportDisplayName = (report: typeof reports[0]): { title: string; fileName: string; hasTitle: boolean } => {
+    const reportWithTitle = report as typeof report & { title?: string }
+    
+    if (reportWithTitle.title?.trim()) {
+      return {
+        title: reportWithTitle.title,
+        fileName: report.file_name,
+        hasTitle: true
+      }
+    }
+    
+    return {
+      title: report.file_name,
+      fileName: '',
+      hasTitle: false
+    }
   }
 
   // Capitalize first letter of each word for formal display
@@ -408,7 +472,7 @@ export function Projects({ onProjectSelect }: ProjectsProps) {
 
       {/* Filters */}
       <div className="flex flex-col sm:flex-row gap-3 sm:gap-4">
-        <div className="relative flex-1">
+        <div className="relative w-full sm:w-80">
           <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
           <Input
             placeholder="Search projects or clients..."
@@ -486,6 +550,91 @@ export function Projects({ onProjectSelect }: ProjectsProps) {
           </CardContent>
         </Card>
       </div>
+
+      {/* Reports Assigned for Review - Notification Section */}
+      {getAssignedReportsForCurrentUser().length > 0 && (
+        <Card className="border-l-4 border-l-blue-500 bg-blue-50">
+          <CardHeader className="pb-3">
+            <div className="flex items-center space-x-2">
+              <FileText className="h-5 w-5 text-blue-600" />
+              <CardTitle className="text-lg text-blue-800">
+                Reports Assigned for Review ({getAssignedReportsForCurrentUser().length})
+              </CardTitle>
+            </div>
+            <p className="text-sm text-blue-700 mt-1">
+              You have {getAssignedReportsForCurrentUser().length} pending report{getAssignedReportsForCurrentUser().length > 1 ? 's' : ''} to review
+            </p>
+          </CardHeader>
+          <CardContent className="pt-0">
+            <div className="space-y-3">
+              {getAssignedReportsForCurrentUser().map((report) => {
+                const reportProject = projects.find(p => p.id === report.project_id)
+                return (
+                  <div
+                    key={report.id}
+                    className="bg-white rounded-lg p-4 border border-blue-200 hover:border-blue-300 transition-colors cursor-pointer"
+                    onClick={() => {
+                      if (reportProject) {
+                        setViewingReports({ 
+                          projectId: reportProject.id, 
+                          projectName: reportProject.name,
+                          highlightReportId: report.id
+                        })
+                      }
+                    }}
+                  >
+                    <div className="flex items-start justify-between gap-4">
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm text-blue-800 font-medium mb-1">
+                          📋 You are assigned to review this report:
+                        </p>
+                        <div>
+                          <p className="font-semibold text-gray-900 break-words text-lg">
+                            {getReportDisplayName(report).title}
+                          </p>
+                          {getReportDisplayName(report).hasTitle && (
+                            <p className="text-xs text-gray-500 mt-1 font-normal">
+                              {getReportDisplayName(report).fileName}
+                            </p>
+                          )}
+                        </div>
+                        {reportProject && (
+                          <p className="text-sm text-gray-600 mt-1">
+                            📁 Project: <span className="font-medium">{reportProject.name}</span>
+                          </p>
+                        )}
+                        <div className="flex items-center gap-4 mt-2 text-xs text-gray-500">
+                          <span>📅 Uploaded: {formatDate(report.uploaded_at)}</span>
+                          <Badge variant="outline" className="text-yellow-700 bg-yellow-50 border-yellow-200">
+                            Pending Review
+                          </Badge>
+                        </div>
+                      </div>
+                      <Button
+                        onClick={(e) => {
+                          e.stopPropagation() // Prevent card click
+                          if (reportProject) {
+                            setViewingReports({ 
+                              projectId: reportProject.id, 
+                              projectName: reportProject.name,
+                              highlightReportId: report.id
+                            })
+                          }
+                        }}
+                        size="sm"
+                        className="bg-blue-600 hover:bg-blue-700 text-white flex-shrink-0"
+                      >
+                        <FileText className="h-4 w-4 mr-1" />
+                        Review Now
+                      </Button>
+                    </div>
+                  </div>
+                )
+              })}
+            </div>
+          </CardContent>
+        </Card>
+      )}
       
       {/* Projects Grid - Responsive layout */}
       <div className="grid grid-cols-1 xl:grid-cols-2 gap-4 sm:gap-6">
@@ -695,11 +844,45 @@ export function Projects({ onProjectSelect }: ProjectsProps) {
           </DialogHeader>
           
           <div className="flex-1 overflow-y-auto space-y-3">
-            {viewingReports && getProjectReports(viewingReports.projectId).map((report) => (
-              <div key={report.id} className="p-3 bg-gray-50 rounded-lg border hover:bg-gray-100 transition-colors">
+            {viewingReports && getProjectReports(viewingReports.projectId).map((report) => {
+              const isHighlighted = viewingReports.highlightReportId === report.id
+              const isAssigned = isAssignedReviewer(report)
+              
+              return (
+                <div 
+                  key={report.id} 
+                  className={`p-3 rounded-lg border transition-colors ${
+                    isHighlighted 
+                      ? 'bg-blue-50 border-blue-300 ring-2 ring-blue-200' 
+                      : isAssigned && report.status === 'pending'
+                        ? 'bg-yellow-50 border-yellow-300' 
+                        : 'bg-gray-50 border-gray-200 hover:bg-gray-100'
+                  }`}
+                >
+                  {isHighlighted && (
+                    <div className="mb-2 flex items-center text-blue-700 text-sm font-medium">
+                      <FileText className="h-4 w-4 mr-1" />
+                      ⭐ This is the report you need to review
+                    </div>
+                  )}
+                  {isAssigned && report.status === 'pending' && !isHighlighted && (
+                    <div className="mb-2 flex items-center text-yellow-700 text-sm font-medium">
+                      <FileText className="h-4 w-4 mr-1" />
+                      📋 Assigned to you for review
+                    </div>
+                  )}
                 <div className="flex items-start justify-between">
                   <div className="flex-1 min-w-0">
-                    <h4 className="font-medium truncate text-gray-900">{report.file_name}</h4>
+                    <div>
+                      <h4 className="font-medium truncate text-gray-900">
+                        {getReportDisplayName(report).title}
+                      </h4>
+                      {getReportDisplayName(report).hasTitle && (
+                        <p className="text-xs text-gray-500 font-normal truncate">
+                          {getReportDisplayName(report).fileName}
+                        </p>
+                      )}
+                    </div>
                     <div className="flex flex-wrap items-center gap-x-4 gap-y-1 mt-1 text-sm text-gray-600">
                       <span><span className="font-medium">Category:</span> {report.category}</span>
                       <span><span className="font-medium">Uploaded:</span> {new Date(report.uploaded_at || '').toLocaleDateString()}</span>
@@ -896,7 +1079,8 @@ export function Projects({ onProjectSelect }: ProjectsProps) {
                   <p className="text-xs text-gray-500 italic mt-2">Assigned to: {getAssignedReviewerNames(report)}</p>
                 )}
               </div>
-            ))}
+              )
+            })}
             
             {viewingReports && getProjectReports(viewingReports.projectId).length === 0 && (
               <div className="text-center py-12">
@@ -927,10 +1111,10 @@ export function Projects({ onProjectSelect }: ProjectsProps) {
 
       <DocumentViewerWithNotesModal
         open={documentViewerModal.open}
-        onOpenChange={(open) => setDocumentViewerModal(prev => ({ ...prev, open }))}
+        onOpenChangeAction={(open) => setDocumentViewerModal(prev => ({ ...prev, open }))}
         report={documentViewerModal.report}
-        onNotesSubmit={handleDocumentViewerNotesSubmit}
-        onStatusChange={handleDocumentViewerStatusChange}
+        onNotesSubmitAction={handleDocumentViewerNotesSubmit}
+        onStatusChangeAction={handleDocumentViewerStatusChange}
         userRole={isAdmin && documentViewerModal.report && isAssignedReviewer(documentViewerModal.report) ? 'reviewer' : 'viewer'}
       />
     </div>

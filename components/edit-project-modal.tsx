@@ -33,6 +33,7 @@ import {
   Loader2, 
   Building2,
   User,
+  Users,
   MapPin,
   FileText,
   Activity,
@@ -53,6 +54,7 @@ const editProjectSchema = z.object({
   status: z.enum(["planning", "in-progress", "on-hold", "completed"]),
   start_date: z.date().optional(),
   end_date: z.date().optional(),
+  team_size: z.number().min(1, "Team size must be at least 1").max(100, "Team size cannot exceed 100").optional(),
 })
 
 type EditProjectFormData = z.infer<typeof editProjectSchema>
@@ -60,11 +62,11 @@ type EditProjectFormData = z.infer<typeof editProjectSchema>
 interface EditProjectModalProps {
   readonly project: Project | null
   readonly open: boolean
-  readonly onOpenChange: (open: boolean) => void
-  readonly onProjectUpdated: () => void
+  readonly onOpenChangeAction: (open: boolean) => void
+  readonly onProjectUpdatedAction: () => void
 }
 
-export function EditProjectModal({ project, open, onOpenChange, onProjectUpdated }: EditProjectModalProps) {
+export function EditProjectModal({ project, open, onOpenChangeAction, onProjectUpdatedAction }: EditProjectModalProps) {
   const [isSubmitting, setIsSubmitting] = useState(false)
   const { updateProject } = useProjects()
 
@@ -93,6 +95,7 @@ export function EditProjectModal({ project, open, onOpenChange, onProjectUpdated
         status: project.status as "planning" | "in-progress" | "on-hold" | "completed",
         start_date: project.start_date ? new Date(project.start_date) : undefined,
         end_date: project.end_date ? new Date(project.end_date) : undefined,
+        team_size: project.team_size || undefined,
       })
     }
   }, [project, open, reset])
@@ -121,8 +124,8 @@ export function EditProjectModal({ project, open, onOpenChange, onProjectUpdated
       await updateProject(project.id, projectData)
       
       toast.success("Project updated successfully!")
-      onOpenChange(false)
-      onProjectUpdated()
+      onOpenChangeAction(false)
+      onProjectUpdatedAction()
     } catch (error) {
       console.error("Error updating project:", error)
       toast.error("Failed to update project. Please try again.")
@@ -133,7 +136,8 @@ export function EditProjectModal({ project, open, onOpenChange, onProjectUpdated
 
   if (!project) return null
 
-  return (    <Dialog open={open} onOpenChange={onOpenChange}>
+  return (
+    <Dialog open={open} onOpenChange={onOpenChangeAction}>
       <DialogContent className="sm:max-w-[600px] max-h-[90vh] overflow-y-auto break-words">
         <DialogHeader>
           <DialogTitle className="text-xl font-bold text-gray-900 flex items-center break-words">
@@ -231,8 +235,8 @@ export function EditProjectModal({ project, open, onOpenChange, onProjectUpdated
             )}
           </div>
 
-          {/* Status Row */}
-          <div className="grid grid-cols-1 gap-4">
+          {/* Status and Team Size Row */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div className="space-y-2">
               <Label className="text-sm font-medium text-gray-700 flex items-center">
                 <Activity className="h-4 w-4 mr-2 text-gray-500" />
@@ -255,13 +259,13 @@ export function EditProjectModal({ project, open, onOpenChange, onProjectUpdated
                   <SelectItem value="in-progress">
                     <div className="flex items-center">
                       <div className="w-3 h-3 rounded-full bg-orange-500 mr-2"></div>
-                      In Progress
+                      In-Progress
                     </div>
                   </SelectItem>
                   <SelectItem value="on-hold">
                     <div className="flex items-center">
                       <div className="w-3 h-3 rounded-full bg-yellow-500 mr-2"></div>
-                      On Hold
+                      On-Hold
                     </div>
                   </SelectItem>
                   <SelectItem value="completed">
@@ -272,6 +276,29 @@ export function EditProjectModal({ project, open, onOpenChange, onProjectUpdated
                   </SelectItem>
                 </SelectContent>
               </Select>
+            </div>
+
+            {/* Team Size */}
+            <div className="space-y-2">
+              <Label htmlFor="team_size" className="text-sm font-medium text-gray-700 flex items-center">
+                <Users className="h-4 w-4 mr-2 text-gray-500" />
+                Team Size
+              </Label>
+              <div className="relative">
+                <Users className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
+                <Input
+                  id="team_size"
+                  type="number"
+                  min="1"
+                  max="100"
+                  {...register("team_size", { valueAsNumber: true })}
+                  placeholder="e.g., 5"
+                  className="w-full pl-10"
+                />
+              </div>
+              {errors.team_size && (
+                <p className="text-sm text-red-600">{errors.team_size.message}</p>
+              )}
             </div>
           </div>
 
@@ -340,7 +367,7 @@ export function EditProjectModal({ project, open, onOpenChange, onProjectUpdated
             <Button
               type="button"
               variant="outline"
-              onClick={() => onOpenChange(false)}
+              onClick={() => onOpenChangeAction(false)}
               disabled={isSubmitting}
               className="flex items-center"
             >

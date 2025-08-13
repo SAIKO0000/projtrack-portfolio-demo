@@ -252,27 +252,27 @@ export function ReportUploadModal({ children, onUploadComplete, preselectedProje
             Upload Document
           </Button>
         )}
-      </DialogTrigger>      <DialogContent className="w-[98vw] max-w-[98vw] max-h-[98vh] sm:w-[95vw] sm:max-w-[500px] sm:max-h-[90vh] p-4 sm:p-6 overflow-y-auto mx-auto my-auto">
-        <DialogHeader className="pb-4">
-          <DialogTitle className="text-lg sm:text-xl font-bold text-gray-900 flex items-center">
-            <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-lg bg-orange-100 flex items-center justify-center mr-2 sm:mr-3 shadow-sm">
-              <Upload className="h-4 w-4 sm:h-5 sm:w-5 text-orange-600" />
+      </DialogTrigger>      <DialogContent className="sm:max-w-[500px] max-h-[90vh] overflow-y-auto">
+        <DialogHeader>
+          <DialogTitle className="text-xl font-bold text-gray-900 flex items-center">
+            <div className="w-10 h-10 rounded-lg bg-orange-90 flex items-center justify-center mr-3 shadow-sm">
+              <Upload className="h-5 w-5 text-black-500" />
             </div>
-            <span className="text-base sm:text-xl">{replacingReportId ? "Replace Document" : "Upload Document"}</span>
+            {replacingReportId ? "Replace Document" : "Upload Document"}
           </DialogTitle>
-          <DialogDescription className="text-sm sm:text-base text-gray-600 ml-10 sm:ml-13">
+          <DialogDescription className="text-gray-600 ml-13">
             {replacingReportId ? "Replace the existing document with a new version" : "Upload a new document or report to the project"}
           </DialogDescription>
         </DialogHeader>
 
-        <form onSubmit={handleSubmit} className="space-y-4 sm:space-y-6">          {/* File Upload */}
+        <form onSubmit={handleSubmit} className="space-y-6">          {/* File Upload */}
           <div className="space-y-2">
             <Label className="text-sm font-medium text-gray-700 flex items-center">
               <FileText className="h-4 w-4 mr-2 text-gray-500" />
               File *
             </Label>
             {!selectedFile ? (
-              <div className="border-2 border-dashed border-gray-300 rounded-lg p-4 sm:p-6 text-center hover:border-gray-400 transition-colors">
+              <div className="border-2 border-dashed border-gray-300 rounded-lg p-6 text-center hover:border-gray-400 transition-colors">
                 <Input
                   type="file"
                   onChange={handleFileSelect}
@@ -281,9 +281,9 @@ export function ReportUploadModal({ children, onUploadComplete, preselectedProje
                   accept=".pdf,.doc,.docx,.xls,.xlsx,.csv,.txt,.dwg,.dxf,.zip,.rar,.7z,.jpg,.jpeg,.png,.gif,.bmp,.webp,.svg,.mp4,.avi,.mov,.mp3,.wav,.js,.ts,.html,.css,.json,.xml,.py,.java,.cpp,.c,.ppt,.pptx"
                 />
                 <Label htmlFor="file-upload" className="cursor-pointer">
-                  <Upload className="h-6 w-6 sm:h-8 sm:w-8 mx-auto mb-2 text-gray-400" />
+                  <Upload className="h-8 w-8 mx-auto mb-2 text-gray-400" />
                   <p className="text-sm text-gray-600">Click to select a file</p>
-                  <p className="text-xs text-gray-500 mt-1 px-2">
+                  <p className="text-xs text-gray-500 mt-1">
                     Documents, Images, Archives, CAD files, and more
                   </p>
                 </Label>
@@ -304,7 +304,7 @@ export function ReportUploadModal({ children, onUploadComplete, preselectedProje
                   variant="ghost"
                   size="sm"
                   onClick={handleRemoveFile}
-                  className="p-1 h-8 w-8"
+                  className="p-1"
                 >
                   <X className="h-4 w-4" />
                 </Button>
@@ -324,14 +324,14 @@ export function ReportUploadModal({ children, onUploadComplete, preselectedProje
                 value={title}
                 onChange={(e) => setTitle(e.target.value)}
                 placeholder="Enter a descriptive title for this report"
-                className="pl-10 text-sm"
+                className="pl-10"
                 required
               />
             </div>
             {selectedFile && (
-              <p className="text-xs text-gray-500 flex items-center font-normal break-words">
+              <p className="text-xs text-gray-500 flex items-center font-normal">
                 <span>File: </span>
-                <span className="ml-1 text-gray-600 break-all">{selectedFile.name}</span>
+                <span className="ml-1 text-gray-600">{selectedFile.name}</span>
               </p>
             )}
           </div>          {/* Project Selection - Hidden when replacing */}
@@ -401,20 +401,15 @@ export function ReportUploadModal({ children, onUploadComplete, preselectedProje
 
           {/* Assigned Reviewer */}
           <div className="space-y-2">
-            <Label htmlFor="reviewer" className="text-sm font-medium text-gray-700">
-              Assigned Reviewer <span className="text-red-500">*</span>
-            </Label>
+            <Label htmlFor="reviewer">Assigned Reviewer <span className="text-red-500">*</span></Label>
             <Select value={assignedReviewer} onValueChange={setAssignedReviewer}>
-              <SelectTrigger id="reviewer" className="text-sm">
+              <SelectTrigger id="reviewer">
                 <SelectValue placeholder="Select a reviewer" />
               </SelectTrigger>
-              <SelectContent className="max-h-48">
+              <SelectContent>
                 {authorizedReviewers.map((reviewer) => (
-                  <SelectItem key={reviewer.id} value={reviewer.id} className="text-sm">
-                    <div className="flex flex-col">
-                      <span>{reviewer.name}</span>
-                      <span className="text-xs text-gray-500">({reviewer.position || 'No position'})</span>
-                    </div>
+                  <SelectItem key={reviewer.id} value={reviewer.id}>
+                    {reviewer.name} ({reviewer.position || 'No position'})
                   </SelectItem>
                 ))}
               </SelectContent>
@@ -434,7 +429,7 @@ export function ReportUploadModal({ children, onUploadComplete, preselectedProje
                 onChange={(e) => setDescription(e.target.value)}
                 placeholder="Add a description or notes..."
                 rows={3}
-                className="pl-10 text-sm resize-none"
+                className="pl-10"
               />
             </div>
           </div>
@@ -448,33 +443,30 @@ export function ReportUploadModal({ children, onUploadComplete, preselectedProje
               </div>
               <Progress value={uploadProgress} className="h-2" />
             </div>
-          )}
-
-          {/* Submit Button */}
-          <div className="flex flex-col sm:flex-row justify-end space-y-2 sm:space-y-0 sm:space-x-2 pt-4">
+          )}          {/* Submit Button */}
+          <div className="flex justify-end space-x-2 pt-4">
             <Button
               type="button"
               variant="outline"
               onClick={() => setOpen(false)}
               disabled={uploading}
-              className="w-full sm:w-auto"
             >
               Cancel
             </Button>
             <Button 
               type="submit" 
               disabled={uploading || !selectedFile}
-              className="w-full sm:w-auto bg-gradient-to-r from-orange-500 to-orange-600 hover:from-orange-600 hover:to-orange-700 flex items-center justify-center"
+              className="bg-gradient-to-r from-orange-500 to-orange-600 hover:from-orange-600 hover:to-orange-700 flex items-center"
             >
               {uploading ? (
                 <>
                   <Upload className="mr-2 h-4 w-4 animate-pulse" />
-                  <span className="text-sm">{replacingReportId ? "Replacing..." : "Uploading..."}</span>
+                  {replacingReportId ? "Replacing..." : "Uploading..."}
                 </>
               ) : (
                 <>
                   <Upload className="mr-2 h-4 w-4" />
-                  <span className="text-sm">{replacingReportId ? "Replace Document" : "Upload Document"}</span>
+                  {replacingReportId ? "Replace Document" : "Upload Document"}
                 </>
               )}
             </Button>

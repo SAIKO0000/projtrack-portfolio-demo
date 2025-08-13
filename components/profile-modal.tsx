@@ -140,7 +140,7 @@ export function ProfileModal({ isOpen, onCloseAction, personnel: viewingPersonne
   if (loading) {
     return (
       <Dialog open={isOpen} onOpenChange={onCloseAction}>
-        <DialogContent className="sm:max-w-[600px] max-h-[90vh] overflow-y-auto">
+        <DialogContent className="w-[95vw] max-w-[400px] max-h-[85vh] overflow-y-auto mx-4">
           <div className="flex items-center justify-center p-8">
             <Loader2 className="h-8 w-8 animate-spin text-orange-500" />
             <span className="ml-2 text-gray-600">Loading profile...</span>
@@ -152,31 +152,32 @@ export function ProfileModal({ isOpen, onCloseAction, personnel: viewingPersonne
 
   return (
     <Dialog open={isOpen} onOpenChange={onCloseAction}>
-      <DialogContent className="sm:max-w-[600px] max-h-[90vh] overflow-y-auto bg-white/95 backdrop-blur-sm border border-gray-200 shadow-2xl">
-        <DialogHeader className="pb-6">
-          <div className="flex justify-between items-center">
-            <DialogTitle className="text-2xl font-bold text-gray-900 flex items-center gap-2">
-              <User className="h-6 w-6 text-orange-500" />
-              {isOwnProfile ? "Profile Settings" : `${userName}'s Profile`}
+      <DialogContent className="w-[95vw] max-w-[500px] max-h-[85vh] overflow-y-auto bg-white/95 backdrop-blur-sm border border-gray-200 shadow-2xl mx-4">
+        <DialogHeader className="pb-4">
+          <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
+            <DialogTitle className="text-lg sm:text-2xl font-bold text-gray-900 flex items-center gap-2">
+              <User className="h-5 w-5 sm:h-6 sm:w-6 text-orange-500" />
+              <span className="break-words">{isOwnProfile ? "Profile Settings" : `${userName}'s Profile`}</span>
             </DialogTitle>
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-2 w-full sm:w-auto">
               {isOwnProfile && !isEditing ? (
                 <Button 
                   variant="outline" 
                   size="sm" 
                   onClick={handleEditToggle}
-                  className="hover:bg-orange-50 hover:border-orange-200"
+                  className="hover:bg-orange-50 hover:border-orange-200 flex-1 sm:flex-none"
                 >
                   <Edit3 className="h-4 w-4 mr-2" />
                   Edit
                 </Button>
               ) : isOwnProfile && isEditing ? (
-                <div className="flex gap-2">
+                <div className="flex gap-2 w-full sm:w-auto">
                   <Button 
                     variant="outline" 
                     size="sm" 
                     onClick={handleEditToggle}
                     disabled={updating}
+                    className="flex-1 sm:flex-none"
                   >
                     Cancel
                   </Button>
@@ -184,7 +185,7 @@ export function ProfileModal({ isOpen, onCloseAction, personnel: viewingPersonne
                     size="sm" 
                     onClick={handleSave}
                     disabled={!isFormValid || updating}
-                    className="bg-orange-500 hover:bg-orange-600"
+                    className="bg-orange-500 hover:bg-orange-600 flex-1 sm:flex-none"
                   >
                     {updating ? (
                       <Loader2 className="h-4 w-4 mr-2 animate-spin" />
@@ -199,36 +200,38 @@ export function ProfileModal({ isOpen, onCloseAction, personnel: viewingPersonne
           </div>
         </DialogHeader>
 
-        <div className="space-y-4">
+        <div className="space-y-3 px-1">
           {/* Compact Profile Header */}
-          <div className="flex items-start space-x-4 p-4 bg-gradient-to-r from-orange-50 to-orange-100 rounded-lg border border-orange-200">
-            {isOwnProfile ? (
-              <ProfilePictureUpload
-                key={displayedPersonnel?.avatar_url || 'no-avatar'}
-                currentAvatarUrl={displayedPersonnel?.avatar_url}
-                personnelId={displayedPersonnel?.id || ''}
-                userName={userName}
-                onAvatarUpdateAction={handleAvatarUpdateAction}
-                size="md"
-                editable={true}
-              />
-            ) : (
-              <Avatar className="h-16 w-16 ring-2 ring-white shadow-md">
-                <AvatarImage src={displayedPersonnel?.avatar_url || ""} alt={userName} />
-                <AvatarFallback className="bg-gradient-to-r from-orange-500 to-orange-600 text-white text-lg font-semibold">
-                  {getInitials(userName)}
-                </AvatarFallback>
-              </Avatar>
-            )}
-            <div className="flex-1 min-w-0">
-              <h2 className="text-xl font-bold text-gray-900 truncate">{userName}</h2>
-              <div className="flex items-center justify-between mt-1">
+          <div className="flex flex-col sm:flex-row items-start space-y-3 sm:space-y-0 sm:space-x-4 p-3 sm:p-4 bg-gradient-to-r from-orange-50 to-orange-100 rounded-lg border border-orange-200">
+            <div className="flex-shrink-0 self-center sm:self-start">
+              {isOwnProfile ? (
+                <ProfilePictureUpload
+                  key={displayedPersonnel?.avatar_url || 'no-avatar'}
+                  currentAvatarUrl={displayedPersonnel?.avatar_url}
+                  personnelId={displayedPersonnel?.id || ''}
+                  userName={userName}
+                  onAvatarUpdateAction={handleAvatarUpdateAction}
+                  size="md"
+                  editable={true}
+                />
+              ) : (
+                <Avatar className="h-14 w-14 sm:h-16 sm:w-16 ring-2 ring-white shadow-md">
+                  <AvatarImage src={displayedPersonnel?.avatar_url || ""} alt={userName} />
+                  <AvatarFallback className="bg-gradient-to-r from-orange-500 to-orange-600 text-white text-base sm:text-lg font-semibold">
+                    {getInitials(userName)}
+                  </AvatarFallback>
+                </Avatar>
+              )}
+            </div>
+            <div className="flex-1 min-w-0 w-full sm:w-auto text-center sm:text-left">
+              <h2 className="text-lg sm:text-xl font-bold text-gray-900 truncate">{userName}</h2>
+              <div className="flex flex-col sm:flex-row items-center sm:justify-between mt-1 gap-2">
                 <Badge variant="secondary" className="bg-orange-100 text-orange-800 border-orange-200 text-xs">
                   <Briefcase className="h-3 w-3 mr-1" />
                   {userPosition}
                 </Badge>
                 {displayedPersonnel?.created_at && (
-                  <div className="text-right">
+                  <div className="text-center sm:text-right">
                     <p className="text-xs text-gray-500">Member Since</p>
                     <p className="text-xs font-medium text-gray-700">
                       {new Date(displayedPersonnel.created_at).toLocaleDateString('en-US', {
@@ -240,9 +243,9 @@ export function ProfileModal({ isOpen, onCloseAction, personnel: viewingPersonne
                 )}
               </div>
               <div className="mt-2">
-                <div className="flex items-center gap-1 text-xs text-gray-600">
-                  <Mail className="h-3 w-3" />
-                  <span className="truncate">{userEmail}</span>
+                <div className="flex items-center justify-center sm:justify-start gap-1 text-xs text-gray-600">
+                  <Mail className="h-3 w-3 flex-shrink-0" />
+                  <span className="truncate max-w-[200px] sm:max-w-none">{userEmail}</span>
                 </div>
               </div>
             </div>

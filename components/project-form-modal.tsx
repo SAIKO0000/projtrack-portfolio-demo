@@ -35,6 +35,7 @@ import {
   Loader2, 
   Building2,
   User,
+  Users,
   MapPin,
   FileText,
   Activity,
@@ -55,6 +56,7 @@ const projectSchema = z.object({
   start_date: z.date().optional(),
   end_date: z.date().optional(),
   progress: z.number().min(0).max(100),
+  team_size: z.number().min(1, "Team size must be at least 1").max(100, "Team size cannot exceed 100").optional(),
 })
 
 type ProjectFormData = z.infer<typeof projectSchema>
@@ -79,6 +81,7 @@ export function ProjectFormModal({ onProjectCreated }: ProjectFormModalProps) {
     defaultValues: {
       status: "planning",
       progress: 0,
+      team_size: 1,
     },
   })
   const startDate = watch("start_date")
@@ -108,7 +111,7 @@ export function ProjectFormModal({ onProjectCreated }: ProjectFormModalProps) {
         category: null,
         priority: null,
         spent: null,
-        team_size: null, // Remove team size field, set to null
+        team_size: data.team_size || null,
       }
 
       await createProject(projectData)
@@ -253,13 +256,13 @@ export function ProjectFormModal({ onProjectCreated }: ProjectFormModalProps) {
                   <SelectItem value="in-progress">
                     <div className="flex items-center">
                       <div className="w-3 h-3 rounded-full bg-orange-500 mr-2"></div>
-                      In Progress
+                      In-Progress
                     </div>
                   </SelectItem>
                   <SelectItem value="on-hold">
                     <div className="flex items-center">
                       <div className="w-3 h-3 rounded-full bg-yellow-500 mr-2"></div>
-                      On Hold
+                      On-Hold
                     </div>
                   </SelectItem>
                   <SelectItem value="completed">
@@ -270,6 +273,29 @@ export function ProjectFormModal({ onProjectCreated }: ProjectFormModalProps) {
                   </SelectItem>
                 </SelectContent>
               </Select>
+            </div>
+
+            {/* Team Size */}
+            <div className="space-y-2">
+              <Label htmlFor="team_size" className="text-sm font-medium text-gray-700 flex items-center">
+                <Users className="h-4 w-4 mr-2 text-gray-500" />
+                Team Size
+              </Label>
+              <div className="relative">
+                <Users className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
+                <Input
+                  id="team_size"
+                  type="number"
+                  min="1"
+                  max="100"
+                  {...register("team_size", { valueAsNumber: true })}
+                  placeholder="e.g., 5"
+                  className="w-full pl-10"
+                />
+              </div>
+              {errors.team_size && (
+                <p className="text-sm text-red-600">{errors.team_size.message}</p>
+              )}
             </div>
           </div>
 

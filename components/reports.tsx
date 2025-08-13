@@ -360,21 +360,6 @@ export function Reports({ onTabChangeAction }: ReportsProps = {}) {
     }
   }
 
-  const formatStatus = (status: string) => {
-    switch (status?.toLowerCase()) {
-      case 'pending':
-        return 'Pending';
-      case 'approved':
-        return 'Approved';
-      case 'rejected':
-        return 'Rejected';
-      case 'revision':
-        return 'Revision';
-      default:
-        return status || 'Pending';
-    }
-  };
-
   const getCategoryColor = (category: string = "Progress Report") => {
     switch (category) {
       case "Progress Report":
@@ -584,7 +569,7 @@ export function Reports({ onTabChangeAction }: ReportsProps = {}) {
                           </div>
                           <div className="flex flex-wrap items-center gap-1">
                             <Badge className={getStatusColor(report.status || "pending")}>
-                              {formatStatus(report.status) || "Pending"}
+                              {capitalizeWords(report.status) || "Pending"}
                             </Badge>
                             <Badge className={getCategoryColor(report.category || "Other")}>
                               {report.category || "Other"}
@@ -596,7 +581,7 @@ export function Reports({ onTabChangeAction }: ReportsProps = {}) {
                         {report.reviewer_notes && (report.status === 'approved' || report.status === 'revision' || report.status === 'rejected') && (
                           <div className="mt-5 p-1 ">
                             <p className="text-xs font-medium text-gray-700 mb-1">
-                              Reviewer Notes ({formatStatus(report.status)}):
+                              Reviewer Notes ({capitalizeWords(report.status)}):
                             </p>
                             <p className="text-xs text-gray-600">{report.reviewer_notes}</p>
                           </div>

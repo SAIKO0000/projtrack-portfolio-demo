@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useDeadlineNotifications } from './useDeadlineNotifications';
+import { MobileNotificationService } from '@/lib/mobile-notification-service';
 
 interface TaskDeadline {
   id: string;
@@ -25,7 +26,6 @@ interface UseNotificationManager {
   checkDeadlines: () => Promise<void>;
   dismissPopup: () => void;
   handleTaskClick: (taskId: string) => void;
-  handleLogout: () => void;
   
   // Mobile compatibility
   isMobileCompatible: boolean;
@@ -35,6 +35,7 @@ interface UseNotificationManager {
 export const useNotificationManager = (): UseNotificationManager => {
   const [showPopup, setShowPopup] = useState(false);
   const [isMobileCompatible, setIsMobileCompatible] = useState(false);
+  const [lastDismissTime, setLastDismissTime] = useState<number>(0);
   
   const { upcomingTasks, isLoading, checkDeadlines } = useDeadlineNotifications();
 
@@ -72,39 +73,36 @@ export const useNotificationManager = (): UseNotificationManager => {
     checkMobileCompatibility();
   }, []);
 
-  // Show popup on login (not on refresh) - triggered only once per session
+  // Show popup when there are new tasks (with throttling)
   useEffect(() => {
     if (upcomingTasks.length > 0) {
-      // Check if this is a fresh login (not a page refresh)
-      const isNewSession = !sessionStorage.getItem('notificationShownThisSession');
-      const lastLoginDismiss = localStorage.getItem('notificationDismissedOnLogout');
+      const now = Date.now();
+      const timeSinceLastDismiss = now - lastDismissTime;
+      const minTimeBetweenPopups = 10 * 60 * 1000; // 10 minutes
       
-      if (isNewSession || lastLoginDismiss === 'true') {
-        console.log(`📢 Showing notification banner for ${upcomingTasks.length} tasks - Fresh login detected`);
+      // Only show popup if enough time has passed since last dismissal
+      if (timeSinceLastDismiss > minTimeBetweenPopups) {
         setShowPopup(true);
-        
-        // Mark that notification has been shown this session
-        sessionStorage.setItem('notificationShownThisSession', 'true');
-        
-        // Clear the logout dismissal flag
-        localStorage.removeItem('notificationDismissedOnLogout');
       } else {
-        console.log(`⏭️ Notification skipped - Already shown this session`);
+        console.log(`⏱️ Popup throttled. Time since last dismiss: ${Math.round(timeSinceLastDismiss / 1000)}s`);
       }
     }
-  }, [upcomingTasks.length]);
+  }, [upcomingTasks.length, lastDismissTime]);
 
   const dismissPopup = useCallback(() => {
     setShowPopup(false);
-    console.log('🔕 Notification dismissed by user');
+    setLastDismissTime(Date.now());
+    
+    // Store dismissal time in localStorage for persistence across sessions
+    localStorage.setItem('notificationDismissTime', Date.now().toString());
   }, []);
 
-  // Add logout handler to prepare for next login notification
-  const handleLogout = useCallback(() => {
-    // Mark that user logged out, so notification shows on next login
-    localStorage.setItem('notificationDismissedOnLogout', 'true');
-    sessionStorage.removeItem('notificationShownThisSession');
-    console.log('👋 User logged out - Next login will show notifications');
+  // Load last dismiss time from localStorage
+  useEffect(() => {
+    const storedDismissTime = localStorage.getItem('notificationDismissTime');
+    if (storedDismissTime) {
+      setLastDismissTime(parseInt(storedDismissTime));
+    }
   }, []);
 
   const handleTaskClick = useCallback((taskId: string) => {
@@ -125,29 +123,18 @@ export const useNotificationManager = (): UseNotificationManager => {
 
   const requestMobilePermission = useCallback(async (): Promise<boolean> => {
     try {
-      // Simplified permission request - no automatic services
-      if (!('Notification' in window)) {
-        console.log('❌ Notifications not supported in this browser');
-        return false;
-      }
-
-      if (Notification.permission === 'granted') {
-        console.log('✅ Notification permission already granted');
-        return true;
-      }
-
-      if (Notification.permission === 'denied') {
-        console.log('❌ Notification permission denied');
-        return false;
-      }
-
-      const permission = await Notification.requestPermission();
-      const granted = permission === 'granted';
+      const mobileService = MobileNotificationService.getInstance();
+      const granted = await mobileService.requestPermission();
       
-      console.log(`📱 Permission result: ${permission} (granted: ${granted})`);
+      if (granted) {
+        console.log('✅ Mobile notification permission granted');
+      } else {
+        console.log('❌ Mobile notification permission denied');
+      }
+      
       return granted;
     } catch (error) {
-      console.error('❌ Error requesting notification permission:', error);
+      console.error('❌ Error requesting mobile notification permission:', error);
       return false;
     }
   }, []);
@@ -160,7 +147,6 @@ export const useNotificationManager = (): UseNotificationManager => {
     checkDeadlines,
     dismissPopup,
     handleTaskClick,
-    handleLogout,
     isMobileCompatible,
     requestMobilePermission
   };

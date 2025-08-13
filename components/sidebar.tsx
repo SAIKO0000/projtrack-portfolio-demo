@@ -12,8 +12,6 @@ import {
   ChevronLeft,
   User,
   LogOut,
-  Moon,
-  Sun,
   BarChart3,
   Menu,
   X,
@@ -36,13 +34,11 @@ import Image from "next/image"
 interface SidebarProps {
   readonly activeTab: string
   readonly onTabChangeAction: (tab: string) => void
-  readonly onLogoutAction?: () => void
 }
 
-export function Sidebar({ activeTab, onTabChangeAction, onLogoutAction }: SidebarProps) {
+export function Sidebar({ activeTab, onTabChangeAction }: SidebarProps) {
   const [collapsed, setCollapsed] = useState(false)
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
-  const [isDarkMode, setIsDarkMode] = useState(false)
   const [showProfileModal, setShowProfileModal] = useState(false)
   const [isMobile, setIsMobile] = useState(false)
   const { user, signOut } = useAuth()
@@ -77,17 +73,8 @@ export function Sidebar({ activeTab, onTabChangeAction, onLogoutAction }: Sideba
   }, [])
 
   const handleLogout = useCallback(async () => {
-    // Call notification logout handler before signing out
-    if (onLogoutAction) {
-      onLogoutAction()
-    }
     await signOut()
-  }, [signOut, onLogoutAction])
-
-  const handleThemeToggle = useCallback(() => {
-    setIsDarkMode(prev => !prev)
-    console.log("Theme toggled to:", !isDarkMode ? "dark" : "light")
-  }, [isDarkMode])
+  }, [signOut])
 
   const toggleCollapsed = useCallback(() => {
     setCollapsed(prev => !prev)
@@ -241,17 +228,6 @@ export function Sidebar({ activeTab, onTabChangeAction, onLogoutAction }: Sideba
                       <p className="text-xs text-gray-500">Manage your account</p>
                     </div>
                   </DropdownMenuItem>
-                  <DropdownMenuItem onClick={handleThemeToggle} className="p-3 text-sm rounded-md hover:bg-gray-100 focus:bg-gray-100 transition-colors duration-200 cursor-pointer">
-                    {isDarkMode ? (
-                      <Sun className="h-4 w-4 mr-3 text-yellow-500" />
-                    ) : (
-                      <Moon className="h-4 w-4 mr-3 text-blue-500" />
-                    )}
-                    <div className="flex-1">
-                      <p className="font-medium text-gray-900">{isDarkMode ? "Light Mode" : "Dark Mode"}</p>
-                      <p className="text-xs text-gray-500">Switch appearance theme</p>
-                    </div>
-                  </DropdownMenuItem>
                   <DropdownMenuSeparator />
                   <DropdownMenuItem onClick={handleLogout} className="p-3 text-sm rounded-md text-red-600 hover:bg-red-50 focus:bg-red-50 hover:text-red-700 focus:text-red-700 transition-colors duration-200 cursor-pointer">
                     <LogOut className="h-4 w-4 mr-3" />
@@ -403,17 +379,6 @@ export function Sidebar({ activeTab, onTabChangeAction, onLogoutAction }: Sideba
                 <div className="flex-1">
                   <p className="font-medium text-gray-900">Profile Settings</p>
                   <p className="text-xs text-gray-500">Manage your account</p>
-                </div>
-              </DropdownMenuItem>
-              <DropdownMenuItem onClick={handleThemeToggle} className="p-3 text-sm rounded-md hover:bg-gray-100 focus:bg-gray-100 transition-colors duration-200 cursor-pointer">
-                {isDarkMode ? (
-                  <Sun className="h-4 w-4 mr-3 text-yellow-500" />
-                ) : (
-                  <Moon className="h-4 w-4 mr-3 text-blue-500" />
-                )}
-                <div className="flex-1">
-                  <p className="font-medium text-gray-900">{isDarkMode ? "Light Mode" : "Dark Mode"}</p>
-                  <p className="text-xs text-gray-500">Switch appearance theme</p>
                 </div>
               </DropdownMenuItem>
               <DropdownMenuSeparator />

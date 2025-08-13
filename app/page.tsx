@@ -10,8 +10,9 @@ import { Calendar } from "@/components/calendar"
 import { Team } from "@/components/team"
 import { Reports } from "@/components/reports"
 import { Notifications } from "@/components/notifications"
-import { DetailedNotificationPopup } from "@/components/detailed-notification-popup"
+import { DeadlineNotificationPopup } from "@/components/deadline-notification-popup"
 import { useAuth } from "@/lib/auth"
+import { useAutoNotifications } from "@/lib/hooks/useAutoNotifications"
 import { useNotificationManager } from "@/lib/hooks/useNotificationManager"
 
 export default function Home() {
@@ -20,13 +21,15 @@ export default function Home() {
   const { user, loading } = useAuth()
   const router = useRouter()
 
-  // Use only the notification manager (removes redundant auto-notifications)
+  // Auto-trigger notifications when user logs in
+  useAutoNotifications()
+
+  // Manage notification popup state
   const {
     showPopup,
     upcomingTasks,
     dismissPopup,
     handleTaskClick,
-    handleLogout,
     isMobileCompatible
   } = useNotificationManager()
 
@@ -105,29 +108,24 @@ export default function Home() {
 
   return (
     <div className="flex h-screen bg-gray-50">
-      <Sidebar 
-        activeTab={activeTab} 
-        onTabChangeAction={handleTabChange} 
-        onLogoutAction={handleLogout}
-      />
+      <Sidebar activeTab={activeTab} onTabChangeAction={handleTabChange} />
       <main className="flex-1 overflow-hidden">
         <div className="h-full overflow-y-auto pt-20 lg:pt-0">
           {renderContent()}
         </div>
       </main>
       
-      {/* Detailed notification popup - matches image 1 design */}
-      {showPopup && upcomingTasks.length > 0 && (
-        <DetailedNotificationPopup
-          tasks={upcomingTasks}
-          onDismissAction={dismissPopup}
-          onTaskClickAction={handleTaskClick}
-          onViewAllAction={() => {
-            dismissPopup();
-            setActiveTab("gantt");
-          }}
-        />
-      )}
+      {/* Deadline Notification Popup */}
+      <DeadlineNotificationPopup
+        tasks={upcomingTasks}
+        isVisible={showPopup}
+        onClose={dismissPopup}
+        onTaskClick={handleTaskClick}
+        onViewAllClick={() => {
+          dismissPopup();
+          setActiveTab("gantt");
+        }}
+      />
       
       {/* Mobile compatibility indicator */}
       {!isMobileCompatible && (

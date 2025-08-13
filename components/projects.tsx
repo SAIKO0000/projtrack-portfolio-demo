@@ -20,6 +20,7 @@ import {
   FileText,
   Edit,
   Trash2,
+  User,
 } from "lucide-react"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
@@ -48,6 +49,7 @@ type Project = {
   end_date: string
   created_at: string
   updated_at: string
+  team_size?: number
 }
 
 interface ProjectsProps {
@@ -488,8 +490,8 @@ export function Projects({ onProjectSelect }: ProjectsProps) {
           <SelectContent>
             <SelectItem value="all">All Status</SelectItem>
             <SelectItem value="planning">Planning</SelectItem>
-            <SelectItem value="in-progress">In Progress</SelectItem>
-            <SelectItem value="on-hold">On Hold</SelectItem>
+            <SelectItem value="in-progress">In-Progress</SelectItem>
+            <SelectItem value="on-hold">On-Hold</SelectItem>
             <SelectItem value="completed">Completed</SelectItem>
           </SelectContent>
         </Select>
@@ -514,7 +516,7 @@ export function Projects({ onProjectSelect }: ProjectsProps) {
           <CardContent className="p-3 sm:p-4">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-xs sm:text-sm text-gray-600">In Progress</p>
+                <p className="text-xs sm:text-sm text-gray-600">In-Progress</p>
                 <p className="text-lg sm:text-2xl font-bold">{projects.filter((p) => p.status === "in-progress").length}</p>
               </div>
               <div className="w-6 h-6 sm:w-8 sm:h-8 bg-orange-100 rounded-full flex items-center justify-center flex-shrink-0">
@@ -540,7 +542,7 @@ export function Projects({ onProjectSelect }: ProjectsProps) {
           <CardContent className="p-3 sm:p-4">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-xs sm:text-sm text-gray-600">On Hold</p>
+                <p className="text-xs sm:text-sm text-gray-600">On-Hold</p>
                 <p className="text-lg sm:text-2xl font-bold">{projects.filter((p) => p.status === "on-hold").length}</p>
               </div>
               <div className="w-6 h-6 sm:w-8 sm:h-8 bg-yellow-100 rounded-full flex items-center justify-center flex-shrink-0">
@@ -659,6 +661,12 @@ export function Projects({ onProjectSelect }: ProjectsProps) {
                       <Calendar className="h-3 w-3 sm:h-4 sm:w-4 mr-1" />
                       {formatDate(project.end_date)}
                     </span>
+                    {project.team_size && (
+                      <span className="flex items-center flex-shrink-0">
+                        <User className="h-3 w-3 sm:h-4 sm:w-4 mr-1" />
+                        {project.team_size} {project.team_size === 1 ? 'member' : 'members'}
+                      </span>
+                    )}
                   </div>
                 </div>
                 <div className="flex items-start flex-col gap-2 flex-shrink-0">
@@ -687,14 +695,14 @@ export function Projects({ onProjectSelect }: ProjectsProps) {
                           className="cursor-pointer"
                         >
                           <Play className="h-4 w-4 mr-2" />
-                          In Progress
+                          In-Progress
                         </DropdownMenuItem>
                         <DropdownMenuItem 
                           onClick={() => handleStatusUpdate(project.id, "on-hold")}
                           className="cursor-pointer"
                         >
                           <Pause className="h-4 w-4 mr-2" />
-                          On Hold
+                          On-Hold
                         </DropdownMenuItem>
                         <DropdownMenuItem 
                           onClick={() => handleStatusUpdate(project.id, "completed")}
@@ -825,8 +833,8 @@ export function Projects({ onProjectSelect }: ProjectsProps) {
       <EditProjectModal
         project={editingProject}
         open={!!editingProject}
-        onOpenChange={(open) => !open && setEditingProject(null)}
-        onProjectUpdated={handleProjectUpdated}
+        onOpenChangeAction={(open) => !open && setEditingProject(null)}
+        onProjectUpdatedAction={handleProjectUpdated}
       />
 
       {/* Reports Modal */}

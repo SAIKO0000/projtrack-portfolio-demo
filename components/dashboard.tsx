@@ -23,30 +23,14 @@ export function Dashboard() {
   const [personnelLoading, setPersonnelLoading] = useState(true)
   const [editingProject, setEditingProject] = useState<Project | null>(null)
 
-  // Format status with proper capitalization
-  const formatStatus = (text: string | null | undefined): string => {
+  // Capitalize first letter of each word for formal display
+  const capitalizeWords = (text: string | null | undefined): string => {
     if (!text) return "Unknown"
-    
-    // Handle specific status cases
-    switch (text.toLowerCase()) {
-      case 'in-progress':
-        return 'In-Progress'
-      case 'pending':
-        return 'Pending'
-      case 'completed':
-        return 'Completed'
-      case 'approved':
-        return 'Approved'
-      case 'rejected':
-        return 'Rejected'
-      case 'revision':
-        return 'Revision'
-      default:
-        return text
-          .split(" ")
-          .map(word => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase())
-          .join(" ")
-    }
+    return text
+      .replace(/-/g, " ") // Replace hyphens with spaces
+      .split(" ")
+      .map(word => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase())
+      .join(" ")
   }
 
   useEffect(() => {
@@ -667,7 +651,7 @@ export function Dashboard() {
                         {formatTaskDate(task.due_date)}
                       </span>
                       <Badge className={`text-xs ${task.status === 'in-progress' ? 'bg-blue-100 text-blue-800' : 'bg-gray-100 text-gray-800'} flex-shrink-0`}>
-                        {formatStatus(task.status) || 'Pending'}
+                        {capitalizeWords(task.status) || 'Pending'}
                       </Badge>
                     </div>
                   </div>

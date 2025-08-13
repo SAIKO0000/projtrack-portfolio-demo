@@ -6,7 +6,7 @@ import { Button } from "./ui/button"
 import { Textarea } from "./ui/textarea"
 import { Label } from "./ui/label"
 import { Badge } from "./ui/badge"
-import { FileText, Download, Save } from "lucide-react"
+import { FileText, Download, Save, X } from "lucide-react"
 import { toast } from "react-hot-toast"
 import { supabase } from "@/lib/supabase"
 
@@ -51,25 +51,6 @@ export function DocumentViewerWithNotesModal({
   const [previewUrl, setPreviewUrl] = useState<string | null>(null)
   const [loadingPreview, setLoadingPreview] = useState(false)
   const [documentOrientation, setDocumentOrientation] = useState<'portrait' | 'landscape' | 'unknown'>('unknown')
-
-  const formatStatus = (status: string) => {
-    switch (status?.toLowerCase()) {
-      case 'in-progress':
-        return 'In-Progress';
-      case 'pending':
-        return 'Pending';
-      case 'approved':
-        return 'Approved';
-      case 'rejected':
-        return 'Rejected';
-      case 'revision':
-        return 'Revision';
-      case 'completed':
-        return 'Completed';
-      default:
-        return status || 'Pending';
-    }
-  };
 
   const detectDocumentOrientation = useCallback((url: string) => {
     const fileExtension = report?.file_name.toLowerCase().split('.').pop()
@@ -203,33 +184,23 @@ export function DocumentViewerWithNotesModal({
     
     if (loadingPreview) {
       return (
-        <div className="w-full h-48 sm:h-56 lg:h-80 xl:h-96 border rounded-lg bg-gray-50 flex flex-col items-center justify-center">
-          <div className="animate-spin rounded-full h-6 w-6 sm:h-8 sm:w-8 border-b-2 border-gray-600 mb-2 sm:mb-4"></div>
-          <p className="text-gray-600 text-sm">Loading preview...</p>
+        <div className="w-full h-64 sm:h-80 lg:h-96 border rounded-lg bg-gray-50 flex flex-col items-center justify-center">
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-gray-600 mb-4"></div>
+          <p className="text-gray-600">Loading preview...</p>
         </div>
       )
     }
     
     // Determine container classes based on orientation and device
     const getPreviewContainerClass = () => {
-      const baseClass = "w-full border rounded-lg overflow-hidden bg-white"
+      const baseClass = "w-full border rounded-lg overflow-hidden"
       
-      // For mobile, use consistent responsive heights
-      if (window.innerWidth < 1024) { // lg breakpoint
-        if (window.innerWidth < 640) { // sm breakpoint - mobile portrait
-          return `${baseClass} h-48 xs:h-56 sm:h-64`
-        } else { // tablet or mobile landscape
-          return `${baseClass} h-56 sm:h-72`
-        }
-      }
-      
-      // For desktop, adjust based on document orientation
       if (documentOrientation === 'landscape') {
-        return `${baseClass} h-96 lg:h-[450px] xl:h-[500px]` // Wider for landscape
+        return `${baseClass} h-64 sm:h-80 lg:h-[500px]` // Wider for landscape
       } else if (documentOrientation === 'portrait') {
-        return `${baseClass} h-[400px] lg:h-[500px] xl:h-[600px]` // Taller for portrait
+        return `${baseClass} h-80 sm:h-96 lg:h-[600px]` // Taller for portrait
       } else {
-        return `${baseClass} h-80 lg:h-96 xl:h-[450px]` // Default
+        return `${baseClass} h-64 sm:h-80 lg:h-96` // Default
       }
     }
     
@@ -252,13 +223,13 @@ export function DocumentViewerWithNotesModal({
 
     // Fallback for non-previewable files or when preview fails
     return (
-      <div className="w-full h-48 sm:h-56 lg:h-80 xl:h-96 border rounded-lg bg-gray-50 flex flex-col items-center justify-center p-4">
-        <FileText className="h-8 w-8 sm:h-12 sm:w-12 lg:h-16 lg:w-16 text-gray-400 mb-2 sm:mb-4" />
-        <p className="text-gray-600 mb-2 text-center text-sm sm:text-base">
+      <div className="w-full h-64 sm:h-80 lg:h-96 border rounded-lg bg-gray-50 flex flex-col items-center justify-center">
+        <FileText className="h-12 w-12 sm:h-16 sm:w-16 text-gray-400 mb-4" />
+        <p className="text-gray-600 mb-2 text-center px-4">
           {previewUrl ? 'Preview failed to load' : 'Preview not available for this file type'}
         </p>
-        <p className="text-xs sm:text-sm text-gray-500 mb-2 text-center break-words max-w-full px-2">{report.file_name}</p>
-        <p className="text-xs text-gray-400 mb-2 sm:mb-4">File type: {fileExtension?.toUpperCase()}</p>
+        <p className="text-sm text-gray-500 mb-2 text-center px-4 break-words max-w-full">{report.file_name}</p>
+        <p className="text-xs text-gray-400 mb-4">File type: {fileExtension?.toUpperCase()}</p>
         <Button 
           variant="outline" 
           onClick={handleDownload}
@@ -276,12 +247,20 @@ export function DocumentViewerWithNotesModal({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChangeAction}>
-      <DialogContent className="w-[98vw] max-w-[98vw] h-[98vh] max-h-[98vh] sm:w-[95vw] sm:max-w-[95vw] sm:h-[95vh] sm:max-h-[95vh] lg:max-w-6xl xl:max-w-7xl lg:h-[90vh] xl:h-[90vh] flex flex-col p-0 overflow-hidden">
+      <DialogContent className="max-w-[95vw] sm:max-w-4xl lg:max-w-6xl xl:max-w-7xl h-[95vh] sm:h-[90vh] flex flex-col p-0 relative">
+        {/* Explicit close button for better visibility */}
+        <button
+          onClick={() => onOpenChangeAction(false)}
+          className="absolute right-4 top-4 z-10 rounded-sm opacity-70 ring-offset-background transition-opacity hover:opacity-100 focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 bg-white shadow-sm p-1.5"
+        >
+          <X className="h-4 w-4" />
+          <span className="sr-only">Close</span>
+        </button>
         
-        <DialogHeader className="p-3 sm:p-4 lg:p-6 border-b pr-10 sm:pr-12 flex-shrink-0">
+        <DialogHeader className="p-4 sm:p-6 border-b pr-12">
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
             <div className="min-w-0 flex-1">
-              <DialogTitle className="flex items-center gap-2 text-sm sm:text-base lg:text-lg break-words">
+              <DialogTitle className="flex items-center gap-2 text-sm sm:text-base break-words">
                 <FileText className="h-4 w-4 sm:h-5 sm:w-5 flex-shrink-0" />
                 <span className="truncate">{report.file_name}</span>
               </DialogTitle>
@@ -293,7 +272,7 @@ export function DocumentViewerWithNotesModal({
                   report.status === 'revision' ? 'bg-yellow-100 text-yellow-800' :
                   'bg-gray-100 text-gray-800'
                 }`}>
-                  {formatStatus(report.status || 'pending')}
+                  {report.status || 'pending'}
                 </Badge>
                 {documentOrientation !== 'unknown' && (
                   <Badge variant="secondary" className="text-xs">
@@ -314,96 +293,92 @@ export function DocumentViewerWithNotesModal({
           </div>
         </DialogHeader>
 
-        <div className="flex-1 min-h-0 overflow-hidden">
-          {/* Mobile Portrait: Stacked Layout */}
-          <div className="lg:hidden h-full overflow-y-auto">
-            <div className="p-3 sm:p-4 space-y-4">
-              {/* Document Preview */}
-              <div className="flex flex-col">
-                <h3 className="text-sm sm:text-base font-medium mb-3">Document Preview</h3>
-                <div className="w-full">
-                  {renderFilePreview()}
+        <div className="flex-1 min-h-0 p-4 sm:p-6">
+          {/* Mobile: Stacked Layout */}
+          <div className="lg:hidden space-y-6">
+            {/* Document Preview */}
+            <div className="flex flex-col">
+              <h3 className="text-base sm:text-lg font-medium mb-3">Document Preview</h3>
+              {renderFilePreview()}
+            </div>
+
+            {/* Notes Section */}
+            <div className="flex flex-col">
+              <h3 className="text-base sm:text-lg font-medium mb-3">Reviewer Notes</h3>
+              <div className="space-y-4">
+                <div>
+                  <Label htmlFor="notes-mobile" className="mb-2 text-sm">
+                    Notes and Comments
+                  </Label>
+                  <Textarea
+                    id="notes-mobile"
+                    placeholder="Add your notes, comments, or feedback here..."
+                    value={notes}
+                    onChange={(e) => setNotes(e.target.value)}
+                    className="min-h-24 resize-none text-sm"
+                    rows={4}
+                  />
                 </div>
-              </div>
 
-              {/* Notes Section */}
-              <div className="flex flex-col">
-                <h3 className="text-sm sm:text-base font-medium mb-3">Reviewer Notes</h3>
-                <div className="space-y-4">
-                  <div>
-                    <Label htmlFor="notes-mobile" className="mb-2 text-sm">
-                      Notes and Comments
-                    </Label>
-                    <Textarea
-                      id="notes-mobile"
-                      placeholder="Add your notes, comments, or feedback here..."
-                      value={notes}
-                      onChange={(e) => setNotes(e.target.value)}
-                      className="min-h-20 sm:min-h-24 resize-none text-sm"
-                      rows={3}
-                    />
+                {report.description && (
+                  <div className="p-3 bg-gray-50 rounded-lg">
+                    <Label className="text-sm font-medium text-gray-700">Report Description:</Label>
+                    <p className="text-sm text-gray-600 mt-1">{report.description}</p>
                   </div>
+                )}
 
-                  {report.description && (
-                    <div className="p-3 bg-gray-50 rounded-lg">
-                      <Label className="text-sm font-medium text-gray-700">Report Description:</Label>
-                      <p className="text-sm text-gray-600 mt-1 break-words">{report.description}</p>
+                <div className="space-y-3">
+                  {/* Save Notes Button */}
+                  <Button
+                    onClick={handleSaveNotes}
+                    disabled={isSubmitting}
+                    className="w-full flex items-center gap-2"
+                    variant="outline"
+                    size="sm"
+                  >
+                    <Save className="h-4 w-4" />
+                    Save Notes
+                  </Button>
+
+                  {/* Reviewer Actions */}
+                  {userRole === 'reviewer' && (
+                    <div className="space-y-2">
+                      <Label className="text-sm font-medium">Reviewer Actions:</Label>
+                      <div className="grid grid-cols-3 gap-2">
+                        <Button
+                          onClick={() => handleStatusAction('approved')}
+                          disabled={isSubmitting}
+                          className="bg-green-600 hover:bg-green-700 text-white text-xs"
+                          size="sm"
+                        >
+                          Approve
+                        </Button>
+                        <Button
+                          onClick={() => handleStatusAction('revision')}
+                          disabled={isSubmitting}
+                          className="bg-yellow-600 hover:bg-yellow-700 text-white text-xs"
+                          size="sm"
+                        >
+                          Revision
+                        </Button>
+                        <Button
+                          onClick={() => handleStatusAction('rejected')}
+                          disabled={isSubmitting}
+                          className="bg-red-600 hover:bg-red-700 text-white text-xs"
+                          size="sm"
+                        >
+                          Reject
+                        </Button>
+                      </div>
                     </div>
                   )}
-
-                  <div className="space-y-3">
-                    {/* Save Notes Button */}
-                    <Button
-                      onClick={handleSaveNotes}
-                      disabled={isSubmitting}
-                      className="w-full flex items-center gap-2"
-                      variant="outline"
-                      size="sm"
-                    >
-                      <Save className="h-4 w-4" />
-                      Save Notes
-                    </Button>
-
-                    {/* Reviewer Actions */}
-                    {userRole === 'reviewer' && (
-                      <div className="space-y-2">
-                        <Label className="text-sm font-medium">Reviewer Actions:</Label>
-                        <div className="grid grid-cols-3 gap-2">
-                          <Button
-                            onClick={() => handleStatusAction('approved')}
-                            disabled={isSubmitting}
-                            className="bg-green-600 hover:bg-green-700 text-white text-xs py-2 px-3"
-                            size="sm"
-                          >
-                            Approve
-                          </Button>
-                          <Button
-                            onClick={() => handleStatusAction('revision')}
-                            disabled={isSubmitting}
-                            className="bg-yellow-600 hover:bg-yellow-700 text-white text-xs py-2 px-3"
-                            size="sm"
-                          >
-                            Revision
-                          </Button>
-                          <Button
-                            onClick={() => handleStatusAction('rejected')}
-                            disabled={isSubmitting}
-                            className="bg-red-600 hover:bg-red-700 text-white text-xs py-2 px-3"
-                            size="sm"
-                          >
-                            Reject
-                          </Button>
-                        </div>
-                      </div>
-                    )}
-                  </div>
                 </div>
               </div>
             </div>
           </div>
 
-          {/* Mobile Landscape & Desktop: Side-by-side Layout */}
-          <div className="hidden lg:grid lg:grid-cols-2 gap-6 h-full min-h-0 p-6">
+          {/* Desktop: Side-by-side Layout */}
+          <div className="hidden lg:grid lg:grid-cols-2 gap-6 h-full min-h-0">
             {/* Document Preview */}
             <div className="flex flex-col min-h-0">
               <h3 className="text-lg font-medium mb-3">Document Preview</h3>
@@ -430,7 +405,7 @@ export function DocumentViewerWithNotesModal({
                 {report.description && (
                   <div className="mt-4 p-3 bg-gray-50 rounded-lg">
                     <Label className="text-sm font-medium text-gray-700">Report Description:</Label>
-                    <p className="text-sm text-gray-600 mt-1 break-words">{report.description}</p>
+                    <p className="text-sm text-gray-600 mt-1">{report.description}</p>
                   </div>
                 )}
 

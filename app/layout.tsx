@@ -3,7 +3,7 @@ import { Geist, Geist_Mono } from "next/font/google";
 import { Toaster } from "react-hot-toast";
 import { AuthProvider } from "@/lib/auth";
 import { QueryProvider } from "@/lib/query-provider";
-// Disabled to prevent automatic notifications: import { ServiceWorkerRegistration } from "@/components/service-worker-registration";
+import { ServiceWorkerRegistration } from "@/components/service-worker-registration";
 import "./globals.css";
 
 const geist = Geist({
@@ -33,8 +33,7 @@ export default function RootLayout({
       >
         <QueryProvider>
           <AuthProvider>
-            {/* ServiceWorkerRegistration disabled to prevent automatic notifications */}
-            {/* <ServiceWorkerRegistration /> */}
+            <ServiceWorkerRegistration />
             {children}
             <Toaster
               position="top-right"

@@ -1,9 +1,10 @@
 "use client"
 
-import { useState, useCallback, useMemo } from "react"
+import { useState, useCallback, useMemo, useEffect } from "react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
+import { Checkbox } from "@/components/ui/checkbox"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { useAuth } from "@/lib/auth"
 import { Eye, EyeOff, Mail, Lock, Loader2 } from "lucide-react"
@@ -14,9 +15,23 @@ import { toast } from "react-hot-toast"
 export default function LoginPage() {
   const [email, setEmail] = useState("")
   const [password, setPassword] = useState("")
+  const [rememberMe, setRememberMe] = useState(false)
   const [showPassword, setShowPassword] = useState(false)
   const [isLoading, setIsLoading] = useState(false)
   const { signIn } = useAuth()
+
+  // Load saved credentials on component mount
+  useEffect(() => {
+    const savedEmail = localStorage.getItem('gyg-remembered-email')
+    const savedPassword = localStorage.getItem('gyg-remembered-password')
+    const wasRemembered = localStorage.getItem('gyg-remember-me') === 'true'
+    
+    if (savedEmail && savedPassword && wasRemembered) {
+      setEmail(savedEmail)
+      setPassword(savedPassword)
+      setRememberMe(true)
+    }
+  }, [])
 
   const handleSubmit = useCallback(async (e: React.FormEvent) => {
     e.preventDefault()
@@ -29,13 +44,25 @@ export default function LoginPage() {
     setIsLoading(true)
     try {
       const { success, error } = await signIn(email, password)
-      if (!success && error) {
+      if (success) {
+        // Save credentials if remember me is checked
+        if (rememberMe) {
+          localStorage.setItem('gyg-remembered-email', email)
+          localStorage.setItem('gyg-remembered-password', password)
+          localStorage.setItem('gyg-remember-me', 'true')
+        } else {
+          // Clear saved credentials if remember me is not checked
+          localStorage.removeItem('gyg-remembered-email')
+          localStorage.removeItem('gyg-remembered-password')
+          localStorage.removeItem('gyg-remember-me')
+        }
+      } else if (error) {
         toast.error(error)
       }
     } finally {
       setIsLoading(false)
     }
-  }, [email, password, signIn])
+  }, [email, password, rememberMe, signIn])
 
   const togglePasswordVisibility = useCallback(() => {
     setShowPassword(prev => !prev)
@@ -100,9 +127,17 @@ export default function LoginPage() {
 
               {/* Password Field */}
               <div className="space-y-2">
-                <Label htmlFor="password" className="text-sm font-medium text-gray-700">
-                  Password
-                </Label>
+                <div className="flex items-center justify-between">
+                  <Label htmlFor="password" className="text-sm font-medium text-gray-700">
+                    Password
+                  </Label>
+                  <Link 
+                    href="/auth/forgot-password"
+                    className="text-xs text-orange-600 hover:text-orange-700 font-medium transition-colors duration-200"
+                  >
+                    Forgot password?
+                  </Link>
+                </div>
                 <div className="relative">
                   <Lock className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
                   <Input
@@ -130,6 +165,22 @@ export default function LoginPage() {
                     )}
                   </Button>
                 </div>
+              </div>
+
+              {/* Remember Me Checkbox */}
+              <div className="flex items-center space-x-2">
+                <Checkbox
+                  id="remember"
+                  checked={rememberMe}
+                  onCheckedChange={setRememberMe}
+                  className="data-[state=checked]:bg-orange-500 data-[state=checked]:border-orange-500"
+                />
+                <Label
+                  htmlFor="remember"
+                  className="text-sm font-medium text-gray-700 cursor-pointer"
+                >
+                  Remember
+                </Label>
               </div>
 
               {/* Sign In Button */}

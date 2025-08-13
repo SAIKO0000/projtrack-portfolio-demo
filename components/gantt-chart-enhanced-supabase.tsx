@@ -607,7 +607,7 @@ export function GanttChartEnhanced({ selectedProjectId }: GanttChartEnhancedProp
 
         <Card className="border-l-4 border-l-orange-500 dark:bg-gray-900 dark:border-gray-800 hover:shadow-md transition-all duration-200">
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2 px-4 pt-4">
-            <CardTitle className="text-sm font-semibold text-gray-700 dark:text-gray-300">In Progress</CardTitle>
+            <CardTitle className="text-sm font-semibold text-gray-700 dark:text-gray-300">In-Progress</CardTitle>
             <Play className="h-4 w-4 text-orange-500" />
           </CardHeader>
           <CardContent className="pb-4 px-4">
@@ -677,7 +677,7 @@ export function GanttChartEnhanced({ selectedProjectId }: GanttChartEnhancedProp
                 <SelectContent>
                   <SelectItem value="all">All Status</SelectItem>
                   <SelectItem value="planning">Planning</SelectItem>
-                  <SelectItem value="in-progress">In Progress</SelectItem>
+                  <SelectItem value="in-progress">In-Progress</SelectItem>
                   <SelectItem value="on-hold">On Hold</SelectItem>
                   <SelectItem value="delayed">Delayed</SelectItem>
                   <SelectItem value="completed">Completed</SelectItem>

@@ -197,6 +197,7 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
         email,
         password,
         options: {
+          emailRedirectTo: `${window.location.origin}/auth/confirm`,
           data: {
             name: userData.name,
             position: userData.position,

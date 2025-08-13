@@ -36,9 +36,10 @@ import Image from "next/image"
 interface SidebarProps {
   readonly activeTab: string
   readonly onTabChangeAction: (tab: string) => void
+  readonly onLogoutAction?: () => void
 }
 
-export function Sidebar({ activeTab, onTabChangeAction }: SidebarProps) {
+export function Sidebar({ activeTab, onTabChangeAction, onLogoutAction }: SidebarProps) {
   const [collapsed, setCollapsed] = useState(false)
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
   const [isDarkMode, setIsDarkMode] = useState(false)
@@ -76,8 +77,12 @@ export function Sidebar({ activeTab, onTabChangeAction }: SidebarProps) {
   }, [])
 
   const handleLogout = useCallback(async () => {
+    // Call notification logout handler before signing out
+    if (onLogoutAction) {
+      onLogoutAction()
+    }
     await signOut()
-  }, [signOut])
+  }, [signOut, onLogoutAction])
 
   const handleThemeToggle = useCallback(() => {
     setIsDarkMode(prev => !prev)

@@ -1,8 +1,41 @@
 import jsPDF from 'jspdf'
-import html2canvas from 'html2canvas'
 import { format } from 'date-fns'
 
 // Types for PDF export data
+export interface Project {
+  id: string
+  name: string
+  status: string
+  client?: string
+  start_date: string
+  end_date: string
+  description?: string
+  priority?: string
+  location?: string
+}
+
+export interface EnhancedTask {
+  id: string
+  project_id: string
+  project_name: string
+  title: string
+  status: string
+  start_date?: string
+  end_date?: string
+  assignee?: string
+  phase?: string
+  priority?: string
+  is_overdue: boolean
+  days_until_deadline?: number
+}
+
+export interface ExportMetrics {
+  totalProjects: number
+  activeProjects: number
+  overallProgress: number
+  projectsAtRisk: number
+}
+
 export interface GanttExportData {
   projects: Project[]
   tasks: EnhancedTask[]
@@ -55,7 +88,7 @@ export class PDFExportService {
     
     // Timeline Overview
     this.addSection('Project Timeline Overview', 120)
-    await this.addTimelineChart(data)
+    await this.addTimelineChart()
     
     // Risk Assessment
     this.addSection('Risk Assessment', 180)
@@ -148,12 +181,12 @@ export class PDFExportService {
     this.doc.line(20, yPosition + 2, 190, yPosition + 2)
   }
 
-  private addMetricsGrid(metrics: any) {
+  private addMetricsGrid(metrics: ExportMetrics) {
     const startY = 30
     const colWidth = 42
     const rowHeight = 25
     
-    const metricsData = [
+    const metricsData: Array<[string, string | number]> = [
       ['Total Projects', metrics.totalProjects],
       ['Active Projects', metrics.activeProjects],
       ['Overall Progress', `${metrics.overallProgress}%`],
@@ -247,7 +280,7 @@ export class PDFExportService {
     }
   }
 
-  private async addTimelineChart(data: GanttExportData) {
+  private async addTimelineChart() {
     // This would integrate with the actual Gantt chart component
     // For now, we'll add a placeholder
     this.doc.setFontSize(10)
@@ -284,7 +317,7 @@ export class PDFExportService {
     this.doc.setTextColor(0, 0, 0)
   }
 
-  private addProjectSummary(project: any, tasks: any[]) {
+  private addProjectSummary(project: Project, tasks: EnhancedTask[]) {
     const completedTasks = tasks.filter(t => t.status === 'completed').length
     const progress = Math.round((completedTasks / tasks.length) * 100)
     
@@ -314,11 +347,10 @@ export class PDFExportService {
     })
   }
 
-  private addTaskBreakdown(tasks: any[]) {
+  private addTaskBreakdown(tasks: EnhancedTask[]) {
     // Add task breakdown by status, phase, assignee
     const statusBreakdown = this.groupTasksByField(tasks, 'status')
     const phaseBreakdown = this.groupTasksByField(tasks, 'phase')
-    const assigneeBreakdown = this.groupTasksByField(tasks, 'assignee')
 
     let yPos = 35
 
@@ -351,15 +383,15 @@ export class PDFExportService {
     })
   }
 
-  private groupTasksByField(tasks: any[], field: string): Record<string, number> {
+  private groupTasksByField(tasks: EnhancedTask[], field: keyof EnhancedTask): Record<string, number> {
     return tasks.reduce((acc, task) => {
-      const value = task[field] || 'Unassigned'
+      const value = String(task[field] || 'Unassigned')
       acc[value] = (acc[value] || 0) + 1
       return acc
-    }, {})
+    }, {} as Record<string, number>)
   }
 
-  private addResourceAnalysis(tasks: any[]) {
+  private addResourceAnalysis(tasks: EnhancedTask[]) {
     const assigneeWorkload = this.groupTasksByField(tasks, 'assignee')
     
     this.doc.setFontSize(12)
@@ -381,7 +413,7 @@ export class PDFExportService {
     })
   }
 
-  private addDetailedRiskAnalysis(tasks: any[]) {
+  private addDetailedRiskAnalysis(tasks: EnhancedTask[]) {
     const overdueTasks = tasks.filter(t => t.is_overdue)
     const upcomingTasks = tasks.filter(t => {
       if (!t.end_date) return false
@@ -522,7 +554,7 @@ export class PDFExportService {
     })
   }
 
-  private async addFullGanttChart(tasks: any[]) {
+  private async addFullGanttChart(tasks: EnhancedTask[]) {
     // This would capture the actual Gantt chart component
     // For now, we'll add a placeholder
     this.doc.setFontSize(10)

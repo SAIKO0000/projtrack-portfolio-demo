@@ -140,7 +140,7 @@ export function EditProjectModal({ project, open, onOpenChangeAction, onProjectU
     <Dialog open={open} onOpenChange={onOpenChangeAction}>
       <DialogContent className="sm:max-w-[600px] max-h-[90vh] overflow-y-auto break-words">
         <DialogHeader>
-          <DialogTitle className="text-xl font-bold text-gray-900 flex items-center break-words">
+          <DialogTitle className="text-xl font-bold text-gray-900 flex items-center break-words pr-8">
             <div className="w-10 h-10 rounded-lg bg-blue-50 flex items-center justify-center mr-3 shadow-sm flex-shrink-0">
               <Edit className="h-5 w-5 text-blue-500" />
             </div>

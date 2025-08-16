@@ -122,7 +122,7 @@ export function TaskFormModalOptimized({ onTaskCreated }: TaskFormModalProps) {
         end_date: formatDateToLocal(endDate),
         due_date: formatDateToLocal(endDate),
         status: formData.status,
-        priority: "medium", // Set default priority
+        priority: "low", // Set default priority
         progress: 0, // Always start at 0 since we don't track progress
         phase: formData.phase || null,
         category: "planning", // Set default category

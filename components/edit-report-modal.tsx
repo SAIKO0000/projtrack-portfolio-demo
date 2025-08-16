@@ -127,9 +127,9 @@ export function EditReportModal({ report, open, onOpenChange, onReportUpdated }:
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-[500px] max-h-[90vh] overflow-y-auto">
+      <DialogContent className="sm:max-w-[500px] w-[95vw] max-w-[95vw] sm:w-full max-h-[90vh] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle className="text-xl font-bold text-gray-900 flex items-center">
+          <DialogTitle className="text-xl font-bold text-gray-900 flex items-center pr-8">
             <div className="w-10 h-10 rounded-lg bg-orange-100 flex items-center justify-center mr-3 shadow-sm">
               <Edit className="h-5 w-5 text-orange-600" />
             </div>
@@ -143,13 +143,13 @@ export function EditReportModal({ report, open, onOpenChange, onReportUpdated }:
         <form onSubmit={handleSubmit} className="space-y-6">
           {/* Current File Info */}
           <div className="p-4 bg-gray-50 rounded-lg border">
-            <div className="flex items-center space-x-3">
-              <div className="w-12 h-12 rounded-lg bg-blue-100 flex items-center justify-center">
+            <div className="flex items-start space-x-3">
+              <div className="w-12 h-12 rounded-lg bg-blue-100 flex items-center justify-center flex-shrink-0">
                 <FileText className="h-6 w-6 text-blue-600" />
               </div>
               <div className="flex-1 min-w-0">
                 <p className="text-sm font-medium text-gray-900">Current File</p>
-                <p className="text-xs text-gray-500 truncate">{report.file_name}</p>
+                <p className="text-xs text-gray-500 break-words">{report.file_name}</p>
                 <p className="text-xs text-gray-500">
                   {report.projectName} • {report.file_size_mb}
                 </p>

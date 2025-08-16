@@ -135,7 +135,8 @@ export function ProjectFormModal({ onProjectCreated }: ProjectFormModalProps) {
           <Plus className="h-4 w-4 mr-2" />
           New Project
         </Button>
-      </DialogTrigger>      <DialogContent className="sm:max-w-[600px] max-h-[90vh] overflow-y-auto break-words">
+      </DialogTrigger>      
+      <DialogContent className="sm:max-w-[600px] max-h-[90vh] overflow-y-auto break-words">
         <DialogHeader>
           <DialogTitle className="text-xl font-bold text-gray-900 flex items-center break-words">
             <div className="w-10 h-10 rounded-lg bg-orange-90 flex items-center justify-center mr-3 shadow-sm flex-shrink-0">

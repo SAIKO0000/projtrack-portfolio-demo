@@ -6,7 +6,7 @@ import { Button } from "./ui/button"
 import { Textarea } from "./ui/textarea"
 import { Label } from "./ui/label"
 import { Badge } from "./ui/badge"
-import { FileText, Download, Save, X } from "lucide-react"
+import { FileText, Download, Save } from "lucide-react"
 import { toast } from "react-hot-toast"
 import { supabase } from "@/lib/supabase"
 
@@ -208,15 +208,45 @@ export function DocumentViewerWithNotesModal({
     if (previewUrl && (fileExtension === 'pdf' || ['jpg', 'jpeg', 'png', 'gif'].includes(fileExtension || ''))) {
       return (
         <div className={getPreviewContainerClass()}>
-          <iframe
-            src={previewUrl}
-            className="w-full h-full"
-            title={`Preview of ${report.file_name}`}
-            onError={() => {
-              console.log('Failed to load document preview')
-              setPreviewUrl(null) // This will trigger the fallback view
-            }}
-          />
+          {/* For mobile, provide better PDF viewing options */}
+          {fileExtension === 'pdf' ? (
+            <div className="w-full h-full">
+              {/* Mobile: Show download link instead of iframe for better compatibility */}
+              <div className="w-full h-full flex flex-col items-center justify-center block md:hidden bg-gray-50 border border-gray-200 rounded-lg">
+                <FileText className="h-16 w-16 text-gray-400 mb-4" />
+                <p className="text-sm text-gray-600 mb-4 text-center px-4">
+                  PDF preview may not work properly on mobile devices. Download to view the document.
+                </p>
+                <Button
+                  onClick={handleDownload}
+                  className="flex items-center gap-2"
+                >
+                  <Download className="h-4 w-4" />
+                  Download PDF
+                </Button>
+              </div>
+              {/* Desktop: Use regular iframe */}
+              <iframe
+                src={previewUrl}
+                className="w-full h-full hidden md:block border border-gray-200 rounded-lg"
+                title={`Preview of ${report.file_name}`}
+                onError={() => {
+                  console.log('Failed to load document preview')
+                  setPreviewUrl(null)
+                }}
+              />
+            </div>
+          ) : (
+            <iframe
+              src={previewUrl}
+              className="w-full h-full"
+              title={`Preview of ${report.file_name}`}
+              onError={() => {
+                console.log('Failed to load document preview')
+                setPreviewUrl(null)
+              }}
+            />
+          )}
         </div>
       )
     }
@@ -247,16 +277,7 @@ export function DocumentViewerWithNotesModal({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChangeAction}>
-      <DialogContent className="max-w-[95vw] sm:max-w-4xl lg:max-w-6xl xl:max-w-7xl h-[95vh] sm:h-[90vh] flex flex-col p-0 relative">
-        {/* Explicit close button for better visibility */}
-        <button
-          onClick={() => onOpenChangeAction(false)}
-          className="absolute right-4 top-4 z-10 rounded-sm opacity-70 ring-offset-background transition-opacity hover:opacity-100 focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 bg-white shadow-sm p-1.5"
-        >
-          <X className="h-4 w-4" />
-          <span className="sr-only">Close</span>
-        </button>
-        
+      <DialogContent className="max-w-[95vw] sm:max-w-4xl lg:max-w-6xl xl:max-w-7xl h-[95vh] sm:h-[90vh] flex flex-col p-0 relative fixed top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2">
         <DialogHeader className="p-4 sm:p-6 border-b pr-12">
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
             <div className="min-w-0 flex-1">
@@ -264,7 +285,8 @@ export function DocumentViewerWithNotesModal({
                 <FileText className="h-4 w-4 sm:h-5 sm:w-5 flex-shrink-0" />
                 <span className="truncate">{report.file_name}</span>
               </DialogTitle>
-              <div className="flex flex-wrap items-center gap-2 mt-2">
+              {/* Show badges only on desktop (hidden on mobile) */}
+              <div className="hidden sm:flex flex-wrap items-center gap-2 mt-2">
                 <Badge variant="outline" className="text-xs">{report.category}</Badge>
                 <Badge className={`text-xs ${
                   report.status === 'approved' ? 'bg-green-100 text-green-800' :
@@ -272,11 +294,11 @@ export function DocumentViewerWithNotesModal({
                   report.status === 'revision' ? 'bg-yellow-100 text-yellow-800' :
                   'bg-gray-100 text-gray-800'
                 }`}>
-                  {report.status || 'pending'}
+                  {(report.status || 'pending').charAt(0).toUpperCase() + (report.status || 'pending').slice(1)}
                 </Badge>
                 {documentOrientation !== 'unknown' && (
                   <Badge variant="secondary" className="text-xs">
-                    {documentOrientation}
+                    {documentOrientation.charAt(0).toUpperCase() + documentOrientation.slice(1)}
                   </Badge>
                 )}
               </div>
@@ -284,11 +306,11 @@ export function DocumentViewerWithNotesModal({
             <Button
               variant="outline"
               onClick={handleDownload}
-              className="flex items-center gap-2 flex-shrink-0"
+              className="hidden sm:flex items-center gap-2 flex-shrink-0"
               size="sm"
             >
               <Download className="h-4 w-4" />
-              <span className="hidden sm:inline">Download</span>
+              <span>Download</span>
             </Button>
           </div>
         </DialogHeader>
@@ -298,8 +320,36 @@ export function DocumentViewerWithNotesModal({
           <div className="lg:hidden space-y-6">
             {/* Document Preview */}
             <div className="flex flex-col">
-              <h3 className="text-base sm:text-lg font-medium mb-3">Document Preview</h3>
+              <div className="flex flex-wrap items-center gap-2 mb-3">
+                <h3 className="text-base sm:text-lg font-medium">Document Preview</h3>
+                <Badge variant="outline" className="text-xs">{report.category}</Badge>
+                <Badge className={`text-xs ${
+                  report.status === 'approved' ? 'bg-green-100 text-green-800' :
+                  report.status === 'rejected' ? 'bg-red-100 text-red-800' :
+                  report.status === 'revision' ? 'bg-yellow-100 text-yellow-800' :
+                  'bg-gray-100 text-gray-800'
+                }`}>
+                  {(report.status || 'pending').charAt(0).toUpperCase() + (report.status || 'pending').slice(1)}
+                </Badge>
+                {documentOrientation !== 'unknown' && (
+                  <Badge variant="secondary" className="text-xs">
+                    {documentOrientation.charAt(0).toUpperCase() + documentOrientation.slice(1)}
+                  </Badge>
+                )}
+              </div>
               {renderFilePreview()}
+              {/* Centered Download Button for Mobile */}
+              <div className="flex justify-center mt-4">
+                <Button
+                  variant="outline"
+                  onClick={handleDownload}
+                  className="flex items-center gap-2"
+                  size="sm"
+                >
+                  <Download className="h-4 w-4" />
+                  <span>Download</span>
+                </Button>
+              </div>
             </div>
 
             {/* Notes Section */}

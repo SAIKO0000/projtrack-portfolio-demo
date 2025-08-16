@@ -1,3 +1,4 @@
+
 "use client"
 
 import { useEffect, useState, useMemo, useCallback } from "react"
@@ -5,7 +6,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Progress } from "@/components/ui/progress"
-import { FolderOpen, Clock, Users, AlertTriangle, TrendingUp, MoreHorizontal, Edit, Trash2 } from "lucide-react"
+import { FolderOpen, Clock, Users, AlertTriangle, TrendingUp, MoreHorizontal, Edit, Trash2, RefreshCw } from "lucide-react"
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell } from "recharts"
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
 import { useProjects } from "@/lib/hooks/useProjects"
@@ -22,16 +23,6 @@ export function Dashboard() {
   const [personnel, setPersonnel] = useState<Personnel[]>([])
   const [personnelLoading, setPersonnelLoading] = useState(true)
   const [editingProject, setEditingProject] = useState<Project | null>(null)
-
-  // Capitalize first letter of each word for formal display
-  const capitalizeWords = (text: string | null | undefined): string => {
-    if (!text) return "Unknown"
-    return text
-      .replace(/-/g, " ") // Replace hyphens with spaces
-      .split(" ")
-      .map(word => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase())
-      .join(" ")
-  }
 
   useEffect(() => {
     fetchData()
@@ -51,6 +42,19 @@ export function Dashboard() {
 
   const handleProjectCreated = () => {
     fetchProjects() // Refresh projects list
+  }
+
+  const handleRefresh = async () => {
+    try {
+      await Promise.all([
+        fetchProjects(),
+        fetchData()
+      ])
+      toast.success("Dashboard refreshed successfully")
+    } catch (error) {
+      console.error('Error refreshing dashboard:', error)
+      toast.error("Failed to refresh dashboard")
+    }
   }
 
   const handleDeleteProject = async (projectId: string, projectName: string) => {
@@ -416,6 +420,15 @@ export function Dashboard() {
           <p className="text-sm sm:text-base text-gray-600">Welcome back! Here&apos;s what&apos;s happening with your projects.</p>
         </div>
         <div className="flex items-center space-x-3">
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={handleRefresh}
+            className="flex items-center gap-2"
+          >
+            <RefreshCw className="h-4 w-4" />
+            Refresh
+          </Button>
           <ProjectFormModal onProjectCreated={handleProjectCreated} />
         </div>
       </div>
@@ -650,9 +663,6 @@ export function Dashboard() {
                       <span className={`text-xs ${task.isOverdue ? 'text-red-600 font-medium' : 'text-gray-500'}`}>
                         {formatTaskDate(task.due_date)}
                       </span>
-                      <Badge className={`text-xs ${task.status === 'in-progress' ? 'bg-blue-100 text-blue-800' : 'bg-gray-100 text-gray-800'} flex-shrink-0`}>
-                        {capitalizeWords(task.status) || 'Pending'}
-                      </Badge>
                     </div>
                   </div>
                 </div>

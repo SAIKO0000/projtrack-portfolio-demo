@@ -252,15 +252,17 @@ export function ReportUploadModal({ children, onUploadComplete, preselectedProje
             Upload Document
           </Button>
         )}
-      </DialogTrigger>      <DialogContent className="sm:max-w-[500px] max-h-[90vh] overflow-y-auto">
+      </DialogTrigger>      <DialogContent className="sm:max-w-[500px] w-[95vw] max-w-[95vw] sm:w-full max-h-[90vh] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle className="text-xl font-bold text-gray-900 flex items-center">
-            <div className="w-10 h-10 rounded-lg bg-orange-90 flex items-center justify-center mr-3 shadow-sm">
-              <Upload className="h-5 w-5 text-black-500" />
+          <DialogTitle className="text-lg sm:text-xl font-bold text-gray-900 flex items-center pr-8">
+            <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-lg bg-orange-90 flex items-center justify-center mr-2 sm:mr-3 shadow-sm flex-shrink-0">
+              <Upload className="h-4 w-4 sm:h-5 sm:w-5 text-black-500" />
             </div>
-            {replacingReportId ? "Replace Document" : "Upload Document"}
+            <span className="break-words">
+              {replacingReportId ? "Replace Document" : "Upload Document"}
+            </span>
           </DialogTitle>
-          <DialogDescription className="text-gray-600 ml-13">
+          <DialogDescription className="text-gray-600 ml-10 sm:ml-13 text-sm">
             {replacingReportId ? "Replace the existing document with a new version" : "Upload a new document or report to the project"}
           </DialogDescription>
         </DialogHeader>
@@ -289,25 +291,27 @@ export function ReportUploadModal({ children, onUploadComplete, preselectedProje
                 </Label>
               </div>
             ) : (
-              <div className="flex items-center space-x-3 p-3 bg-gray-50 rounded-lg">
-                {getFileIcon(selectedFile)}
-                <div className="flex-1 min-w-0">
-                  <p className="text-sm font-medium text-gray-900 truncate">
-                    {selectedFile.name}
-                  </p>
-                  <p className="text-xs text-gray-500">
-                    {formatFileSize(selectedFile.size)}
-                  </p>
+              <div className="p-3 bg-gray-50 rounded-lg">
+                <div className="flex items-start space-x-3">
+                  {getFileIcon(selectedFile)}
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-medium text-gray-900 break-words">
+                      {selectedFile.name}
+                    </p>
+                    <p className="text-xs text-gray-500 mt-1">
+                      {formatFileSize(selectedFile.size)}
+                    </p>
+                  </div>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    onClick={handleRemoveFile}
+                    className="p-1 flex-shrink-0"
+                  >
+                    <X className="h-4 w-4" />
+                  </Button>
                 </div>
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="sm"
-                  onClick={handleRemoveFile}
-                  className="p-1"
-                >
-                  <X className="h-4 w-4" />
-                </Button>
               </div>
             )}
           </div>
@@ -329,9 +333,9 @@ export function ReportUploadModal({ children, onUploadComplete, preselectedProje
               />
             </div>
             {selectedFile && (
-              <p className="text-xs text-gray-500 flex items-center font-normal">
+              <p className="text-xs text-gray-500 flex flex-col sm:flex-row sm:items-center font-normal">
                 <span>File: </span>
-                <span className="ml-1 text-gray-600">{selectedFile.name}</span>
+                <span className="ml-0 sm:ml-1 text-gray-600 break-all">{selectedFile.name}</span>
               </p>
             )}
           </div>          {/* Project Selection - Hidden when replacing */}

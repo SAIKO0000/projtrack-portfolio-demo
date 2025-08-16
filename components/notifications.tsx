@@ -89,6 +89,70 @@ export function Notifications({ onTabChangeAction }: NotificationsProps = {}) {
     setIsSelectionMode(false)
   }
 
+  // Handle notification click to redirect to specific items
+  const handleNotificationClick = (notification: {
+    id: string
+    type: string
+    project_id?: string
+    title: string
+    message: string
+    timestamp: string
+    project_name?: string
+    metadata?: Record<string, unknown>
+  }) => {
+    if (isSelectionMode) return // Don't navigate when in selection mode
+    
+    // Navigate based on notification type and content
+    switch (notification.type) {
+      case 'report':
+        // Navigate to reports tab
+        if (onTabChangeAction) {
+          onTabChangeAction('reports')
+        }
+        break
+      case 'task':
+        // Navigate to projects tab to view tasks
+        if (onTabChangeAction) {
+          onTabChangeAction('projects')
+        }
+        break
+      case 'deadline':
+        // Navigate to calendar
+        if (onTabChangeAction) {
+          onTabChangeAction('calendar')
+        }
+        break
+      case 'project':
+        // Navigate to projects
+        if (onTabChangeAction) {
+          onTabChangeAction('projects')
+        }
+        break
+      case 'photo':
+        // Navigate to calendar where photos are displayed
+        if (onTabChangeAction) {
+          onTabChangeAction('calendar')
+          // Store the specific date in localStorage for calendar to use
+          const photoDate = notification.timestamp.split('T')[0] // Extract date part
+          localStorage.setItem('navigateToDate', photoDate)
+          localStorage.setItem('navigateToType', 'photo')
+        }
+        break
+      default:
+        // Default to dashboard
+        if (onTabChangeAction) {
+          onTabChangeAction('dashboard')
+        }
+    }
+    
+    // Show success message
+    const targetPage = notification.type === 'photo' ? 'calendar' : 
+                      notification.type === 'report' ? 'reports' : 
+                      notification.type === 'task' ? 'projects' : 
+                      notification.type
+    toast.success(`Navigating to ${targetPage}`)
+  }
+
   const enterSelectionMode = () => {
     setIsSelectionMode(true)
     setSelectedNotifications(new Set())
@@ -116,7 +180,7 @@ export function Notifications({ onTabChangeAction }: NotificationsProps = {}) {
     project_id: notif.projectId,
     project_name: notif.project,
     timestamp: notif.timestamp,
-    priority: notif.type === 'task' ? (notif.priority || 'medium') : undefined, // Only tasks have priority
+    priority: notif.type === 'task' ? (notif.priority || 'low') : undefined, // Only tasks have priority, default to low
     metadata: {
       file_name: notif.description,
       status: notif.status,
@@ -182,19 +246,6 @@ export function Notifications({ onTabChangeAction }: NotificationsProps = {}) {
         return <Activity className="h-4 w-4 text-indigo-500" />
       default:
         return <Bell className="h-4 w-4 text-gray-500" />
-    }
-  }
-
-  const getPriorityColor = (priority: string) => {
-    switch (priority) {
-      case "high":
-        return "bg-red-100 text-red-800 border-red-200"
-      case "medium":
-        return "bg-yellow-100 text-yellow-800 border-yellow-200"
-      case "low":
-        return "bg-green-100 text-green-800 border-green-200"
-      default:
-        return "bg-gray-100 text-gray-800 border-gray-200"
     }
   }
 
@@ -516,12 +567,16 @@ export function Notifications({ onTabChangeAction }: NotificationsProps = {}) {
                 {filteredNotifications.map((notification) => (
                   <div
                     key={notification.id}
-                    className="relative p-3 rounded border transition-colors hover:bg-gray-50 bg-white border-gray-200"
+                    className="relative p-3 rounded border transition-colors hover:bg-gray-50 bg-white border-gray-200 cursor-pointer"
+                    onClick={() => handleNotificationClick(notification)}
                   >
                     {isSelectionMode && (
                       <div className="absolute top-2 left-2">
                         <button
-                          onClick={() => toggleNotificationSelection(notification.id)}
+                          onClick={(e) => {
+                            e.stopPropagation()
+                            toggleNotificationSelection(notification.id)
+                          }}
                           className="p-0.5 hover:bg-gray-100 rounded"
                         >
                           {selectedNotifications.has(notification.id) ? (
@@ -533,42 +588,45 @@ export function Notifications({ onTabChangeAction }: NotificationsProps = {}) {
                       </div>
                     )}
                     
-                    <div className={`flex flex-col h-full ${isSelectionMode ? 'pl-6' : ''}`}>
-                      {/* Header with icon and priority */}
-                      <div className="flex items-start justify-between mb-2">
-                        <div className="flex items-center space-x-2">
-                          <div className="flex-shrink-0">{getNotificationIcon(notification.type)}</div>
-                          <Badge className={`${getPriorityColor(notification.priority || 'medium')} text-sm`}>
-                            {notification.priority || 'medium'}
-                          </Badge>
-                        </div>
-                        <span className="text-sm text-gray-500">{getTimeAgo(notification.timestamp)}</span>
+                    <div className={`flex h-full ${isSelectionMode ? 'pl-6' : ''}`}>
+                      {/* Icon column */}
+                      <div className="flex-shrink-0 mr-3 mt-1">
+                        {getNotificationIcon(notification.type)}
                       </div>
+                      
+                      {/* Content column */}
+                      <div className="flex-1 min-w-0">
+                        {/* Header with timestamp */}
+                        <div className="flex items-start justify-between mb-2">
+                          <div className="flex-1 min-w-0">
+                            {/* Title */}
+                            <h3 className="text-base font-medium text-gray-900 mb-1 break-words">
+                              {notification.title}
+                            </h3>
+                          </div>
+                          <span className="text-sm text-gray-500 ml-2 flex-shrink-0">{getTimeAgo(notification.timestamp)}</span>
+                        </div>
 
-                      {/* Title */}
-                      <h3 className="text-base font-medium text-gray-900 mb-2 line-clamp-2">
-                        {notification.title}
-                      </h3>
+                        {/* Message */}
+                        <p className="text-sm text-gray-600 mb-3 break-words">
+                          {notification.message && notification.message !== notification.title ? 
+                            notification.message : 
+                            `Activity in ${notification.project_name || 'project'}`}
+                        </p>
 
-                      {/* Message */}
-                      <p className="text-sm text-gray-600 mb-3 line-clamp-2 flex-1">
-                        {notification.message && notification.message !== notification.title ? 
-                          notification.message : 
-                          `Activity in ${notification.project_name || 'project'}`}
-                      </p>
-
-                      {/* Footer info */}
-                      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between text-sm text-gray-500 space-y-1 sm:space-y-0">
-                        <span className="flex items-center">
-                          <Calendar className="h-4 w-4 mr-1" />
-                          {notification.project_name || 'Unknown Project'}
-                        </span>
-                        {notification.metadata?.user_name && (
-                          <span className="flex items-center">
-                            <Users className="h-4 w-4 mr-1" />
-                            {notification.metadata.user_name}
+                        {/* Footer info */}
+                        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between text-sm text-gray-500 space-y-1 sm:space-y-0">
+                          <span className="flex items-center break-words">
+                            <Calendar className="h-4 w-4 mr-1" />
+                            {notification.project_name || 'Unknown Project'}
                           </span>
-                        )}
+                          {notification.metadata?.user_name && (
+                            <span className="flex items-center">
+                              <Users className="h-4 w-4 mr-1" />
+                              {notification.metadata.user_name}
+                            </span>
+                          )}
+                        </div>
                       </div>
                     </div>
                   </div>

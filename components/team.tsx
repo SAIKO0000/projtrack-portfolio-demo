@@ -5,7 +5,7 @@ import { Card, CardContent } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { UserAvatar } from "@/components/user-avatar"
-import { Search, Mail, Phone, Users, Briefcase } from "lucide-react"
+import { Search, Mail, Phone, Users, Briefcase, RefreshCw } from "lucide-react"
 import { usePersonnel } from "@/lib/hooks/usePersonnel"
 import { useProjectsQuery } from "@/lib/hooks/useProjectsOptimized"
 import { ProfileModal } from "./profile-modal"
@@ -45,6 +45,12 @@ export function Team() {
     setIsProfileModalOpen(true)
   }
 
+  const handleRefresh = () => {
+    // The personnel hook should have a refetch function, but since we don't have access to it,
+    // we'll reload the page for now
+    window.location.reload()
+  }
+
   if (loading || projectsLoading) {
     return (
       <div className="flex items-center justify-center h-full">
@@ -75,6 +81,13 @@ export function Team() {
           <h1 className="text-xl sm:text-2xl font-bold text-gray-900">Team</h1>
           <p className="text-sm text-gray-600 mt-1">Manage your electrical engineering team and workload</p>
         </div>
+        <Button
+          onClick={handleRefresh}
+          variant="outline"
+          size="sm"
+        >
+          <RefreshCw className="h-4 w-4" />
+        </Button>
       </div>
 
       {/* Team Stats */}

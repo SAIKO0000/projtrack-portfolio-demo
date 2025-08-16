@@ -145,25 +145,30 @@ export function ReportFileUpload({
         <div className="space-y-2">
           <h4 className="text-sm font-medium">Selected Files:</h4>
           {selectedFiles.map((file, index) => (
-            <div key={index} className="flex items-center justify-between p-2 bg-gray-50 rounded-lg">
-              <div className="flex items-center space-x-2">
-                <File className="h-4 w-4 text-gray-500" />
-                <span className="text-sm truncate">{file.name}</span>
-                <span className="text-xs text-gray-500">
-                  ({(file.size / 1024 / 1024).toFixed(2)} MB)
-                </span>
+            <div key={index} className="p-2 bg-gray-50 rounded-lg">
+              <div className="flex items-start justify-between">
+                <div className="flex items-start space-x-2 flex-1 min-w-0">
+                  <File className="h-4 w-4 text-gray-500 flex-shrink-0 mt-0.5" />
+                  <div className="flex-1 min-w-0">
+                    <span className="text-sm block break-words">{file.name}</span>
+                    <span className="text-xs text-gray-500 block">
+                      ({(file.size / 1024 / 1024).toFixed(2)} MB)
+                    </span>
+                  </div>
+                </div>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={(e) => {
+                    e.stopPropagation()
+                    removeFile(index)
+                  }}
+                  disabled={uploading}
+                  className="flex-shrink-0"
+                >
+                  <X className="h-4 w-4" />
+                </Button>
               </div>
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={(e) => {
-                  e.stopPropagation()
-                  removeFile(index)
-                }}
-                disabled={uploading}
-              >
-                <X className="h-4 w-4" />
-              </Button>
             </div>
           ))}
         </div>

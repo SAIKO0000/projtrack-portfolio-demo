@@ -30,6 +30,7 @@ import {
   Edit,
   X,
   RotateCcw,
+  RefreshCw,
 } from "lucide-react"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { ReportUploadModal } from "./report-upload-modal"
@@ -145,6 +146,16 @@ export function Reports({ onTabChangeAction }: ReportsProps = {}) {
 
   const handleUploadComplete = () => {
     fetchReports()
+  }
+
+  const handleRefresh = async () => {
+    try {
+      await fetchReports()
+      toast.success("Reports refreshed successfully")
+    } catch (error) {
+      console.error('Error refreshing reports:', error)
+      toast.error("Failed to refresh reports")
+    }
   }
 
   // Handle report status updates with validation
@@ -411,9 +422,29 @@ export function Reports({ onTabChangeAction }: ReportsProps = {}) {
 
   return (
     <div className="p-3 sm:p-4 lg:p-6 space-y-4 sm:space-y-6 overflow-y-auto h-full max-w-full">
-      <div className="text-center sm:text-left">
-        <h1 className="text-xl sm:text-2xl lg:text-3xl font-bold text-gray-900">Reports & Documents</h1>
-        <p className="text-sm text-gray-600">Manage project documents, reports, and files</p>
+      <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4">
+        <div className="text-center sm:text-left">
+          <h1 className="text-xl sm:text-2xl lg:text-3xl font-bold text-gray-900">Reports & Documents</h1>
+          <p className="text-sm text-gray-600">Manage project documents, reports, and files</p>
+        </div>
+        <div className="flex items-center space-x-3">
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={handleRefresh}
+            className="flex items-center gap-2"
+          >
+            <RefreshCw className="h-4 w-4" />
+            Refresh
+          </Button>
+          <ReportUploadModal onUploadComplete={handleUploadComplete}>
+            <Button className="bg-gradient-to-r from-orange-500 to-orange-600 hover:from-orange-600 hover:to-orange-700 w-full sm:w-auto hidden sm:flex">
+              <Upload className="h-4 w-4 mr-2" />
+              <span className="hidden sm:inline">Upload Document</span>
+              <span className="sm:hidden">Upload</span>
+            </Button>
+          </ReportUploadModal>
+        </div>
       </div>
 
       <div className="grid grid-cols-2 sm:grid-cols-2 lg:grid-cols-4 gap-2 sm:gap-3 lg:gap-4">
@@ -508,6 +539,8 @@ export function Reports({ onTabChangeAction }: ReportsProps = {}) {
               ))}
             </SelectContent>
           </Select>
+        </div>
+        <div className="grid grid-cols-2 gap-3">
           <Select value={statusFilter} onValueChange={setStatusFilter}>
             <SelectTrigger className="w-full">
               <SelectValue placeholder="Filter by status" />
@@ -520,13 +553,15 @@ export function Reports({ onTabChangeAction }: ReportsProps = {}) {
               <SelectItem value="rejected">Rejected</SelectItem>
             </SelectContent>
           </Select>
-          <ReportUploadModal onUploadComplete={handleUploadComplete}>
-            <Button className="bg-gradient-to-r from-orange-500 to-orange-600 hover:from-orange-600 hover:to-orange-700 w-full">
-              <Upload className="h-4 w-4 mr-2" />
-              <span className="hidden sm:inline">Upload Document</span>
-              <span className="sm:hidden">Upload</span>
-            </Button>
-          </ReportUploadModal>
+          {/* Mobile Upload Button - only visible on mobile */}
+          <div className="sm:hidden">
+            <ReportUploadModal onUploadComplete={handleUploadComplete}>
+              <Button className="bg-gradient-to-r from-orange-500 to-orange-600 hover:from-orange-600 hover:to-orange-700 w-full h-10">
+                <Upload className="h-4 w-4 mr-2" />
+                Upload
+              </Button>
+            </ReportUploadModal>
+          </div>
         </div>
       </div>
 
@@ -660,7 +695,7 @@ export function Reports({ onTabChangeAction }: ReportsProps = {}) {
                       <span className="hidden sm:inline">Delete</span>
                     </Button>
 
-                    {/* Approval/Rejection Buttons for Admins */}
+                    {/* Approval/Rejection Buttons for Assigned Reviewers */}
                     {isAdmin && report.status !== 'approved' && report.uploaded_by !== user?.id && isAssignedReviewer(report) && (
                       <>
                         <Button 
@@ -694,6 +729,20 @@ export function Reports({ onTabChangeAction }: ReportsProps = {}) {
                           <span className="hidden sm:inline">Reject</span>
                         </Button>
                       </>
+                    )}
+
+                    {/* View Document Button for Non-Assigned Reviewers and Other Users */}
+                    {(!isAssignedReviewer(report) || report.uploaded_by === user?.id) && (
+                      <Button 
+                        variant="ghost" 
+                        size="sm" 
+                        onClick={() => handleView(report)}
+                        className="h-8 px-2 hover:bg-indigo-100 hover:text-indigo-600 transition-all duration-200 group"
+                        title="View document"
+                      >
+                        <FileText className="h-4 w-4 mr-1 group-hover:scale-110 transition-transform duration-200" />
+                        <span className="hidden sm:inline">View Document</span>
+                      </Button>
                     )}
                   </div>
 

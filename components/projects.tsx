@@ -21,6 +21,7 @@ import {
   Edit,
   Trash2,
   User,
+  RefreshCw,
 } from "lucide-react"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
@@ -64,6 +65,8 @@ export function Projects({ onProjectSelect }: ProjectsProps) {
   const { user } = useAuth()
   const [searchTerm, setSearchTerm] = useState("")
   const [statusFilter, setStatusFilter] = useState("all")
+  const [categoryFilter, setCategoryFilter] = useState("all")
+  const [projectFilter, setProjectFilter] = useState("all")
   const [editingProject, setEditingProject] = useState<Project | null>(null)
   const [viewingReports, setViewingReports] = useState<{ 
     projectId: string; 
@@ -257,6 +260,25 @@ export function Projects({ onProjectSelect }: ProjectsProps) {
     fetchProjects() // Refresh projects list
   }
 
+  const handleRefresh = async () => {
+    try {
+      await Promise.all([
+        fetchProjects(),
+        fetchReports()
+      ])
+      toast.success("Projects refreshed successfully")
+    } catch (error) {
+      console.error('Error refreshing projects:', error)
+      toast.error("Failed to refresh projects")
+    }
+  }
+
+  // Get unique categories (using priority as categories for now)
+  const uniqueCategories = Array.from(new Set(projects.map(p => p.priority).filter(Boolean)))
+
+  // Get unique project names for filtering
+  const uniqueProjects = projects.map(p => ({ id: p.id, name: p.name }))
+
   // Calculate task-based progress for a project
   const getProjectTaskProgress = (projectId: string) => {
     const projectTasks = tasks.filter(task => task.project_id === projectId)
@@ -424,8 +446,10 @@ export function Projects({ onProjectSelect }: ProjectsProps) {
         project.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
         (project.client?.toLowerCase() || "").includes(searchTerm.toLowerCase())
       const matchesStatus = statusFilter === "all" || project.status === statusFilter
+      const matchesCategory = categoryFilter === "all" || (project.priority && project.priority === categoryFilter)
+      const matchesProject = projectFilter === "all" || project.id === projectFilter
       
-      return matchesSearch && matchesStatus
+      return matchesSearch && matchesStatus && matchesCategory && matchesProject
     })
     .sort((a, b) => {
       // First, sort by status priority (completed projects last)
@@ -463,38 +487,147 @@ export function Projects({ onProjectSelect }: ProjectsProps) {
 
   return (
     <div className="p-3 sm:p-4 lg:p-6 space-y-4 sm:space-y-6 overflow-y-auto h-full max-w-full">
-      {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+      {/* Header - Desktop layout */}
+      <div className="hidden sm:flex sm:items-center justify-between gap-4">
         <div>
           <h1 className="text-xl sm:text-2xl font-bold text-gray-900">Projects</h1>
           <p className="text-sm sm:text-base text-gray-600">Manage and track all your electrical engineering projects</p>
         </div>
-        <ProjectFormModal onProjectCreated={handleProjectCreated} />
+        <div className="flex items-center space-x-3">
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={handleRefresh}
+            className="flex items-center gap-2"
+          >
+            <RefreshCw className="h-4 w-4" />
+            Refresh
+          </Button>
+          <ProjectFormModal onProjectCreated={handleProjectCreated} />
+        </div>
       </div>
 
-      {/* Filters */}
-      <div className="flex flex-col sm:flex-row gap-3 sm:gap-4">
-        <div className="relative w-full sm:w-80">
-          <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
-          <Input
-            placeholder="Search projects or clients..."
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-            className="pl-10 h-10"
-          />
+      {/* Header - Mobile layout */}
+      <div className="sm:hidden">
+        <div className="flex items-center justify-between mb-4">
+          <div>
+            <h1 className="text-xl font-bold text-gray-900">Projects</h1>
+            <p className="text-sm text-gray-600">Manage and track all your electrical engineering projects</p>
+          </div>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={handleRefresh}
+            className="flex items-center gap-2"
+          >
+            <RefreshCw className="h-4 w-4" />
+          </Button>
         </div>
-        <Select value={statusFilter} onValueChange={setStatusFilter}>
-          <SelectTrigger className="w-full sm:w-48 h-10">
-            <SelectValue placeholder="Filter by status" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">All Status</SelectItem>
-            <SelectItem value="planning">Planning</SelectItem>
-            <SelectItem value="in-progress">In-Progress</SelectItem>
-            <SelectItem value="on-hold">On-Hold</SelectItem>
-            <SelectItem value="completed">Completed</SelectItem>
-          </SelectContent>
-        </Select>
+        
+        {/* Mobile Filters Row 1 - Search and New Project */}
+        <div className="grid grid-cols-2 gap-3 mb-3">
+          <div className="relative">
+            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
+            <Input
+              placeholder="Search projects..."
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              className="pl-10 h-10"
+            />
+          </div>
+          <ProjectFormModal onProjectCreated={handleProjectCreated} />
+        </div>
+        
+        {/* Mobile Filters Row 2 - Categories and Status */}
+        <div className="grid grid-cols-2 gap-3">
+          <Select value={categoryFilter} onValueChange={setCategoryFilter}>
+            <SelectTrigger className="w-full h-10">
+              <SelectValue placeholder="All Categories" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All Categories</SelectItem>
+              {uniqueCategories.map((category) => (
+                <SelectItem key={category} value={category}>
+                  {category}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          <Select value={statusFilter} onValueChange={setStatusFilter}>
+            <SelectTrigger className="w-full h-10">
+              <SelectValue placeholder="All Status" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All Status</SelectItem>
+              <SelectItem value="planning">Planning</SelectItem>
+              <SelectItem value="in-progress">In-Progress</SelectItem>
+              <SelectItem value="on-hold">On-Hold</SelectItem>
+              <SelectItem value="completed">Completed</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+      </div>
+
+      {/* Desktop Filters */}
+      <div className="hidden sm:block">
+        {/* Filters Row 1 - Search and All Projects */}
+        <div className="flex flex-col sm:flex-row gap-3 sm:gap-4 mb-4">
+          <div className="relative w-full sm:w-80">
+            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
+            <Input
+              placeholder="Search projects or clients..."
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              className="pl-10 h-10"
+            />
+          </div>
+          <div className="w-full sm:w-48">
+            <Select value={projectFilter} onValueChange={setProjectFilter}>
+              <SelectTrigger className="w-full h-10">
+                <SelectValue placeholder="All Projects" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Projects</SelectItem>
+                {uniqueProjects.map((project) => (
+                  <SelectItem key={project.id} value={project.id}>
+                    {project.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+        </div>
+
+        {/* Filters Row 2 - Categories and Status */}
+        <div className="flex flex-col sm:flex-row gap-3 sm:gap-4">
+          <div className="w-full sm:w-48">
+            <Select value={categoryFilter} onValueChange={setCategoryFilter}>
+              <SelectTrigger className="w-full h-10">
+                <SelectValue placeholder="All Categories" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Categories</SelectItem>
+                {uniqueCategories.map((category) => (
+                  <SelectItem key={category} value={category}>
+                    {category}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+          <Select value={statusFilter} onValueChange={setStatusFilter}>
+            <SelectTrigger className="w-full sm:w-48 h-10">
+              <SelectValue placeholder="Filter by status" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All Status</SelectItem>
+              <SelectItem value="planning">Planning</SelectItem>
+              <SelectItem value="in-progress">In-Progress</SelectItem>
+              <SelectItem value="on-hold">On-Hold</SelectItem>
+              <SelectItem value="completed">Completed</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
       </div>
 
       {/* Project Stats */}

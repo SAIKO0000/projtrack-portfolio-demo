@@ -1,7 +1,7 @@
 "use client"
 
 import React from "react"
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import Image from "next/image"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
@@ -33,6 +33,7 @@ import {
   ArrowRight,
   Edit,
   Search,
+  RefreshCw,
 } from "lucide-react"
 import { EventFormModal } from "./event-form-modal"
 import { DeleteEventDialog } from "./delete-event-dialog"
@@ -89,6 +90,7 @@ export function Calendar() {
   const [selectedDate, setSelectedDate] = useState(new Date())
   const [selectedProject, setSelectedProject] = useState("all")
   const [searchQuery, setSearchQuery] = useState("")
+  const [showSearchSuggestions, setShowSearchSuggestions] = useState(false)
   const [selectedDay, setSelectedDay] = useState<Date | null>(null)
   const [showDayModal, setShowDayModal] = useState(false)
   const [deleteEventId, setDeleteEventId] = useState<string | null>(null)
@@ -123,6 +125,23 @@ export function Calendar() {
       (photo.description && photo.description.toLowerCase().includes(searchQuery.toLowerCase()))
     )
   }) : []
+
+  // Handle navigation from notifications
+  useEffect(() => {
+    const navigateToDate = localStorage.getItem('navigateToDate')
+    const navigateToType = localStorage.getItem('navigateToType')
+    
+    if (navigateToDate && navigateToType === 'photo') {
+      const targetDate = new Date(navigateToDate)
+      setSelectedDate(targetDate)
+      setSelectedDay(targetDate)
+      setShowDayModal(true)
+      
+      // Clear the navigation request
+      localStorage.removeItem('navigateToDate')
+      localStorage.removeItem('navigateToType')
+    }
+  }, [])
 
   const monthNames = [
     "January", "February", "March", "April", "May", "June",
@@ -166,6 +185,78 @@ export function Calendar() {
         event.type.toLowerCase().includes(searchQuery.toLowerCase())
       return matchesDate && matchesProject && matchesSearch
     })
+  }
+
+  // Get search suggestions from events and photos
+  const getSearchSuggestions = () => {
+    if (searchQuery.length < 2) return []
+    
+    const suggestions: Array<{
+      text: string
+      type: 'event' | 'photo'
+      id?: string
+      date?: string
+      projectId?: string
+    }> = []
+    const query = searchQuery.toLowerCase()
+    
+    // Add event suggestions
+    events.forEach(event => {
+      if (event.title.toLowerCase().includes(query) && 
+          !suggestions.some(s => s.text === event.title)) {
+        suggestions.push({
+          text: event.title,
+          type: 'event',
+          id: event.id,
+          date: event.date,
+          projectId: event.project_id
+        })
+      }
+      if (event.description?.toLowerCase().includes(query) && 
+          !suggestions.some(s => s.text === event.description)) {
+        suggestions.push({
+          text: event.description,
+          type: 'event',
+          id: event.id,
+          date: event.date,
+          projectId: event.project_id
+        })
+      }
+      if (event.location?.toLowerCase().includes(query) && 
+          !suggestions.some(s => s.text === event.location)) {
+        suggestions.push({
+          text: event.location,
+          type: 'event',
+          id: event.id,
+          date: event.date,
+          projectId: event.project_id
+        })
+      }
+    })
+    
+    // Add photo suggestions
+    photos.forEach(photo => {
+      if (photo.title?.toLowerCase().includes(query) && 
+          !suggestions.some(s => s.text === photo.title)) {
+        suggestions.push({
+          text: photo.title,
+          type: 'photo',
+          id: photo.id,
+          date: photo.upload_date || photo.created_at?.split('T')[0] || photo.uploaded_at?.split('T')[0]
+        })
+      }
+      if (photo.file_name.toLowerCase().includes(query) && 
+          !suggestions.some(s => s.text === photo.file_name)) {
+        suggestions.push({
+          text: photo.file_name,
+          type: 'photo',
+          id: photo.id,
+          date: photo.upload_date || photo.created_at?.split('T')[0] || photo.uploaded_at?.split('T')[0]
+        })
+      }
+    })
+    
+    return suggestions.slice(0, 8) // Limit to 8 suggestions
   }
 
   const getEventTypeColor = (type: string) => {
@@ -309,6 +400,16 @@ export function Calendar() {
     } catch (error) {
       console.error("Failed to delete photo:", error)
       toast.error("Failed to delete photo")
+    }
+  }
+
+  const handleRefresh = async () => {
+    try {
+      await fetchEvents()
+      toast.success("Calendar refreshed successfully")
+    } catch (error) {
+      console.error('Error refreshing calendar:', error)
+      toast.error("Failed to refresh calendar")
     }
   }
 
@@ -491,12 +592,39 @@ export function Calendar() {
     <div className="p-2 sm:p-4 lg:p-6 space-y-3 sm:space-y-4 overflow-y-auto h-full bg-gray-50">
       {/* Mobile-optimized Header */}
       <div className="bg-white p-3 sm:p-4 rounded-lg shadow-sm">
-        <div className="flex items-center justify-between gap-3 sm:gap-4">
+        {/* Mobile Layout: Title and description centered */}
+        <div className="lg:hidden text-center mb-4">
+          <h1 className="text-lg sm:text-xl font-bold text-gray-900">Calendar</h1>
+          <p className="text-xs sm:text-sm text-gray-600">Schedule and track project activities</p>
+          <div className="flex justify-center mt-3">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={handleRefresh}
+              className="flex items-center gap-2"
+            >
+              <RefreshCw className="h-4 w-4" />
+              Refresh
+            </Button>
+          </div>
+        </div>
+        
+        {/* Desktop Layout: Title and New Event button in row */}
+        <div className="hidden lg:flex items-center justify-between gap-3 sm:gap-4">
           <div className="text-left flex-1">
             <h1 className="text-lg sm:text-xl font-bold text-gray-900">Calendar</h1>
             <p className="text-xs sm:text-sm text-gray-600">Schedule and track project activities</p>
           </div>
-          <div className="flex justify-end">
+          <div className="flex items-center space-x-3">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={handleRefresh}
+              className="flex items-center gap-2"
+            >
+              <RefreshCw className="h-4 w-4" />
+              Refresh
+            </Button>
             <EventFormModal onEventCreated={handleEventCreated} />
           </div>
         </div>
@@ -505,8 +633,28 @@ export function Calendar() {
       {/* Project Filter and Search - Mobile Optimized */}
       <div className="bg-white p-3 sm:p-4 rounded-lg shadow-sm border">
         <div className="flex flex-col sm:flex-row gap-3 sm:gap-4 sm:items-center">
-          {/* Project Filter */}
-          <div className="flex items-center gap-2 sm:flex-none">
+          {/* Mobile: Project Filter and New Event Button in same row */}
+          <div className="flex items-center gap-2 lg:hidden">
+            <div className="flex-1">
+              <Select value={selectedProject} onValueChange={setSelectedProject}>
+                <SelectTrigger className="w-full h-9">
+                  <SelectValue placeholder="All Projects" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All Projects</SelectItem>
+                  {projects.map((project) => (
+                    <SelectItem key={project.id} value={project.id}>
+                      {project.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <EventFormModal onEventCreated={handleEventCreated} />
+          </div>
+          
+          {/* Desktop: Project Filter */}
+          <div className="hidden lg:flex items-center gap-2 sm:flex-none">
             <span className="text-sm text-gray-700 hidden sm:inline">Filter:</span>
             <Select value={selectedProject} onValueChange={setSelectedProject}>
               <SelectTrigger className="w-full sm:w-48 h-9">
@@ -529,25 +677,98 @@ export function Calendar() {
             <Input
               placeholder="Search events..."
               value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
+              onChange={(e) => {
+                setSearchQuery(e.target.value)
+                setShowSearchSuggestions(e.target.value.length >= 2)
+              }}
+              onFocus={() => setShowSearchSuggestions(searchQuery.length >= 2)}
+              onBlur={() => setTimeout(() => setShowSearchSuggestions(false), 150)}
               className="pl-10 h-9"
             />
             {searchQuery && (
               <Button
                 variant="ghost"
                 size="sm"
-                onClick={() => setSearchQuery("")}
+                onClick={() => {
+                  setSearchQuery("")
+                  setShowSearchSuggestions(false)
+                }}
                 className="absolute right-2 top-1/2 transform -translate-y-1/2 text-gray-500 hover:text-gray-700 h-6 w-6 p-0"
               >
                 <X className="h-3 w-3" />
               </Button>
+            )}
+            
+            {/* Search Suggestions Dropdown */}
+            {showSearchSuggestions && getSearchSuggestions().length > 0 && (
+              <div className="absolute top-full left-0 right-0 mt-2 bg-white border border-gray-200 rounded-xl shadow-xl z-50 max-h-64 overflow-y-auto backdrop-blur-sm">
+                <div className="p-2">
+                  <div className="text-xs font-medium text-gray-500 px-3 py-2 uppercase tracking-wide">
+                    Quick Results
+                  </div>
+                  {getSearchSuggestions().map((suggestion, index) => (
+                    <button
+                      key={index}
+                      onClick={() => {
+                        // Keep the search query but clear suggestions
+                        setShowSearchSuggestions(false)
+                        
+                        // Navigate to the specific item
+                        if (suggestion.type === 'event' && suggestion.date) {
+                          // Navigate to the specific date and highlight the event
+                          const targetDate = new Date(suggestion.date)
+                          setSelectedDate(targetDate)
+                          setSelectedDay(targetDate)
+                          setShowDayModal(true)
+                          // Set search query to help highlight the specific event
+                          setSearchQuery(suggestion.text)
+                        } else if (suggestion.type === 'photo' && suggestion.date) {
+                          // Navigate to the photo date
+                          const targetDate = new Date(suggestion.date)
+                          setSelectedDate(targetDate)
+                          setSelectedDay(targetDate)
+                          setShowDayModal(true)
+                          // Set search query to help filter the specific photo
+                          setSearchQuery(suggestion.text)
+                        }
+                      }}
+                      className="w-full text-left px-3 py-3 hover:bg-gradient-to-r hover:from-blue-50 hover:to-purple-50 rounded-lg transition-all duration-200 group"
+                    >
+                      <div className="flex items-center gap-3">
+                        <div className={`p-2 rounded-lg ${suggestion.type === 'event' ? 'bg-blue-100 text-blue-600' : 'bg-green-100 text-green-600'} group-hover:scale-110 transition-transform duration-200`}>
+                          {suggestion.type === 'event' ? (
+                            <CalendarIcon className="h-4 w-4" />
+                          ) : (
+                            <ImageIcon className="h-4 w-4" />
+                          )}
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <div className="text-gray-900 font-medium text-sm truncate group-hover:text-gray-700">
+                            {suggestion.text}
+                          </div>
+                          <div className="flex items-center gap-2 mt-1">
+                            <span className={`text-xs px-2 py-1 rounded-full font-medium ${
+                              suggestion.type === 'event' 
+                                ? 'bg-blue-100 text-blue-700' 
+                                : 'bg-green-100 text-green-700'
+                            }`}>
+                              {suggestion.type === 'event' ? 'Event' : 'Photo'}
+                            </span>
+                            <span className="text-xs text-gray-500">{suggestion.date}</span>
+                          </div>
+                        </div>
+                      </div>
+                    </button>
+                  ))}
+                </div>
+              </div>
             )}
           </div>
           
           {/* Event count */}
           <div className="flex items-center justify-center sm:justify-start">
             <span className="text-xs sm:text-sm text-gray-600 bg-gray-50 px-3 py-1 rounded-full">
-              {filteredEvents.length} events
+              {filteredEvents.length} Events
             </span>
           </div>
         </div>
@@ -615,8 +836,8 @@ export function Calendar() {
             {/* Mobile-responsive day headers */}
             <div className="grid grid-cols-7 gap-0.5 sm:gap-1 mb-2 sm:mb-4">
               {["S", "M", "T", "W", "T", "F", "S"].map((day, index) => (
-                <div key={`day-header-${index}`} className="p-1 sm:p-2 text-center text-xs sm:text-sm font-medium text-gray-500">
-                  <span className="sm:hidden">{day}</span>
+                <div key={`day-header-${index}`} className="p-2 sm:p-2 text-center text-sm sm:text-sm font-medium text-gray-500 min-h-[40px] sm:min-h-[auto] flex items-center justify-center">
+                  <span className="sm:hidden text-base font-semibold">{day}</span>
                   <span className="hidden sm:inline">
                     {["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"][index]}
                   </span>
@@ -625,8 +846,8 @@ export function Calendar() {
             </div>
             
             {/* Mobile-responsive calendar grid */}
-            <div className="bg-gray-50 p-1 sm:p-3 rounded-lg">
-              <div className="grid grid-cols-7 gap-0.5 sm:gap-1 p-0.5 sm:p-1">
+            <div className="bg-gray-50 p-2 sm:p-3 rounded-lg mx-0">
+              <div className="grid grid-cols-7 gap-2 sm:gap-1">
                 {days.map((day, index) => {
                 const dayEvents = day ? getEventsForDate(day) : []
                 const isToday = day ? isSameDay(day, today) : false
@@ -636,8 +857,8 @@ export function Calendar() {
                   <div
                     key={day ? formatDateToLocal(day) : `empty-${index}`}
                     className={`
-                      min-h-[80px] sm:min-h-[120px] p-1 sm:p-2 border border-gray-200 rounded-md sm:rounded-lg cursor-pointer transition-all duration-200
-                      hover:shadow-lg hover:-translate-y-1 hover:border-gray-300
+                      min-h-[70px] sm:min-h-[120px] w-full p-2 sm:p-2 border border-gray-200 rounded-md sm:rounded-lg cursor-pointer transition-all duration-200
+                      hover:shadow-lg hover:-translate-y-1 hover:border-gray-300 touch-manipulation
                       ${isToday ? 'bg-orange-50 ring-1 sm:ring-2 ring-orange-200 shadow-md' : 'bg-white hover:bg-gray-50'}
                       ${!isCurrentMonth ? 'bg-gray-50 text-gray-400 hover:bg-gray-100' : ''}
                     `}
@@ -646,7 +867,7 @@ export function Calendar() {
                     {day && (
                       <>
                         <div className="flex justify-between items-start mb-1">
-                          <div className={`text-xs sm:text-sm font-medium ${isToday ? 'text-orange-600' : ''}`}>
+                          <div className={`text-base sm:text-sm md:text-base font-semibold sm:font-medium ${isToday ? 'text-orange-600' : ''}`}>
                             {day.getDate()}
                           </div>
                           <PhotoCountBadge date={day} photoCounts={photoCounts} />
@@ -744,7 +965,7 @@ export function Calendar() {
                             )}
                           </div>
                           <Badge variant="secondary" className={`text-[10px] sm:text-xs ml-2 flex-shrink-0 ${getEventTypeColor(event.type)}`}>
-                            {event.type}
+                            {event.type.charAt(0).toUpperCase() + event.type.slice(1)}
                           </Badge>
                         </div>
                       </div>
@@ -945,7 +1166,7 @@ export function Calendar() {
           clearAllSelections()
         }
       }}>
-        <DialogContent className="w-[95vw] max-w-4xl max-h-[85vh] overflow-hidden flex flex-col p-0">
+        <DialogContent className="w-[90vw] max-w-3xl max-h-[90vh] overflow-hidden flex flex-col p-0">
           <DialogHeader className="p-3 sm:p-4 border-b border-gray-200 flex-shrink-0">
             <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
               <div className="flex-1 min-w-0">
@@ -1091,7 +1312,7 @@ export function Calendar() {
                             <div className="flex items-center space-x-2 mb-2">
                               <h4 className="font-medium">{event.title}</h4>
                               <Badge className={getEventTypeColor(event.type)}>
-                                {event.type}
+                                {event.type.charAt(0).toUpperCase() + event.type.slice(1)}
                               </Badge>
                             </div>
                             <div className="space-y-1 text-sm text-gray-600">
@@ -1301,22 +1522,26 @@ export function Calendar() {
                   <h4 className="text-sm font-medium">Files to Upload:</h4>
                   <div className="space-y-1.5">
                     {uploadFiles.map((file, index) => (
-                      <div key={`upload-${file.name}-${file.size}`} className="flex items-center justify-between p-2 bg-white rounded border">
-                        <div className="flex items-center gap-2 flex-1 min-w-0">
-                          <ImageIcon className="h-4 w-4 text-gray-400 flex-shrink-0" />
-                          <span className="text-sm truncate">{file.name}</span>
-                          <span className="text-xs text-gray-500 flex-shrink-0">
-                            ({(file.size / 1024 / 1024).toFixed(2)} MB)
-                          </span>
+                      <div key={`upload-${file.name}-${file.size}`} className="p-2 bg-white rounded border">
+                        <div className="flex items-start justify-between">
+                          <div className="flex items-start gap-2 flex-1 min-w-0">
+                            <ImageIcon className="h-4 w-4 text-gray-400 flex-shrink-0 mt-0.5" />
+                            <div className="flex-1 min-w-0">
+                              <span className="text-sm block break-words">{file.name}</span>
+                              <span className="text-xs text-gray-500 block">
+                                ({(file.size / 1024 / 1024).toFixed(2)} MB)
+                              </span>
+                            </div>
+                          </div>
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            onClick={() => removeFile(index)}
+                            className="ml-2 flex-shrink-0"
+                          >
+                            <X className="h-4 w-4" />
+                          </Button>
                         </div>
-                        <Button
-                          size="sm"
-                          variant="ghost"
-                          onClick={() => removeFile(index)}
-                          className="ml-2 flex-shrink-0"
-                        >
-                          <X className="h-4 w-4" />
-                        </Button>
                       </div>
                     ))}
                   </div>
@@ -1399,10 +1624,10 @@ export function Calendar() {
                           </Button>
                         </div>
                       </div><div className="p-1.5 sm:p-2">
-                        <p className="text-xs font-medium text-gray-900 truncate" title={photo.title || photo.file_name}>
+                        <p className="text-xs font-medium text-gray-900 break-words" title={photo.title || photo.file_name}>
                           {photo.title || photo.file_name}
                         </p>
-                        <p className="text-xs text-gray-500 truncate" title={photo.file_name} style={{ fontSize: '0.625rem', fontWeight: 'normal' }}>
+                        <p className="text-xs text-gray-500 break-words" title={photo.file_name} style={{ fontSize: '0.625rem', fontWeight: 'normal' }}>
                           ({photo.file_name})
                         </p>
                         <p className="text-xs text-gray-400 mt-0.5">

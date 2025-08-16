@@ -195,7 +195,7 @@ export function EventFormModal({ onEventCreated, selectedDate, trigger, eventToE
       )}
       <DialogContent className="sm:max-w-[600px] max-h-[90vh] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle className="text-xl font-bold text-gray-900 flex items-center">
+          <DialogTitle className="text-xl font-bold text-gray-900 flex items-center pr-8">
             <div className="w-10 h-10 rounded-lg bg-orange-50 flex items-center justify-center mr-3 shadow-sm">
               <CalendarPlus className="h-5 w-5 text-orange-500" />
             </div>

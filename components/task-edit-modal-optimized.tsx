@@ -165,7 +165,7 @@ export function TaskEditModalOptimized({ task, open, onOpenChangeAction, onTaskU
         start_date: formData.start_date ? formatDateForDatabase(formData.start_date) : null,
         end_date: formData.end_date ? formatDateForDatabase(formData.end_date) : null,
         status: formData.status,
-        priority: "medium", // Set default priority
+        priority: "low", // Set default priority
         progress: 0, // We don't track progress anymore
         phase: formData.phase,
         category: "planning", // Set default category

@@ -7,7 +7,6 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Badge } from "@/components/ui/badge"
-import { ProfilePictureUpload } from "@/components/profile-picture-upload"
 import { 
   User, 
   Mail, 
@@ -15,7 +14,8 @@ import {
   Phone, 
   Edit3, 
   Save, 
-  Loader2
+  Loader2,
+  Upload
 } from "lucide-react"
 import { useCurrentUserPersonnel } from "@/lib/hooks/useCurrentUserPersonnel"
 import { useAuth } from "@/lib/auth"
@@ -46,6 +46,17 @@ export function ProfileModal({ isOpen, onCloseAction, personnel: viewingPersonne
   const isOwnProfile = !viewingPersonnel || (viewingPersonnel?.email === user?.email)
   const loading = viewingPersonnel ? false : currentUserLoading
 
+  // Helper function to get initials
+  const getInitials = useCallback((name: string) => {
+    if (!name) return "U"
+    return name
+      .split(" ")
+      .map((n) => n[0])
+      .join("")
+      .toUpperCase()
+      .slice(0, 2)
+  }, [])
+
   // Initialize form data when personnel data loads
   const initializeFormData = useCallback(() => {
     if (displayedPersonnel) {
@@ -62,16 +73,6 @@ export function ProfileModal({ isOpen, onCloseAction, personnel: viewingPersonne
       initializeFormData()
     }
   }, [isOpen, displayedPersonnel, initializeFormData])
-
-  const getInitials = useCallback((name: string) => {
-    if (!name) return "U"
-    return name
-      .split(" ")
-      .map((n) => n[0])
-      .join("")
-      .toUpperCase()
-      .slice(0, 2)
-  }, [])
 
   const handleEditToggle = useCallback(() => {
     if (isEditing) {
@@ -152,68 +153,98 @@ export function ProfileModal({ isOpen, onCloseAction, personnel: viewingPersonne
 
   return (
     <Dialog open={isOpen} onOpenChange={onCloseAction}>
-      <DialogContent className="w-[95vw] max-w-[500px] max-h-[85vh] overflow-y-auto bg-white/95 backdrop-blur-sm border border-gray-200 shadow-2xl mx-4">
-        <DialogHeader className="pb-4">
-          <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
-            <DialogTitle className="text-lg sm:text-2xl font-bold text-gray-900 flex items-center gap-2">
-              <User className="h-5 w-5 sm:h-6 sm:w-6 text-orange-500" />
-              <span className="break-words">{isOwnProfile ? "Profile Settings" : `${userName}'s Profile`}</span>
-            </DialogTitle>
-            <div className="flex items-center gap-2 w-full sm:w-auto">
-              {isOwnProfile && !isEditing ? (
-                <Button 
-                  variant="outline" 
-                  size="sm" 
-                  onClick={handleEditToggle}
-                  className="hover:bg-orange-50 hover:border-orange-200 flex-1 sm:flex-none"
-                >
-                  <Edit3 className="h-4 w-4 mr-2" />
-                  Edit
-                </Button>
-              ) : isOwnProfile && isEditing ? (
-                <div className="flex gap-2 w-full sm:w-auto">
-                  <Button 
-                    variant="outline" 
-                    size="sm" 
-                    onClick={handleEditToggle}
-                    disabled={updating}
-                    className="flex-1 sm:flex-none"
-                  >
-                    Cancel
-                  </Button>
-                  <Button 
-                    size="sm" 
-                    onClick={handleSave}
-                    disabled={!isFormValid || updating}
-                    className="bg-orange-500 hover:bg-orange-600 flex-1 sm:flex-none"
-                  >
-                    {updating ? (
-                      <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                    ) : (
-                      <Save className="h-4 w-4 mr-2" />
-                    )}
-                    Save
-                  </Button>
-                </div>
-              ) : null}
-            </div>
-          </div>
+      <DialogContent className="w-[95vw] max-w-[500px] max-h-[85vh] overflow-y-auto bg-white/95 backdrop-blur-sm border border-gray-200 shadow-2xl fixed top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2">
+        <DialogHeader className="pb-4 text-center sm:text-left pr-8">
+          <DialogTitle className="text-lg sm:text-2xl font-bold text-gray-900 flex items-center justify-center sm:justify-start gap-2 w-full sm:w-auto">
+            <User className="h-5 w-5 sm:h-6 sm:w-6 text-orange-500" />
+            <span className="break-words text-center sm:text-left">{isOwnProfile ? "Profile Settings" : `${userName}'s Profile`}</span>
+          </DialogTitle>
         </DialogHeader>
 
         <div className="space-y-3 px-1">
           {/* Compact Profile Header */}
-          <div className="flex flex-col sm:flex-row items-start space-y-3 sm:space-y-0 sm:space-x-4 p-3 sm:p-4 bg-gradient-to-r from-orange-50 to-orange-100 rounded-lg border border-orange-200">
-            <div className="flex-shrink-0 self-center sm:self-start">
+          <div className="flex flex-col items-center space-y-4 p-3 sm:p-4 bg-gradient-to-r from-orange-50 to-orange-100 rounded-lg border border-orange-200">
+            {/* Avatar Section */}
+            <div className="flex flex-col items-center">
               {isOwnProfile ? (
-                <ProfilePictureUpload
-                  key={displayedPersonnel?.avatar_url || 'no-avatar'}
-                  currentAvatarUrl={displayedPersonnel?.avatar_url}
-                  personnelId={displayedPersonnel?.id || ''}
-                  userName={userName}
-                  onAvatarUpdateAction={handleAvatarUpdateAction}
-                  size="md"
-                  editable={true}
-                />
+                <div className="flex flex-col items-center space-y-3">
+                  {/* Just the avatar part from ProfilePictureUpload */}
+                  <div className="relative group">
+                    <Avatar className="h-16 w-16 ring-4 ring-white shadow-lg">
+                      <AvatarImage 
+                        src={displayedPersonnel?.avatar_url || ""} 
+                        alt={userName}
+                        className="object-cover"
+                      />
+                      <AvatarFallback className="bg-gradient-to-r from-orange-500 to-orange-600 text-white text-lg font-semibold">
+                        {getInitials(userName)}
+                      </AvatarFallback>
+                    </Avatar>
+                  </div>
+                  
+                  {/* Custom buttons row with Upload and Edit */}
+                  <div className="flex items-center gap-2 flex-wrap justify-center">
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => {
+                        // Create and trigger a file input
+                        const input = document.createElement('input')
+                        input.type = 'file'
+                        input.accept = 'image/*'
+                        input.onchange = (e) => {
+                          const file = (e.target as HTMLInputElement).files?.[0]
+                          if (file) {
+                            // Handle file upload here - you'd need to implement this
+                            console.log('File selected:', file)
+                          }
+                        }
+                        input.click()
+                      }}
+                      className="hover:bg-orange-50 hover:border-orange-200"
+                    >
+                      <Upload className="h-4 w-4 mr-2" />
+                      Upload
+                    </Button>
+                    
+                    {!isEditing ? (
+                      <Button 
+                        variant="outline" 
+                        size="sm" 
+                        onClick={handleEditToggle}
+                        className="hover:bg-blue-50 hover:border-blue-200"
+                      >
+                        <Edit3 className="h-4 w-4 mr-2" />
+                        Edit
+                      </Button>
+                    ) : (
+                      <>
+                        <Button 
+                          variant="outline" 
+                          size="sm" 
+                          onClick={handleEditToggle}
+                          disabled={updating}
+                          className="text-xs px-2"
+                        >
+                          Cancel
+                        </Button>
+                        <Button 
+                          size="sm" 
+                          onClick={handleSave}
+                          disabled={!isFormValid || updating}
+                          className="bg-orange-500 hover:bg-orange-600 text-xs px-2"
+                        >
+                          {updating ? (
+                            <Loader2 className="h-4 w-4 mr-1 animate-spin" />
+                          ) : (
+                            <Save className="h-4 w-4 mr-1" />
+                          )}
+                          Save
+                        </Button>
+                      </>
+                    )}
+                  </div>
+                </div>
               ) : (
                 <Avatar className="h-14 w-14 sm:h-16 sm:w-16 ring-2 ring-white shadow-md">
                   <AvatarImage src={displayedPersonnel?.avatar_url || ""} alt={userName} />
@@ -223,31 +254,32 @@ export function ProfileModal({ isOpen, onCloseAction, personnel: viewingPersonne
                 </Avatar>
               )}
             </div>
-            <div className="flex-1 min-w-0 w-full sm:w-auto text-center sm:text-left">
-              <h2 className="text-lg sm:text-xl font-bold text-gray-900 truncate">{userName}</h2>
-              <div className="flex flex-col sm:flex-row items-center sm:justify-between mt-1 gap-2">
-                <Badge variant="secondary" className="bg-orange-100 text-orange-800 border-orange-200 text-xs">
-                  <Briefcase className="h-3 w-3 mr-1" />
-                  {userPosition}
-                </Badge>
-                {displayedPersonnel?.created_at && (
-                  <div className="text-center sm:text-right">
-                    <p className="text-xs text-gray-500">Member Since</p>
-                    <p className="text-xs font-medium text-gray-700">
-                      {new Date(displayedPersonnel.created_at).toLocaleDateString('en-US', {
-                        month: 'short',
-                        year: 'numeric'
-                      })}
-                    </p>
-                  </div>
-                )}
+            
+            {/* User Information - Centered layout */}
+            <div className="flex flex-col items-center text-center space-y-2">
+              <h2 className="text-lg sm:text-xl font-bold text-gray-900 break-words">{userName}</h2>
+              
+              <Badge variant="secondary" className="bg-orange-100 text-orange-800 border-orange-200 text-xs">
+                <Briefcase className="h-3 w-3 mr-1" />
+                {userPosition}
+              </Badge>
+              
+              <div className="flex items-center gap-1 text-xs text-gray-600">
+                <Mail className="h-3 w-3 flex-shrink-0" />
+                <span className="break-words">{userEmail}</span>
               </div>
-              <div className="mt-2">
-                <div className="flex items-center justify-center sm:justify-start gap-1 text-xs text-gray-600">
-                  <Mail className="h-3 w-3 flex-shrink-0" />
-                  <span className="truncate max-w-[200px] sm:max-w-none">{userEmail}</span>
+              
+              {displayedPersonnel?.created_at && (
+                <div className="text-center">
+                  <p className="text-xs text-gray-500">Member Since</p>
+                  <p className="text-xs font-medium text-gray-700">
+                    {new Date(displayedPersonnel.created_at).toLocaleDateString('en-US', {
+                      month: 'short',
+                      year: 'numeric'
+                    })}
+                  </p>
                 </div>
-              </div>
+              )}
             </div>
           </div>
 

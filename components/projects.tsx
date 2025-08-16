@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useMemo, useCallback } from "react"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -37,6 +37,13 @@ import { ReviewerNotesModal } from "@/components/reviewer-notes-modal"
 import { SimpleNotesModal } from "@/components/simple-notes-modal"
 import { DocumentViewerWithNotesModal } from "@/components/document-viewer-with-notes-modal"
 import { toast } from "react-hot-toast"
+
+// Extend window interface for refresh tracking
+declare global {
+  interface Window {
+    lastRefreshTime?: number
+  }
+}
 import { supabase } from "@/lib/supabase"
 
 type Project = {
@@ -55,6 +62,27 @@ type Project = {
 
 interface ProjectsProps {
   readonly onProjectSelect?: (projectId: string) => void
+}
+
+// Add request throttling utility
+const createThrottledFunction = <T extends unknown[]>(func: (...args: T) => void, delay: number) => {
+  let timeoutId: NodeJS.Timeout | null = null
+  let lastExecTime = 0
+  
+  return (...args: T) => {
+    const currentTime = Date.now()
+    
+    if (currentTime - lastExecTime > delay) {
+      func(...args)
+      lastExecTime = currentTime
+    } else {
+      if (timeoutId) clearTimeout(timeoutId)
+      timeoutId = setTimeout(() => {
+        func(...args)
+        lastExecTime = Date.now()
+      }, delay - (currentTime - lastExecTime))
+    }
+  }
 }
 
 export function Projects({ onProjectSelect }: ProjectsProps) {
@@ -105,25 +133,39 @@ export function Projects({ onProjectSelect }: ProjectsProps) {
     report: null
   })
 
-  // Get project reports
-  const getProjectReports = (projectId: string) => {
-    return reports.filter(report => report.project_id === projectId)
-  }
+  // Memoize expensive computations to reduce re-renders
+  const projectReportsMap = useMemo(() => {
+    const map = new Map<string, typeof reports>()
+    projects.forEach(project => {
+      map.set(project.id, reports.filter(report => report.project_id === project.id))
+    })
+    return map
+  }, [projects, reports])
 
-  // Get user position
-  const userPosition = user?.user_metadata?.position || "Team Member"
-  const isAdmin = ["Project Manager", "Senior Electrical Engineer", "Field Engineer", "Design Engineer"].includes(userPosition)
-  
+  const userPosition = useMemo(() => user?.user_metadata?.position || "Team Member", [user])
+  const isAdmin = useMemo(() => 
+    ["Project Manager", "Senior Electrical Engineer", "Field Engineer", "Design Engineer"].includes(userPosition),
+    [userPosition]
+  )
+
+  const currentUserPersonnel = useMemo(() => 
+    personnel.find(p => p.email === user?.email),
+    [personnel, user?.email]
+  )
+
+  // Get project reports with memoization
+  const getProjectReports = useCallback((projectId: string) => {
+    return projectReportsMap.get(projectId) || []
+  }, [projectReportsMap])
+
   console.log('User admin check:', { userPosition, isAdmin, email: user?.email })
 
   // Helper function to check if current user is the assigned reviewer for a report
-  const isAssignedReviewer = (report: typeof reports[0]) => {
-    const currentUserPersonnel = personnel.find(p => p.email === user?.email)
+  const isAssignedReviewer = useCallback((report: typeof reports[0]) => {
+    if (!currentUserPersonnel) return false
     
-    // Check if user is the assigned reviewer
     const reportWithReviewer = report as typeof report & { assigned_reviewer?: string }
-    
-    const isReviewer = reportWithReviewer.assigned_reviewer === currentUserPersonnel?.id
+    const isReviewer = reportWithReviewer.assigned_reviewer === currentUserPersonnel.id
     
     console.log('Assigned reviewer check:', { 
       reportId: report.id,
@@ -133,23 +175,20 @@ export function Projects({ onProjectSelect }: ProjectsProps) {
       isAssigned: isReviewer
     })
     return isReviewer
-  }
+  }, [currentUserPersonnel, user?.email])
 
-  // Get reports assigned to current user for review (supports both single and multiple reviewer systems)
-  const getAssignedReportsForCurrentUser = () => {
-    const currentUserPersonnel = personnel.find(p => p.email === user?.email)
+  // Memoize assigned reports to prevent recalculation
+  const assignedReportsForCurrentUser = useMemo(() => {
     if (!currentUserPersonnel) return []
 
     return reports.filter(report => {
       if (report.status !== 'pending') return false
 
-      // Check single reviewer system (legacy)
       const reportWithReviewer = report as typeof report & { assigned_reviewer?: string }
       if (reportWithReviewer.assigned_reviewer === currentUserPersonnel.id) {
         return true
       }
 
-      // Check multiple reviewer system
       const reportWithReviewers = report as typeof report & { 
         report_reviewers?: Array<{
           reviewer_id: string
@@ -165,19 +204,24 @@ export function Projects({ onProjectSelect }: ProjectsProps) {
 
       return false
     })
-  }
+  }, [reports, currentUserPersonnel])
+
+  // Legacy function for backward compatibility
+  const getAssignedReportsForCurrentUser = useCallback(() => {
+    return assignedReportsForCurrentUser
+  }, [assignedReportsForCurrentUser])
 
   // Helper function to get uploader name and position
-  const getUploaderInfo = (report: typeof reports[0]): { name: string; position: string } => {
+  const getUploaderInfo = useCallback((report: typeof reports[0]): { name: string; position: string } => {
     const reportWithInfo = report as typeof report & { uploader_name?: string; uploader_position?: string }
     return {
       name: reportWithInfo.uploader_name || (report.uploaded_by ? `${report.uploaded_by.slice(0, 10)}...` : 'Unknown'),
       position: reportWithInfo.uploader_position || 'Unknown Position'
     }
-  }
+  }, [])
 
   // Helper function to get assigned reviewer names (multiple reviewers)
-  const getAssignedReviewerNames = (report: typeof reports[0]): string => {
+  const getAssignedReviewerNames = useCallback((report: typeof reports[0]): string => {
     const reportWithReviewer = report as typeof report & { assigned_reviewer?: string }
     
     if (!reportWithReviewer.assigned_reviewer) {
@@ -188,10 +232,10 @@ export function Projects({ onProjectSelect }: ProjectsProps) {
     const reviewer = personnel.find(p => p.id === reportWithReviewer.assigned_reviewer)
     
     return reviewer?.name || 'Unknown Reviewer'
-  }
+  }, [personnel])
 
   // Helper function to get individual reviewer status for display
-  const getReviewerStatus = (report: typeof reports[0]) => {
+  const getReviewerStatus = useCallback((report: typeof reports[0]) => {
     const reportWithReviewers = report as typeof report & { 
       report_reviewers?: Array<{
         reviewer_id: string
@@ -210,10 +254,10 @@ export function Projects({ onProjectSelect }: ProjectsProps) {
       reviewerPosition: rr.personnel?.position || 'Unknown Position',
       status: rr.status || 'pending'
     }))
-  }
+  }, [])
 
   // Helper function to format report display name as "Title (File Name)" or just file name if no title
-  const getReportDisplayName = (report: typeof reports[0]): { title: string; fileName: string; hasTitle: boolean } => {
+  const getReportDisplayName = useCallback((report: typeof reports[0]): { title: string; fileName: string; hasTitle: boolean } => {
     const reportWithTitle = report as typeof report & { title?: string }
     
     if (reportWithTitle.title?.trim()) {
@@ -229,20 +273,20 @@ export function Projects({ onProjectSelect }: ProjectsProps) {
       fileName: '',
       hasTitle: false
     }
-  }
+  }, [])
 
   // Capitalize first letter of each word for formal display
-  const capitalizeWords = (text: string | null | undefined): string => {
+  const capitalizeWords = useCallback((text: string | null | undefined): string => {
     if (!text) return "Unknown"
     return text
       .replace(/-/g, " ") // Replace hyphens with spaces
       .split(" ")
       .map(word => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase())
       .join(" ")
-  }
+  }, [])
 
   // Get report status color
-  const getReportStatusColor = (status: string | null) => {
+  const getReportStatusColor = useCallback((status: string | null) => {
     switch (status) {
       case "approved":
         return "bg-green-100 text-green-800"
@@ -254,76 +298,99 @@ export function Projects({ onProjectSelect }: ProjectsProps) {
       default:
         return "bg-gray-100 text-gray-800"
     }
-  }
+  }, [])
 
-  const handleProjectCreated = () => {
-    fetchProjects() // Refresh projects list
-  }
+  // Throttled refresh function
+  const throttledRefresh = useMemo(() => 
+    createThrottledFunction(async () => {
+      try {
+        // Only refresh if really needed
+        const shouldRefresh = Date.now() - (window.lastRefreshTime || 0) > 30000 // 30 seconds
+        if (!shouldRefresh) {
+          toast.success("Data is already up to date")
+          return
+        }
 
-  const handleRefresh = async () => {
-    try {
-      await Promise.all([
-        fetchProjects(),
-        fetchReports()
-      ])
-      toast.success("Projects refreshed successfully")
-    } catch (error) {
-      console.error('Error refreshing projects:', error)
-      toast.error("Failed to refresh projects")
-    }
-  }
+        await Promise.all([
+          fetchProjects(),
+          fetchReports()
+        ])
+        window.lastRefreshTime = Date.now()
+        toast.success("Projects refreshed successfully")
+      } catch (error) {
+        console.error('Error refreshing projects:', error)
+        toast.error("Failed to refresh projects")
+      }
+    }, 2000), // 2 second throttle
+    [fetchProjects, fetchReports]
+  )
 
-  // Get unique categories (using priority as categories for now)
-  const uniqueCategories = Array.from(new Set(projects.map(p => p.priority).filter(Boolean)))
+  const handleProjectCreated = useCallback(() => {
+    // Only refresh if necessary
+    setTimeout(() => fetchProjects(), 100) // Small delay to prevent race conditions
+  }, [fetchProjects])
 
-  // Get unique project names for filtering
-  const uniqueProjects = projects.map(p => ({ id: p.id, name: p.name }))
+  const handleRefresh = useCallback(() => {
+    throttledRefresh()
+  }, [throttledRefresh])
+
+  // Memoize computed values
+  const uniqueCategories = useMemo(() => 
+    Array.from(new Set(projects.map(p => p.priority).filter(Boolean))),
+    [projects]
+  )
+
+  const uniqueProjects = useMemo(() => 
+    projects.map(p => ({ id: p.id, name: p.name })),
+    [projects]
+  )
 
   // Calculate task-based progress for a project
-  const getProjectTaskProgress = (projectId: string) => {
+  const getProjectTaskProgress = useCallback((projectId: string) => {
     const projectTasks = tasks.filter(task => task.project_id === projectId)
     if (projectTasks.length === 0) return 0
     
     const completedTasks = projectTasks.filter(task => task.status === 'completed')
     return Math.round((completedTasks.length / projectTasks.length) * 100)
-  }
+  }, [tasks])
 
   // Get task counts for a project
-  const getProjectTaskCounts = (projectId: string) => {
+  const getProjectTaskCounts = useCallback((projectId: string) => {
     const projectTasks = tasks.filter(task => task.project_id === projectId)
     const completedTasks = projectTasks.filter(task => task.status === 'completed')
     return {
       total: projectTasks.length,
       completed: completedTasks.length
     }
-  }
+  }, [tasks])
 
-  const handleDeleteProject = async (projectId: string, projectName: string) => {
+  const handleDeleteProject = useCallback(async (projectId: string, projectName: string) => {
     if (confirm(`Are you sure you want to delete the project "${projectName}"? This action cannot be undone.`)) {
       try {
         await deleteProject(projectId)
         toast.success("Project deleted successfully")
-        fetchProjects() // Refresh the list
+        // Don't call fetchProjects here as the hook should handle the update
       } catch (error) {
         console.error("Delete error:", error)
         toast.error("Failed to delete project")
       }
     }
-  }
-  const handleEditProject = (projectId: string) => {
+  }, [deleteProject])
+
+  const handleEditProject = useCallback((projectId: string) => {
     const project = projects.find(p => p.id === projectId)
     if (project) {
       setEditingProject(project)
     }
-  }
+  }, [projects])
 
-  const handleProjectUpdated = () => {
+  const handleProjectUpdated = useCallback(() => {
     setEditingProject(null)
-    fetchProjects() // Refresh projects list
-  }
+    // Don't call fetchProjects here as the hook should handle the update
+  }, [])
 
   // Handle project status update
-  const handleStatusUpdate = async (projectId: string, newStatus: string) => {
+  const handleStatusUpdate = useCallback(async (projectId: string, newStatus: string) => {
     try {
       await updateProject(projectId, { status: newStatus })
       toast.success("Project status updated successfully")
@@ -331,10 +398,10 @@ export function Projects({ onProjectSelect }: ProjectsProps) {
       console.error("Status update error:", error)
       toast.error("Failed to update project status")
     }
-  }
+  }, [updateProject])
 
   // Handle reviewer notes submission
-  const handleReviewerNotesSubmit = async (action: 'approved' | 'revision' | 'rejected', notes: string) => {
+  const handleReviewerNotesSubmit = useCallback(async (action: 'approved' | 'revision' | 'rejected', notes: string) => {
     try {
       console.log('Submitting reviewer notes:', { reportId: reviewerNotesModal.reportId, action, notes })
       
@@ -345,7 +412,7 @@ export function Projects({ onProjectSelect }: ProjectsProps) {
       
       console.log('Report updated successfully')
       toast.success(`Report ${action} successfully`)
-      fetchReports() // Refresh reports to get updated data
+      // Don't call fetchReports here as the hook should handle the update
       setReviewerNotesModal({
         open: false,
         action: null,
@@ -356,17 +423,17 @@ export function Projects({ onProjectSelect }: ProjectsProps) {
       console.error("Status update error:", error)
       toast.error("Failed to update report status")
     }
-  }
+  }, [updateReport, reviewerNotesModal.reportId])
 
   // Handle simple notes submission (without status change)
-  const handleSimpleNotesSubmit = async (notes: string) => {
+  const handleSimpleNotesSubmit = useCallback(async (notes: string) => {
     try {
       await updateReport(simpleNotesModal.reportId, { 
         reviewer_notes: notes 
       })
       
       toast.success('Notes saved successfully')
-      fetchReports() // Refresh reports to get updated data
+      // Don't call fetchReports here as the hook should handle the update
       setSimpleNotesModal({
         open: false,
         reportId: '',
@@ -377,28 +444,26 @@ export function Projects({ onProjectSelect }: ProjectsProps) {
       console.error("Notes update error:", error)
       toast.error("Failed to save notes")
     }
-  }
+  }, [updateReport, simpleNotesModal.reportId])
 
   // Handler for document viewer with notes (both save notes and status changes)
-  const handleDocumentViewerNotesSubmit = async (reportId: string, notes: string) => {
+  const handleDocumentViewerNotesSubmit = useCallback(async (reportId: string, notes: string) => {
     try {
       await updateReport(reportId, { reviewer_notes: notes })
-      await fetchReports()
     } catch {
       throw new Error('Failed to save notes')
     }
-  }
+  }, [updateReport])
 
-  const handleDocumentViewerStatusChange = async (reportId: string, status: 'approved' | 'rejected' | 'revision', notes: string) => {
+  const handleDocumentViewerStatusChange = useCallback(async (reportId: string, status: 'approved' | 'rejected' | 'revision', notes: string) => {
     try {
       await updateReport(reportId, { status, reviewer_notes: notes })
-      await fetchReports()
     } catch {
       throw new Error(`Failed to ${status} report`)
     }
-  }
+  }, [updateReport])
 
-  const getStatusColor = (status: string | null) => {
+  const getStatusColor = useCallback((status: string | null) => {
     if (!status) return "bg-gray-100 text-gray-800"
     
     switch (status) {
@@ -413,9 +478,9 @@ export function Projects({ onProjectSelect }: ProjectsProps) {
       default:
         return "bg-gray-100 text-gray-800"
     }
-  }
+  }, [])
 
-  const getStatusIcon = (status: string | null) => {
+  const getStatusIcon = useCallback((status: string | null) => {
     if (!status) return <AlertCircle className="h-4 w-4" />
     
     switch (status) {
@@ -430,49 +495,51 @@ export function Projects({ onProjectSelect }: ProjectsProps) {
       default:
         return <AlertCircle className="h-4 w-4" />
     }
-  }
-  const formatDate = (dateString: string | null) => {
+  }, [])
+
+  const formatDate = useCallback((dateString: string | null) => {
     if (!dateString) return 'No date'
     return new Date(dateString).toLocaleDateString('en-US', {
       month: 'short',
       day: 'numeric',
       year: 'numeric'
     })
-  }
+  }, [])
 
-  const filteredProjects = projects
-    .filter((project) => {
-      const matchesSearch =
-        project.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        (project.client?.toLowerCase() || "").includes(searchTerm.toLowerCase())
-      const matchesStatus = statusFilter === "all" || project.status === statusFilter
-      const matchesCategory = categoryFilter === "all" || (project.priority && project.priority === categoryFilter)
-      const matchesProject = projectFilter === "all" || project.id === projectFilter
-      
-      return matchesSearch && matchesStatus && matchesCategory && matchesProject
-    })
-    .sort((a, b) => {
-      // First, sort by status priority (completed projects last)
-      const statusPriority = {
-        'in-progress': 1,
-        'planning': 2,
-        'on-hold': 3,
-        'completed': 4
-      }
-      
-      const statusA = statusPriority[(a.status || '') as keyof typeof statusPriority] || 5
-      const statusB = statusPriority[(b.status || '') as keyof typeof statusPriority] || 5
-      
-      if (statusA !== statusB) {
-        return statusA - statusB
-      }
-      
-      // Then sort by date (most recent first)
-      const dateA = new Date(a.end_date || a.start_date || a.created_at || '1970-01-01').getTime()
-      const dateB = new Date(b.end_date || b.start_date || b.created_at || '1970-01-01').getTime()
-      
-      return dateB - dateA // Most recent first
-    })
+  // Optimized filtered projects with memoization
+  const filteredProjects = useMemo(() => {
+    return projects
+      .filter((project) => {
+        const matchesSearch =
+          project.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+          (project.client?.toLowerCase() || "").includes(searchTerm.toLowerCase())
+        const matchesStatus = statusFilter === "all" || project.status === statusFilter
+        const matchesCategory = categoryFilter === "all" || (project.priority && project.priority === categoryFilter)
+        const matchesProject = projectFilter === "all" || project.id === projectFilter
+        
+        return matchesSearch && matchesStatus && matchesCategory && matchesProject
+      })
+      .sort((a, b) => {
+        const statusPriority = {
+          'in-progress': 1,
+          'planning': 2,
+          'on-hold': 3,
+          'completed': 4
+        }
+        
+        const statusA = statusPriority[(a.status || '') as keyof typeof statusPriority] || 5
+        const statusB = statusPriority[(b.status || '') as keyof typeof statusPriority] || 5
+        
+        if (statusA !== statusB) {
+          return statusA - statusB
+        }
+        
+        const dateA = new Date(a.end_date || a.start_date || a.created_at || '1970-01-01').getTime()
+        const dateB = new Date(b.end_date || b.start_date || b.created_at || '1970-01-01').getTime()
+        
+        return dateB - dateA
+      })
+  }, [projects, searchTerm, statusFilter, categoryFilter, projectFilter])
 
   if (loading || tasksLoading || reportsLoading) {
     return (

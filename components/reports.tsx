@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, useMemo, useCallback, useRef } from "react"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -43,6 +43,27 @@ import { useAuth } from "@/lib/auth"
 import { toast } from "react-hot-toast"
 import { supabase } from "@/lib/supabase"
 
+// Add throttling utility
+const createThrottledFunction = <T extends unknown[]>(func: (...args: T) => void, delay: number) => {
+  let timeoutId: NodeJS.Timeout | null = null
+  let lastExecTime = 0
+  
+  return (...args: T) => {
+    const currentTime = Date.now()
+    
+    if (currentTime - lastExecTime > delay) {
+      func(...args)
+      lastExecTime = currentTime
+    } else {
+      if (timeoutId) clearTimeout(timeoutId)
+      timeoutId = setTimeout(() => {
+        func(...args)
+        lastExecTime = Date.now()
+      }, delay - (currentTime - lastExecTime))
+    }
+  }
+}
+
 type EnhancedReport = ReportWithUploader & {
   projectName: string
   file_size_mb: string
@@ -73,6 +94,7 @@ export function Reports({ onTabChangeAction }: ReportsProps = {}) {
     reportId: '',
     reportName: ''
   })
+  const lastRefreshRef = useRef<number>(0)
 
   // Debug: Log modal state changes
   useEffect(() => {
@@ -84,13 +106,45 @@ export function Reports({ onTabChangeAction }: ReportsProps = {}) {
   const { personnel } = usePersonnel()
   const { user } = useAuth()
 
-  // Check user position and admin status
-  const userPosition = user?.user_metadata?.position || "Team Member"
-  const isAdmin = ["Project Manager", "Senior Electrical Engineer", "Field Engineer", "Design Engineer"].includes(userPosition)
+  // Memoize user calculations
+  const userPosition = useMemo(() => user?.user_metadata?.position || "Team Member", [user])
+  const isAdmin = useMemo(() => 
+    ["Project Manager", "Senior Electrical Engineer", "Field Engineer", "Design Engineer"].includes(userPosition),
+    [userPosition]
+  )
+
+  const currentUserPersonnel = useMemo(() => 
+    personnel.find(p => p.email === user?.email),
+    [personnel, user?.email]
+  )
+
+  // Throttled refresh function
+  const throttledRefresh = useMemo(() => 
+    createThrottledFunction(async () => {
+      const now = Date.now()
+      if (now - lastRefreshRef.current < 30000) { // 30 seconds
+        toast.success("Data is already up to date")
+        return
+      }
+
+      try {
+        await fetchReports()
+        lastRefreshRef.current = now
+        toast.success("Reports refreshed successfully")
+      } catch (error) {
+        console.error('Error refreshing reports:', error)
+        toast.error("Failed to refresh reports")
+      }
+    }, 3000), // 3 second throttle
+    [fetchReports]
+  )
+
+  const handleRefresh = useCallback(() => {
+    throttledRefresh()
+  }, [throttledRefresh])
 
   // Helper function to check if current user is the assigned reviewer for a report
-  const isAssignedReviewer = (report: EnhancedReport) => {
-    const currentUserPersonnel = personnel.find(p => p.email === user?.email)
+  const isAssignedReviewer = useCallback((report: EnhancedReport) => {
     const reportWithReviewer = report as typeof report & { assigned_reviewer?: string }
     const isReviewer = reportWithReviewer.assigned_reviewer === currentUserPersonnel?.id
     console.log('isAssignedReviewer check:', {
@@ -100,10 +154,10 @@ export function Reports({ onTabChangeAction }: ReportsProps = {}) {
       isReviewer
     })
     return isReviewer
-  }
+  }, [currentUserPersonnel, user?.email])
 
   // Helper function to format report display name as "Title (File Name)" or just file name if no title
-  const getReportDisplayName = (report: EnhancedReport): { title: string; fileName: string; hasTitle: boolean } => {
+  const getReportDisplayName = useCallback((report: EnhancedReport): { title: string; fileName: string; hasTitle: boolean } => {
     const reportWithTitle = report as EnhancedReport & { title?: string }
     
     if (reportWithTitle.title?.trim()) {
@@ -119,7 +173,7 @@ export function Reports({ onTabChangeAction }: ReportsProps = {}) {
       fileName: '',
       hasTitle: false
     }
-  }
+  }, [])
 
   // Helper function to get assigned reviewer name
   const getAssignedReviewerName = (report: EnhancedReport): string => {
@@ -144,19 +198,9 @@ export function Reports({ onTabChangeAction }: ReportsProps = {}) {
     fetchReports()
   }, [fetchReports])
 
-  const handleUploadComplete = () => {
+  const handleUploadComplete = useCallback(() => {
     fetchReports()
-  }
-
-  const handleRefresh = async () => {
-    try {
-      await fetchReports()
-      toast.success("Reports refreshed successfully")
-    } catch (error) {
-      console.error('Error refreshing reports:', error)
-      toast.error("Failed to refresh reports")
-    }
-  }
+  }, [fetchReports])
 
   // Handle report status updates with validation
   const handleReportStatusUpdate = async (reportId: string, status: string) => {

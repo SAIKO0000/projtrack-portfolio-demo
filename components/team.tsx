@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useMemo, useCallback, useRef } from "react"
 import { Card, CardContent } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -9,6 +9,28 @@ import { Search, Mail, Phone, Users, Briefcase, RefreshCw } from "lucide-react"
 import { usePersonnel } from "@/lib/hooks/usePersonnel"
 import { useProjectsQuery } from "@/lib/hooks/useProjectsOptimized"
 import { ProfileModal } from "./profile-modal"
+import { toast } from "react-hot-toast"
+
+// Add throttling utility
+const createThrottledFunction = <T extends unknown[]>(func: (...args: T) => void, delay: number) => {
+  let timeoutId: NodeJS.Timeout | null = null
+  let lastExecTime = 0
+  
+  return (...args: T) => {
+    const currentTime = Date.now()
+    
+    if (currentTime - lastExecTime > delay) {
+      func(...args)
+      lastExecTime = currentTime
+    } else {
+      if (timeoutId) clearTimeout(timeoutId)
+      timeoutId = setTimeout(() => {
+        func(...args)
+        lastExecTime = Date.now()
+      }, delay - (currentTime - lastExecTime))
+    }
+  }
+}
 
 type Personnel = {
   id: number
@@ -25,31 +47,59 @@ export function Team() {
   const [searchTerm, setSearchTerm] = useState("")
   const [selectedPersonnel, setSelectedPersonnel] = useState<Personnel | null>(null)
   const [isProfileModalOpen, setIsProfileModalOpen] = useState(false)
+  const lastRefreshRef = useRef<number>(0)
   
-  const { personnel, loading, error } = usePersonnel()
+  const { personnel, loading, error, fetchPersonnel } = usePersonnel()
   const { data: projects = [], isLoading: projectsLoading } = useProjectsQuery()
 
-  const filteredMembers = personnel.filter((member) => {
-    const matchesSearch =
-      member.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      (member.position && member.position.toLowerCase().includes(searchTerm.toLowerCase()))
+  // Memoize filtered members to prevent unnecessary recalculations
+  const filteredMembers = useMemo(() => {
+    return personnel.filter((member) => {
+      const matchesSearch =
+        member.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        (member.position && member.position.toLowerCase().includes(searchTerm.toLowerCase()))
 
-    return matchesSearch
-  })
+      return matchesSearch
+    })
+  }, [personnel, searchTerm])
 
-  const totalMembers = personnel.length
-  const activeProjects = projects.length
+  // Memoize statistics
+  const stats = useMemo(() => ({
+    totalMembers: personnel.length,
+    activeProjects: projects.length
+  }), [personnel.length, projects.length])
 
-  const handleViewProfile = (member: Personnel) => {
+  const handleViewProfile = useCallback((member: Personnel) => {
     setSelectedPersonnel(member)
     setIsProfileModalOpen(true)
-  }
+  }, [])
 
-  const handleRefresh = () => {
-    // The personnel hook should have a refetch function, but since we don't have access to it,
-    // we'll reload the page for now
-    window.location.reload()
-  }
+  // Throttled refresh function
+  const throttledRefresh = useMemo(() => 
+    createThrottledFunction(async () => {
+      const now = Date.now()
+      if (now - lastRefreshRef.current < 30000) { // 30 seconds
+        toast.success("Data is already up to date")
+        return
+      }
+
+      try {
+        if (fetchPersonnel) {
+          await fetchPersonnel()
+        }
+        lastRefreshRef.current = now
+        toast.success("Team data refreshed successfully")
+      } catch (error) {
+        console.error('Error refreshing team data:', error)
+        toast.error("Failed to refresh team data")
+      }
+    }, 3000), // 3 second throttle
+    [fetchPersonnel]
+  )
+
+  const handleRefresh = useCallback(() => {
+    throttledRefresh()
+  }, [throttledRefresh])
 
   if (loading || projectsLoading) {
     return (
@@ -97,7 +147,7 @@ export function Team() {
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-xs sm:text-sm font-medium text-gray-600 uppercase tracking-wide">Total Members</p>
-                <p className="text-lg sm:text-xl font-bold text-gray-900 mt-1">{totalMembers}</p>
+                <p className="text-lg sm:text-xl font-bold text-gray-900 mt-1">{stats.totalMembers}</p>
               </div>
               <div className="w-8 h-8 bg-blue-100 rounded-xl flex items-center justify-center">
                 <Users className="h-4 w-4 text-blue-600" />
@@ -110,7 +160,7 @@ export function Team() {
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-xs sm:text-sm font-medium text-gray-600 uppercase tracking-wide">Active Projects</p>
-                <p className="text-lg sm:text-xl font-bold text-gray-900 mt-1">{activeProjects}</p>
+                <p className="text-lg sm:text-xl font-bold text-gray-900 mt-1">{stats.activeProjects}</p>
               </div>
               <div className="w-8 h-8 bg-orange-100 rounded-xl flex items-center justify-center">
                 <Briefcase className="h-4 w-4 text-orange-600" />

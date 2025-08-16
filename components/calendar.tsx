@@ -1,7 +1,7 @@
 "use client"
 
 import React from "react"
-import { useState, useEffect } from "react"
+import { useState, useEffect, useMemo, useCallback, useRef } from "react"
 import Image from "next/image"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
@@ -41,6 +41,27 @@ import { useEvents } from "@/lib/hooks/useEvents"
 import { useProjectsQuery } from "@/lib/hooks/useProjectsOptimized"
 import { usePhotosOptimized, usePhotoCountsByDate, usePhotosForDate, usePhotoOperations } from "@/lib/hooks/usePhotosOptimized"
 import { toast } from "react-hot-toast"
+
+// Add throttling utility
+const createThrottledFunction = <T extends unknown[]>(func: (...args: T) => void, delay: number) => {
+  let timeoutId: NodeJS.Timeout | null = null
+  let lastExecTime = 0
+  
+  return (...args: T) => {
+    const currentTime = Date.now()
+    
+    if (currentTime - lastExecTime > delay) {
+      func(...args)
+      lastExecTime = currentTime
+    } else {
+      if (timeoutId) clearTimeout(timeoutId)
+      timeoutId = setTimeout(() => {
+        func(...args)
+        lastExecTime = Date.now()
+      }, delay - (currentTime - lastExecTime))
+    }
+  }
+}
 
 // Simple interfaces for type safety
 interface Photo {
@@ -106,6 +127,9 @@ export function Calendar() {
   const [isEventSelectionMode, setIsEventSelectionMode] = useState(false)
   const [isPhotoSelectionMode, setIsPhotoSelectionMode] = useState(false)
   
+  // Refs for throttling
+  const lastRefreshRef = useRef<number>(0)
+  
   // Use optimized hooks - single data fetch instead of hundreds of requests
   const { events, loading: eventsLoading, fetchEvents, deleteEvent } = useEvents()
   const { data: projects = [], isLoading: projectsLoading } = useProjectsQuery()
@@ -117,14 +141,44 @@ export function Calendar() {
   
   // Get photos for selected day - always call the hook
   const dayPhotosFromHook = usePhotosForDate(photos, selectedDay || new Date(), selectedProject)
-  const dayPhotos = selectedDay ? dayPhotosFromHook.filter((photo) => {
-    if (searchQuery === "") return true
-    return (
-      (photo.title && photo.title.toLowerCase().includes(searchQuery.toLowerCase())) ||
-      photo.file_name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      (photo.description && photo.description.toLowerCase().includes(searchQuery.toLowerCase()))
-    )
-  }) : []
+  
+  // Memoized filtered day photos
+  const dayPhotos = useMemo(() => {
+    if (!selectedDay) return []
+    return dayPhotosFromHook.filter((photo) => {
+      if (searchQuery === "") return true
+      return (
+        (photo.title && photo.title.toLowerCase().includes(searchQuery.toLowerCase())) ||
+        photo.file_name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        (photo.description && photo.description.toLowerCase().includes(searchQuery.toLowerCase()))
+      )
+    })
+  }, [dayPhotosFromHook, selectedDay, searchQuery])
+
+  // Throttled refresh function
+  const throttledRefresh = useMemo(() => 
+    createThrottledFunction(async () => {
+      const now = Date.now()
+      if (now - lastRefreshRef.current < 30000) { // 30 seconds
+        toast.success("Calendar is already up to date")
+        return
+      }
+
+      try {
+        await fetchEvents()
+        lastRefreshRef.current = now
+        toast.success("Calendar refreshed successfully")
+      } catch (error) {
+        console.error('Error refreshing calendar:', error)
+        toast.error("Failed to refresh calendar")
+      }
+    }, 3000), // 3 second throttle
+    [fetchEvents]
+  )
+
+  const handleRefresh = useCallback(async () => {
+    throttledRefresh()
+  }, [throttledRefresh])
 
   // Handle navigation from notifications
   useEffect(() => {
@@ -143,12 +197,13 @@ export function Calendar() {
     }
   }, [])
 
-  const monthNames = [
+  // Memoized calculations
+  const monthNames = useMemo(() => [
     "January", "February", "March", "April", "May", "June",
     "July", "August", "September", "October", "November", "December",
-  ]
+  ], [])
 
-  const getDaysInMonth = (date: Date) => {
+  const getDaysInMonth = useCallback((date: Date) => {
     const year = date.getFullYear()
     const month = date.getMonth()
     const firstDay = new Date(year, month, 1)
@@ -169,10 +224,10 @@ export function Calendar() {
     }
 
     return days
-  }
+  }, [])
 
-  // Updated getEventsForDate function using local timezone with search functionality
-  const getEventsForDate = (date: Date | null) => {
+  // Memoized getEventsForDate function using local timezone with search functionality
+  const getEventsForDate = useMemo(() => (date: Date | null) => {
     if (!date) return []
     const dateString = formatDateToLocal(date)
     return events.filter((event) => {
@@ -185,10 +240,10 @@ export function Calendar() {
         event.type.toLowerCase().includes(searchQuery.toLowerCase())
       return matchesDate && matchesProject && matchesSearch
     })
-  }
+  }, [events, selectedProject, searchQuery])
 
-  // Get search suggestions from events and photos
-  const getSearchSuggestions = () => {
+  // Memoized search suggestions
+  const searchSuggestions = useMemo(() => {
     if (searchQuery.length < 2) return []
     
     const suggestions: Array<{
@@ -257,7 +312,7 @@ export function Calendar() {
     })
     
     return suggestions.slice(0, 8) // Limit to 8 suggestions
-  }
+  }, [searchQuery, events, photos])
 
   const getEventTypeColor = (type: string) => {
     switch (type) {
@@ -400,16 +455,6 @@ export function Calendar() {
     } catch (error) {
       console.error("Failed to delete photo:", error)
       toast.error("Failed to delete photo")
-    }
-  }
-
-  const handleRefresh = async () => {
-    try {
-      await fetchEvents()
-      toast.success("Calendar refreshed successfully")
-    } catch (error) {
-      console.error('Error refreshing calendar:', error)
-      toast.error("Failed to refresh calendar")
     }
   }
 
@@ -700,13 +745,13 @@ export function Calendar() {
             )}
             
             {/* Search Suggestions Dropdown */}
-            {showSearchSuggestions && getSearchSuggestions().length > 0 && (
+            {showSearchSuggestions && searchSuggestions.length > 0 && (
               <div className="absolute top-full left-0 right-0 mt-2 bg-white border border-gray-200 rounded-xl shadow-xl z-50 max-h-64 overflow-y-auto backdrop-blur-sm">
                 <div className="p-2">
                   <div className="text-xs font-medium text-gray-500 px-3 py-2 uppercase tracking-wide">
                     Quick Results
                   </div>
-                  {getSearchSuggestions().map((suggestion, index) => (
+                  {searchSuggestions.map((suggestion, index) => (
                     <button
                       key={index}
                       onClick={() => {

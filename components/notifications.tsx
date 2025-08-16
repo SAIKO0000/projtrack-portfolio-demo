@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useMemo, useEffect } from "react"
+import { useState, useMemo, useEffect, useCallback, useRef } from "react"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -27,6 +27,27 @@ import { useNotificationsQuery } from "@/lib/hooks/useNotificationsOptimized"
 import { useDeadlineNotifications } from "@/lib/hooks/useDeadlineNotifications"
 import { toast } from "react-hot-toast"
 
+// Add throttling utility
+const createThrottledFunction = <T extends unknown[]>(func: (...args: T) => void, delay: number) => {
+  let timeoutId: NodeJS.Timeout | null = null
+  let lastExecTime = 0
+  
+  return (...args: T) => {
+    const currentTime = Date.now()
+    
+    if (currentTime - lastExecTime > delay) {
+      func(...args)
+      lastExecTime = currentTime
+    } else {
+      if (timeoutId) clearTimeout(timeoutId)
+      timeoutId = setTimeout(() => {
+        func(...args)
+        lastExecTime = Date.now()
+      }, delay - (currentTime - lastExecTime))
+    }
+  }
+}
+
 interface NotificationsProps {
   onTabChangeAction?: (tab: string) => void
 }
@@ -38,6 +59,7 @@ export function Notifications({ onTabChangeAction }: NotificationsProps = {}) {
   const [showDeadlines, setShowDeadlines] = useState(false)
   const [isSelectionMode, setIsSelectionMode] = useState(false)
   const [selectedNotifications, setSelectedNotifications] = useState<Set<string>>(new Set())
+  const lastRefreshRef = useRef<number>(0)
 
   // Use optimized notifications hook - replaces all the manual fetching logic
   const { 
@@ -48,6 +70,31 @@ export function Notifications({ onTabChangeAction }: NotificationsProps = {}) {
     error 
   } = useNotificationsQuery()
 
+  // Throttled refresh function
+  const throttledRefresh = useMemo(() => 
+    createThrottledFunction(async () => {
+      const now = Date.now()
+      if (now - lastRefreshRef.current < 30000) { // 30 seconds
+        toast.success("Data is already up to date")
+        return
+      }
+
+      try {
+        await refetch()
+        lastRefreshRef.current = now
+        toast.success("Notifications refreshed successfully")
+      } catch (error) {
+        console.error('Error refreshing notifications:', error)
+        toast.error("Failed to refresh notifications")
+      }
+    }, 3000), // 3 second throttle
+    [refetch]
+  )
+
+  const handleRefresh = useCallback(() => {
+    throttledRefresh()
+  }, [throttledRefresh])
+
   // Deadline notifications
   const {
     upcomingTasks,
@@ -55,10 +102,6 @@ export function Notifications({ onTabChangeAction }: NotificationsProps = {}) {
     checkDeadlines,
     lastChecked
   } = useDeadlineNotifications()
-
-  const handleRefresh = () => {
-    refetch()
-  }
 
   // Selection handlers
   const toggleNotificationSelection = (notificationId: string) => {

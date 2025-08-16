@@ -116,7 +116,6 @@ export function GanttChartEnhanced({ selectedProjectId }: GanttChartEnhancedProp
   const [searchTerm, setSearchTerm] = useState("")
   const [editingTask, setEditingTask] = useState<EnhancedTask | null>(null)
   const [isEditModalOpen, setIsEditModalOpen] = useState(false)
-
   // Set project filter when selectedProjectId changes
   useEffect(() => {
     if (selectedProjectId) {

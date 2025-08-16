@@ -1,7 +1,7 @@
 
 "use client"
 
-import { useEffect, useState, useMemo, useCallback } from "react"
+import { useEffect, useState, useMemo, useCallback, useRef } from "react"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -17,70 +17,132 @@ import { EditProjectModal } from "@/components/edit-project-modal"
 import { ContentSkeleton } from "@/components/ui/content-skeleton"
 import { toast } from "react-hot-toast"
 
+// Add throttling utility
+const createThrottledFunction = <T extends unknown[]>(func: (...args: T) => void, delay: number) => {
+  let timeoutId: NodeJS.Timeout | null = null
+  let lastExecTime = 0
+  
+  return (...args: T) => {
+    const currentTime = Date.now()
+    
+    if (currentTime - lastExecTime > delay) {
+      func(...args)
+      lastExecTime = currentTime
+    } else {
+      if (timeoutId) clearTimeout(timeoutId)
+      timeoutId = setTimeout(() => {
+        func(...args)
+        lastExecTime = Date.now()
+      }, delay - (currentTime - lastExecTime))
+    }
+  }
+}
+
+// Personnel cache
+const personnelCache = { data: null as Personnel[] | null, timestamp: 0 }
+const PERSONNEL_CACHE_DURATION = 60000 // 1 minute
+
 export function Dashboard() {
   const { projects, loading: projectsLoading, fetchProjects, deleteProject } = useProjects()
   const { tasks, loading: tasksLoading } = useTasks()
   const [personnel, setPersonnel] = useState<Personnel[]>([])
   const [personnelLoading, setPersonnelLoading] = useState(true)
   const [editingProject, setEditingProject] = useState<Project | null>(null)
+  const lastRefreshRef = useRef<number>(0)
 
-  useEffect(() => {
-    fetchData()
-  }, [])
+  const fetchPersonnel = useCallback(async (force = false) => {
+    const now = Date.now()
+    
+    // Check cache first
+    if (!force && personnelCache.data && now - personnelCache.timestamp < PERSONNEL_CACHE_DURATION) {
+      setPersonnel(personnelCache.data)
+      setPersonnelLoading(false)
+      return
+    }
 
-  const fetchData = async () => {
     try {
       setPersonnelLoading(true)
-      const personnelResult = await supabase.from('personnel').select('*')
-      if (personnelResult.data) setPersonnel(personnelResult.data)
+      const { data, error } = await supabase.from('personnel').select('*')
+      
+      if (error) {
+        console.error('Error fetching personnel:', error)
+        return
+      }
+
+      const personnelData = data || []
+      setPersonnel(personnelData)
+      
+      // Update cache
+      personnelCache.data = personnelData
+      personnelCache.timestamp = now
     } catch (error) {
       console.error('Error fetching personnel data:', error)
     } finally {
       setPersonnelLoading(false)
     }
-  }
+  }, [])
 
-  const handleProjectCreated = () => {
-    fetchProjects() // Refresh projects list
-  }
+  useEffect(() => {
+    fetchPersonnel()
+  }, [fetchPersonnel])
 
-  const handleRefresh = async () => {
-    try {
-      await Promise.all([
-        fetchProjects(),
-        fetchData()
-      ])
-      toast.success("Dashboard refreshed successfully")
-    } catch (error) {
-      console.error('Error refreshing dashboard:', error)
-      toast.error("Failed to refresh dashboard")
-    }
-  }
+  const handleProjectCreated = useCallback(() => {
+    // Only refresh if necessary
+    setTimeout(() => fetchProjects(), 100) // Small delay to prevent race conditions
+  }, [fetchProjects])
 
-  const handleDeleteProject = async (projectId: string, projectName: string) => {
+  // Throttled refresh function
+  const throttledRefresh = useMemo(() => 
+    createThrottledFunction(async () => {
+      const now = Date.now()
+      if (now - lastRefreshRef.current < 30000) { // 30 seconds
+        toast.success("Data is already up to date")
+        return
+      }
+
+      try {
+        await Promise.all([
+          fetchProjects(true),
+          fetchPersonnel(true)
+        ])
+        lastRefreshRef.current = now
+        toast.success("Dashboard refreshed successfully")
+      } catch (error) {
+        console.error('Error refreshing dashboard:', error)
+        toast.error("Failed to refresh dashboard")
+      }
+    }, 3000), // 3 second throttle
+    [fetchProjects, fetchPersonnel]
+  )
+
+  const handleRefresh = useCallback(() => {
+    throttledRefresh()
+  }, [throttledRefresh])
+
+  const handleDeleteProject = useCallback(async (projectId: string, projectName: string) => {
     if (confirm(`Are you sure you want to delete the project "${projectName}"? This action cannot be undone.`)) {
       try {
         await deleteProject(projectId)
         toast.success("Project deleted successfully")
-        fetchProjects() // Refresh the list
+        // Don't call fetchProjects here as the hook should handle the update
       } catch (error) {
         console.error("Delete error:", error)
         toast.error("Failed to delete project")
       }
     }
-  }
+  }, [deleteProject])
 
-  const handleEditProject = (projectId: string) => {
+  const handleEditProject = useCallback((projectId: string) => {
     const project = projects.find(p => p.id === projectId)
     if (project) {
       setEditingProject(project)
     }
-  }
+  }, [projects])
 
-  const handleProjectUpdated = () => {
+  const handleProjectUpdated = useCallback(() => {
     setEditingProject(null)
-    fetchProjects() // Refresh projects list
-  }
+    // Don't call fetchProjects here as the hook should handle the update
+  }, [])
 
   // Calculate task-based progress for a project
   const getProjectTaskProgress = useCallback((projectId: string) => {

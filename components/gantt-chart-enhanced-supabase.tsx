@@ -11,6 +11,7 @@ import { useProjects } from "@/lib/hooks/useProjects"
 import { useGanttTasksOptimized } from "@/lib/hooks/useGanttTasksOptimized"
 import { TaskFormModalOptimized } from "./task-form-modal-optimized"
 import { TaskEditModalOptimized } from "./task-edit-modal-optimized"
+import { TaskNotesModal } from "./task-notes-modal"
 import { StructuredExportControls } from "./structured-export-controls"
 import { DeleteConfirmationDialog } from "./delete-confirmation-dialog"
 import { useStructuredExport } from "@/lib/hooks/useStructuredExport"
@@ -33,6 +34,8 @@ import {
   MoreVertical,
   Edit,
   Trash2,
+  StickyNote,
+  FileText,
 } from "lucide-react"
 
 interface EnhancedTask {
@@ -60,6 +63,7 @@ interface EnhancedTask {
   progress: number | null
   updated_at: string | null
   completed_at: string | null
+  notes: string | null
   // Enhanced properties
   project_name?: string
   project_client?: string | null
@@ -118,7 +122,10 @@ export function GanttChartEnhanced({ selectedProjectId }: GanttChartEnhancedProp
         category: t.category ? String(t.category) : undefined,
         estimated_hours: typeof t.estimated_hours === 'number' ? t.estimated_hours : undefined,
         is_overdue: Boolean(t.is_overdue),
-        days_until_deadline: typeof t.days_until_deadline === 'number' ? t.days_until_deadline : undefined
+        days_until_deadline: typeof t.days_until_deadline === 'number' ? t.days_until_deadline : undefined,
+        completed_at: t.completed_at ? String(t.completed_at) : undefined,
+        notes: t.notes ? String(t.notes) : undefined,
+        assignee_headcounts: t.assignee_headcounts as Record<string, number> || undefined
       }
     })
   }, [tasks])
@@ -135,6 +142,8 @@ export function GanttChartEnhanced({ selectedProjectId }: GanttChartEnhancedProp
   const [searchTerm, setSearchTerm] = useState("")
   const [editingTask, setEditingTask] = useState<EnhancedTask | null>(null)
   const [isEditModalOpen, setIsEditModalOpen] = useState(false)
+  const [notesTask, setNotesTask] = useState<EnhancedTask | null>(null)
+  const [isNotesModalOpen, setIsNotesModalOpen] = useState(false)
   const [deletingTask, setDeletingTask] = useState<EnhancedTask | null>(null)
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false)
   const [isDeletingTask, setIsDeletingTask] = useState(false)
@@ -401,7 +410,7 @@ export function GanttChartEnhanced({ selectedProjectId }: GanttChartEnhancedProp
       // Find the first day of the month containing our start date
       const startOfMonth = new Date(startOfPeriod.getFullYear(), startOfPeriod.getMonth(), 1)
       
-      // Find the Sunday of the first week of the month
+      // Find the Sunday of the first week that includes the 1st of the month
       const firstSunday = new Date(startOfMonth)
       const dayOfWeek = startOfMonth.getDay()
       if (dayOfWeek !== 0) { // If not Sunday
@@ -426,18 +435,42 @@ export function GanttChartEnhanced({ selectedProjectId }: GanttChartEnhancedProp
         weekEnd.setDate(weekStart.getDate() + 6)
         weekEnd.setHours(23, 59, 59, 999)
         
-        // Calculate week number within the month (1-based)
+        // Calculate week number within the month more accurately
         const monthStart = new Date(weekStart.getFullYear(), weekStart.getMonth(), 1)
-        const monthFirstSunday = new Date(monthStart)
-        const monthDayOfWeek = monthStart.getDay()
-        if (monthDayOfWeek !== 0) {
-          monthFirstSunday.setDate(monthStart.getDate() - monthDayOfWeek)
+        const monthEnd = new Date(weekStart.getFullYear(), weekStart.getMonth() + 1, 0)
+        
+        // Check if this week contains any days of the current month
+        const weekContainsMonthDays = weekStart <= monthEnd && weekEnd >= monthStart
+        
+        let weekNumber = 1
+        if (weekContainsMonthDays) {
+          // Calculate which week of the month this is based on the first day of the month
+          const firstOfMonth = new Date(monthStart)
+          const firstDayOfWeek = firstOfMonth.getDay() // 0 = Sunday, 1 = Monday, etc.
+          
+          // Find the first Sunday of the month or before
+          const firstSundayOfMonth = new Date(firstOfMonth)
+          if (firstDayOfWeek !== 0) {
+            firstSundayOfMonth.setDate(firstOfMonth.getDate() - firstDayOfWeek)
+          }
+          
+          // Calculate week number based on how many weeks have passed since the first Sunday
+          const daysDiff = Math.floor((weekStart.getTime() - firstSundayOfMonth.getTime()) / (1000 * 60 * 60 * 24))
+          weekNumber = Math.floor(daysDiff / 7) + 1
+          
+          // If the week starts before the month, but contains days of the month, it's week 1
+          if (weekStart < monthStart && weekEnd >= monthStart) {
+            weekNumber = 1
+          }
         }
         
-        const weekNumber = Math.floor((weekStart.getTime() - monthFirstSunday.getTime()) / (1000 * 60 * 60 * 24 * 7)) + 1
+        // Ensure week number is at least 1 and handle month transitions correctly
+        weekNumber = Math.max(1, weekNumber)
+        
+        const monthLabel = weekStart.toLocaleDateString("en-US", { month: "short" })
         
         months.push({
-          label: `${weekStart.toLocaleDateString("en-US", { month: "short" })} Week ${Math.max(1, weekNumber)}`,
+          label: `${monthLabel} Week ${weekNumber}`,
           date: new Date(weekStart),
           endDate: new Date(weekEnd),
           quarter: 1,
@@ -626,6 +659,52 @@ export function GanttChartEnhanced({ selectedProjectId }: GanttChartEnhancedProp
   const handleEditTask = (task: EnhancedTask) => {
     setEditingTask(task)
     setIsEditModalOpen(true)
+  }
+
+  const handleNotesTask = (task: EnhancedTask) => {
+    setNotesTask(task)
+    setIsNotesModalOpen(true)
+  }
+
+  const handleNotesSubmit = async (taskId: string, notes: string) => {
+    try {
+      const response = await fetch('/api/tasks/update-notes', {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ taskId, notes }),
+      })
+
+      if (!response.ok) {
+        throw new Error('Failed to update notes')
+      }
+
+      // Refresh tasks to show updated notes
+      await refetchTasks()
+      setIsNotesModalOpen(false)
+      setNotesTask(null)
+    } catch (error) {
+      console.error('Error updating notes:', error)
+      throw error
+    }
+  }
+
+  const handleTaskReport = async (task: EnhancedTask) => {
+    try {
+      const project = projects.find(p => p.id === task.project_id)
+      await exportStructuredReport({
+        exportType: 'specific-project',
+        projectId: task.project_id || undefined,
+        includeTaskDetails: true,
+        includeResourceAnalysis: true,
+        includeTimeline: true,
+        includeTechnicalSpecs: true
+      })
+    } catch (error) {
+      console.error('Error generating task report:', error)
+      toast.error('Failed to generate task report')
+    }
   }
 
   const handleDeleteTask = (task: EnhancedTask) => {
@@ -1257,47 +1336,54 @@ export function GanttChartEnhanced({ selectedProjectId }: GanttChartEnhancedProp
           <div className="grid grid-cols-12 gap-2 mb-2 text-xs text-gray-400 dark:text-gray-500">
             <div className="col-span-4"></div>
             <div className="col-span-8">
-              {viewMode === "daily" ? (
-                <div className="flex gap-1" style={{ width: '100%' }}>
-                  {timelineMonths.map((day, index) => (
-                    <div 
-                      key={`grid-${day.label}-${index}`} 
-                      className="h-4 border-l border-gray-300 dark:border-gray-600 opacity-30"
-                      style={{ width: `${100 / timelineMonths.length}%` }}
-                    ></div>
-                  ))}
+              <div className="overflow-x-auto" style={{ 
+                scrollbarWidth: 'thin',
+                scrollbarColor: '#cbd5e0 #e2e8f0'
+              }}>
+                <div className="min-w-full" style={{ minWidth: `${Math.max(800, timelineMonths.length * 60)}px` }}>
+                  {viewMode === "daily" ? (
+                    <div className="flex" style={{ width: '100%' }}>
+                      {timelineMonths.map((day, index) => (
+                        <div 
+                          key={`grid-${day.label}-${index}`} 
+                          className="h-4 border-l border-gray-300 dark:border-gray-600 opacity-30"
+                          style={{ width: `${100 / timelineMonths.length}%` }}
+                        ></div>
+                      ))}
+                    </div>
+                  ) : viewMode === "weekly" ? (
+                    <div className="flex" style={{ width: '100%' }}>
+                      {timelineMonths.map((week, index) => (
+                        <div 
+                          key={`grid-${week.label}-${index}`} 
+                          className="h-4 border-l border-gray-300 dark:border-gray-600 opacity-30"
+                          style={{ width: `${100 / timelineMonths.length}%` }}
+                        ></div>
+                      ))}
+                    </div>
+                  ) : viewMode === "monthly" ? (
+                    <div className="flex" style={{ width: '100%' }}>
+                      {timelineMonths.map((month, index) => (
+                        <div 
+                          key={`grid-${month.label}-${index}`} 
+                          className="h-4 border-l border-gray-300 dark:border-gray-600 opacity-30"
+                          style={{ width: `${100 / timelineMonths.length}%` }}
+                        ></div>
+                      ))}
+                    </div>
+                  ) : (
+                    <div className="flex" style={{ width: '100%' }}>
+                      {timelineMonths.map((_, index) => (
+                        <div 
+                          key={`grid-full-${index}`} 
+                          className="h-4 border-l border-gray-300 dark:border-gray-600 opacity-30"
+                          style={{ width: `${100 / timelineMonths.length}%` }}
+                        ></div>
+                      ))}
+                    </div>
+                  )}
                 </div>
-              ) : viewMode === "weekly" ? (
-                <div className="flex gap-1" style={{ width: '100%' }}>
-                  {timelineMonths.map((week, index) => (
-                    <div 
-                      key={`grid-${week.label}-${index}`} 
-                      className="h-4 border-l border-gray-300 dark:border-gray-600 opacity-30"
-                      style={{ width: `${100 / timelineMonths.length}%` }}
-                    ></div>
-                  ))}
-                </div>
-              ) : viewMode === "monthly" ? (
-                <div className="flex gap-1" style={{ width: '100%' }}>
-                  {timelineMonths.map((month, index) => (
-                    <div 
-                      key={`grid-${month.label}-${index}`} 
-                      className="h-4 border-l border-gray-300 dark:border-gray-600 opacity-30"
-                      style={{ width: `${100 / timelineMonths.length}%` }}
-                    ></div>
-                  ))}
-                </div>
-              ) : (
-                <div className="flex gap-1" style={{ width: '100%' }}>
-                  {timelineMonths.map((_, index) => (
-                    <div 
-                      key={`grid-full-${index}`} 
-                      className="h-4 border-l border-gray-300 dark:border-gray-600 opacity-30"
-                      style={{ width: `${100 / timelineMonths.length}%` }}
-                    ></div>
-                  ))}
-                </div>
-              )}
+              </div>
             </div>
           </div>
 
@@ -1530,6 +1616,14 @@ export function GanttChartEnhanced({ selectedProjectId }: GanttChartEnhancedProp
                           </Button>
                         </DropdownMenuTrigger>
                         <DropdownMenuContent align="end" className="w-48">
+                          <DropdownMenuItem onClick={() => handleNotesTask(task)}>
+                            <StickyNote className="h-5 w-5 mr-2" />
+                            {task.notes ? 'View Notes' : 'Add Notes'}
+                          </DropdownMenuItem>
+                          <DropdownMenuItem onClick={() => handleTaskReport(task)}>
+                            <FileText className="h-5 w-5 mr-2" />
+                            Export Task Report
+                          </DropdownMenuItem>
                           <DropdownMenuItem onClick={() => handleEditTask(task)}>
                             <Edit className="h-5 w-5 mr-2" />
                             Edit Task
@@ -1620,7 +1714,7 @@ export function GanttChartEnhanced({ selectedProjectId }: GanttChartEnhancedProp
 
                   {/* Timeline - Desktop */}
                   <div className="col-span-8">
-                    <div className="relative h-8 bg-gray-100 dark:bg-gray-800 rounded-lg overflow-hidden min-w-full">
+                    <div className="relative h-8 bg-gray-100 dark:bg-gray-800 rounded-lg overflow-hidden">
                       {position.isVisible && (
                         <div
                           className={`absolute top-1 bottom-1 rounded-md transition-all border ${getProjectBarColor(task.status, overdue)}`}
@@ -1632,99 +1726,99 @@ export function GanttChartEnhanced({ selectedProjectId }: GanttChartEnhancedProp
                         </div>
                       )}
 
-                      {/* Today marker - same implementation as before */}
-                      {(() => {
-                        const today = getCurrentPhilippinesTime()
-                        
-                        let todayPosition = 0
-                        let isTodayVisible = false
-
-                        if (viewMode === "weekly") {
-                          for (let i = 0; i < timelineMonths.length; i++) {
-                            const weekStart = new Date(timelineMonths[i].date)
-                            weekStart.setHours(0, 0, 0, 0)
-                            const weekEnd = new Date(timelineMonths[i].endDate)
-                            weekEnd.setHours(23, 59, 59, 999)
+                          {/* Today marker - same implementation as before */}
+                          {(() => {
+                            const today = getCurrentPhilippinesTime()
                             
-                            if (today >= weekStart && today <= weekEnd) {
-                              const weekColumnWidth = 100 / timelineMonths.length
-                              const weekStartPosition = i * weekColumnWidth
-                              const daysInWeek = 7
-                              const dayOfWeek = (today.getTime() - weekStart.getTime()) / (1000 * 60 * 60 * 24)
-                              const dayRatio = dayOfWeek / daysInWeek
-                              const positionWithinWeek = dayRatio * weekColumnWidth
-                              
-                              todayPosition = weekStartPosition + positionWithinWeek
-                              isTodayVisible = true
-                              break
-                            }
-                          }
-                        } else if (viewMode === "monthly") {
-                          for (let i = 0; i < timelineMonths.length; i++) {
-                            const monthStart = new Date(timelineMonths[i].date)
-                            monthStart.setHours(0, 0, 0, 0)
-                            const monthEnd = new Date(timelineMonths[i].endDate)
-                            monthEnd.setHours(23, 59, 59, 999)
-                            
-                            if (today >= monthStart && today <= monthEnd) {
-                              const monthColumnWidth = 100 / timelineMonths.length
-                              const monthStartPosition = i * monthColumnWidth
-                              
-                              const monthTotalDays = monthEnd.getDate()
-                              const todayDayOfMonth = today.getDate()
-                              const dayRatio = (todayDayOfMonth - 1) / (monthTotalDays - 1)
-                              const positionWithinMonth = dayRatio * monthColumnWidth
-                              
-                              todayPosition = monthStartPosition + positionWithinMonth
-                              isTodayVisible = true
-                              break
-                            }
-                          }
-                        } else if (viewMode === "daily") {
-                          for (let i = 0; i < timelineMonths.length; i++) {
-                            const dayStart = new Date(timelineMonths[i].date)
-                            dayStart.setHours(0, 0, 0, 0)
-                            const dayEnd = new Date(timelineMonths[i].endDate)
-                            dayEnd.setHours(23, 59, 59, 999)
-                            
-                            if (today >= dayStart && today <= dayEnd) {
-                              const dayColumnWidth = 100 / timelineMonths.length
-                              const dayStartPosition = i * dayColumnWidth
-                              todayPosition = dayStartPosition + (dayColumnWidth / 2)
-                              isTodayVisible = true
-                              break
-                            }
-                          }
-                        } else {
-                          const timelineStart = timelineMonths[0].date
-                          const timelineEnd = timelineMonths[timelineMonths.length - 1].endDate ||
-                            new Date(
-                              timelineMonths[timelineMonths.length - 1].date.getFullYear(),
-                              timelineMonths[timelineMonths.length - 1].date.getMonth() + 1,
-                              0,
-                            )
+                            let todayPosition = 0
+                            let isTodayVisible = false
 
-                          const totalDuration = timelineEnd.getTime() - timelineStart.getTime()
-                          const todayOffset = today.getTime() - timelineStart.getTime()
-                          todayPosition = (todayOffset / totalDuration) * 100
-                          isTodayVisible = todayPosition >= 0 && todayPosition <= 100
-                        }
+                            if (viewMode === "weekly") {
+                              for (let i = 0; i < timelineMonths.length; i++) {
+                                const weekStart = new Date(timelineMonths[i].date)
+                                weekStart.setHours(0, 0, 0, 0)
+                                const weekEnd = new Date(timelineMonths[i].endDate)
+                                weekEnd.setHours(23, 59, 59, 999)
+                                
+                                if (today >= weekStart && today <= weekEnd) {
+                                  const weekColumnWidth = 100 / timelineMonths.length
+                                  const weekStartPosition = i * weekColumnWidth
+                                  const daysInWeek = 7
+                                  const dayOfWeek = (today.getTime() - weekStart.getTime()) / (1000 * 60 * 60 * 24)
+                                  const dayRatio = dayOfWeek / daysInWeek
+                                  const positionWithinWeek = dayRatio * weekColumnWidth
+                                  
+                                  todayPosition = weekStartPosition + positionWithinWeek
+                                  isTodayVisible = true
+                                  break
+                                }
+                              }
+                            } else if (viewMode === "monthly") {
+                              for (let i = 0; i < timelineMonths.length; i++) {
+                                const monthStart = new Date(timelineMonths[i].date)
+                                monthStart.setHours(0, 0, 0, 0)
+                                const monthEnd = new Date(timelineMonths[i].endDate)
+                                monthEnd.setHours(23, 59, 59, 999)
+                                
+                                if (today >= monthStart && today <= monthEnd) {
+                                  const monthColumnWidth = 100 / timelineMonths.length
+                                  const monthStartPosition = i * monthColumnWidth
+                                  
+                                  const monthTotalDays = monthEnd.getDate()
+                                  const todayDayOfMonth = today.getDate()
+                                  const dayRatio = (todayDayOfMonth - 1) / (monthTotalDays - 1)
+                                  const positionWithinMonth = dayRatio * monthColumnWidth
+                                  
+                                  todayPosition = monthStartPosition + positionWithinMonth
+                                  isTodayVisible = true
+                                  break
+                                }
+                              }
+                            } else if (viewMode === "daily") {
+                              for (let i = 0; i < timelineMonths.length; i++) {
+                                const dayStart = new Date(timelineMonths[i].date)
+                                dayStart.setHours(0, 0, 0, 0)
+                                const dayEnd = new Date(timelineMonths[i].endDate)
+                                dayEnd.setHours(23, 59, 59, 999)
+                                
+                                if (today >= dayStart && today <= dayEnd) {
+                                  const dayColumnWidth = 100 / timelineMonths.length
+                                  const dayStartPosition = i * dayColumnWidth
+                                  todayPosition = dayStartPosition + (dayColumnWidth / 2)
+                                  isTodayVisible = true
+                                  break
+                                }
+                              }
+                            } else {
+                              const timelineStart = timelineMonths[0].date
+                              const timelineEnd = timelineMonths[timelineMonths.length - 1].endDate ||
+                                new Date(
+                                  timelineMonths[timelineMonths.length - 1].date.getFullYear(),
+                                  timelineMonths[timelineMonths.length - 1].date.getMonth() + 1,
+                                  0,
+                                )
 
-                        return isTodayVisible ? (
-                          <div
-                            className="absolute top-0 bottom-0 w-1 bg-red-600 z-30 rounded-sm shadow-sm"
-                            style={{ left: `${todayPosition}%` }}
-                            title={`Today - ${today.toLocaleDateString("en-PH", { 
-                              weekday: 'long',
-                              year: 'numeric',
-                              month: 'long',
-                              day: 'numeric'
-                            })}`}
-                          />
-                        ) : null
-                      })()}
+                              const totalDuration = timelineEnd.getTime() - timelineStart.getTime()
+                              const todayOffset = today.getTime() - timelineStart.getTime()
+                              todayPosition = (todayOffset / totalDuration) * 100
+                              isTodayVisible = todayPosition >= 0 && todayPosition <= 100
+                            }
+
+                            return isTodayVisible ? (
+                              <div
+                                className="absolute top-0 bottom-0 w-1 bg-red-600 z-30 rounded-sm shadow-sm"
+                                style={{ left: `${todayPosition}%` }}
+                                title={`Today - ${today.toLocaleDateString("en-PH", { 
+                                  weekday: 'long',
+                                  year: 'numeric',
+                                  month: 'long',
+                                  day: 'numeric'
+                                })}`}
+                              />
+                            ) : null
+                          })()}
+                        </div>
                     </div>
-                  </div>
                   </div>
 
                   {/* Mobile Layout */}
@@ -1829,6 +1923,14 @@ export function GanttChartEnhanced({ selectedProjectId }: GanttChartEnhancedProp
                           </Button>
                         </DropdownMenuTrigger>
                         <DropdownMenuContent align="end" className="w-36">
+                          <DropdownMenuItem onClick={() => handleNotesTask(task)} className="text-xs">
+                            <StickyNote className="h-4 w-4 mr-2" />
+                            {task.notes ? 'View Notes' : 'Add Notes'}
+                          </DropdownMenuItem>
+                          <DropdownMenuItem onClick={() => handleTaskReport(task)} className="text-xs">
+                            <FileText className="h-4 w-4 mr-2" />
+                            Export Report
+                          </DropdownMenuItem>
                           <DropdownMenuItem onClick={() => handleEditTask(task)} className="text-xs">
                             <Edit className="h-4 w-4 mr-2" />
                             Edit
@@ -2080,6 +2182,14 @@ export function GanttChartEnhanced({ selectedProjectId }: GanttChartEnhancedProp
         open={isEditModalOpen}
         onOpenChangeAction={setIsEditModalOpen}
         onTaskUpdated={handleTaskUpdated}
+      />
+
+      {/* Task Notes Modal */}
+      <TaskNotesModal
+        task={notesTask}
+        open={isNotesModalOpen}
+        onOpenChange={setIsNotesModalOpen}
+        onNotesSubmit={handleNotesSubmit}
       />
 
       {/* Delete Confirmation Dialog */}

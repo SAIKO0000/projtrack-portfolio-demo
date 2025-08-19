@@ -40,6 +40,9 @@ export const queryKeys = {
   tasks: () => [...queryKeys.all, 'tasks'] as const,
   task: (id: string) => [...queryKeys.tasks(), id] as const,
   tasksByProject: (projectId: string) => [...queryKeys.tasks(), 'project', projectId] as const,
+  ganttTasks: (projectId?: string) => projectId 
+    ? [...queryKeys.all, 'gantt-tasks', 'project', projectId] as const 
+    : [...queryKeys.all, 'gantt-tasks'] as const,
   
   events: () => [...queryKeys.all, 'events'] as const,
   event: (id: string) => [...queryKeys.events(), id] as const,

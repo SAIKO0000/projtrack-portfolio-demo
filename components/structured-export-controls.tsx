@@ -1,3 +1,4 @@
+
 import React, { useState } from 'react'
 import { Button } from "@/components/ui/button"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
@@ -12,7 +13,9 @@ import {
   BarChart3,
   Users,
   Calendar,
-  AlertCircle
+  AlertCircle,
+  ChevronDown,
+  ChevronUp
 } from "lucide-react"
 import {
   Dialog,
@@ -55,6 +58,7 @@ export function StructuredExportControls({
   const [includeResourceAnalysis, setIncludeResourceAnalysis] = useState(true)
   const [includeTimeline, setIncludeTimeline] = useState(true)
   const [includeTechnicalSpecs, setIncludeTechnicalSpecs] = useState(true)
+  const [isCollapsed, setIsCollapsed] = useState(false)
   const [isDialogOpen, setIsDialogOpen] = useState(false)
 
   const handleExport = () => {
@@ -126,12 +130,21 @@ export function StructuredExportControls({
           <Badge variant="secondary" className="ml-auto">
             Excel-like Format
           </Badge>
+          <Button 
+            variant="ghost" 
+            size="sm" 
+            onClick={() => setIsCollapsed(!isCollapsed)}
+            className="ml-2 h-8 w-8 p-0"
+          >
+            {isCollapsed ? <ChevronDown className="h-4 w-4" /> : <ChevronUp className="h-4 w-4" />}
+          </Button>
         </CardTitle>
         <p className="text-sm text-gray-600 dark:text-gray-400">
           Generate structured engineering reports with comprehensive project data and technical analysis
         </p>
       </CardHeader>
 
+      {!isCollapsed && (
       <CardContent className="space-y-4">
         {/* Export Type Selection */}
         <div className="space-y-3">
@@ -359,6 +372,7 @@ export function StructuredExportControls({
           </p>
         </div>
       </CardContent>
+      )}
     </Card>
   )
 }

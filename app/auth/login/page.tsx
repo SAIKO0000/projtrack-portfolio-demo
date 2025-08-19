@@ -20,6 +20,11 @@ export default function LoginPage() {
   const [isLoading, setIsLoading] = useState(false)
   const { signIn } = useAuth()
 
+  // Set dynamic page title
+  useEffect(() => {
+    document.title = "GYG Power Systems - Login"
+  }, [])
+
   // Load saved credentials on component mount
   useEffect(() => {
     const savedEmail = localStorage.getItem('gyg-remembered-email')

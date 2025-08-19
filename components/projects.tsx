@@ -22,11 +22,12 @@ import {
   Trash2,
   User,
   RefreshCw,
+  FolderOpen,
 } from "lucide-react"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
+import { useSupabaseQuery } from "@/lib/hooks/useSupabaseQuery"
 import { useProjects } from "@/lib/hooks/useProjects"
-import { useTasks } from "@/lib/hooks/useTasks"
 import { useReports, type ReportWithUploader } from "@/lib/hooks/useReports"
 import { usePersonnel } from "@/lib/hooks/usePersonnel"
 import { useAuth } from "@/lib/auth"
@@ -86,14 +87,23 @@ const createThrottledFunction = <T extends unknown[]>(func: (...args: T) => void
 }
 
 export function Projects({ onProjectSelect }: ProjectsProps) {
-  const { projects, loading, fetchProjects, deleteProject, updateProject } = useProjects()
-  const { tasks, loading: tasksLoading } = useTasks()
+  // Use centralized TanStack Query hooks
+  const supabaseQuery = useSupabaseQuery()
+  const { 
+    data: projects = [], 
+    isLoading: loading,
+    refetch: refetchProjects 
+  } = supabaseQuery.useProjectsQuery()
+  const { data: tasks = [], isLoading: tasksLoading } = supabaseQuery.useTasksQuery()
+  
+  // Get mutations from useProjects hook
+  const { deleteProject, updateProject } = useProjects()
+  
   const { reports, loading: reportsLoading, updateReport, fetchReports } = useReports()
   const { personnel } = usePersonnel()
   const { user } = useAuth()
   const [searchTerm, setSearchTerm] = useState("")
   const [statusFilter, setStatusFilter] = useState("all")
-  const [categoryFilter, setCategoryFilter] = useState("all")
   const [projectFilter, setProjectFilter] = useState("all")
   const [editingProject, setEditingProject] = useState<Project | null>(null)
   const [viewingReports, setViewingReports] = useState<{ 
@@ -312,7 +322,7 @@ export function Projects({ onProjectSelect }: ProjectsProps) {
         }
 
         await Promise.all([
-          fetchProjects(),
+          refetchProjects(),
           fetchReports()
         ])
         window.lastRefreshTime = Date.now()
@@ -322,23 +332,17 @@ export function Projects({ onProjectSelect }: ProjectsProps) {
         toast.error("Failed to refresh projects")
       }
     }, 2000), // 2 second throttle
-    [fetchProjects, fetchReports]
+    [refetchProjects, fetchReports]
   )
 
   const handleProjectCreated = useCallback(() => {
     // Only refresh if necessary
-    setTimeout(() => fetchProjects(), 100) // Small delay to prevent race conditions
-  }, [fetchProjects])
+    setTimeout(() => refetchProjects(), 100) // Small delay to prevent race conditions
+  }, [refetchProjects])
 
   const handleRefresh = useCallback(() => {
     throttledRefresh()
   }, [throttledRefresh])
-
-  // Memoize computed values
-  const uniqueCategories = useMemo(() => 
-    Array.from(new Set(projects.map(p => p.priority).filter(Boolean))),
-    [projects]
-  )
 
   const uniqueProjects = useMemo(() => 
     projects.map(p => ({ id: p.id, name: p.name })),
@@ -392,7 +396,7 @@ export function Projects({ onProjectSelect }: ProjectsProps) {
   // Handle project status update
   const handleStatusUpdate = useCallback(async (projectId: string, newStatus: string) => {
     try {
-      await updateProject(projectId, { status: newStatus })
+      await updateProject({ id: projectId, updates: { status: newStatus } })
       toast.success("Project status updated successfully")
     } catch (error) {
       console.error("Status update error:", error)
@@ -514,10 +518,9 @@ export function Projects({ onProjectSelect }: ProjectsProps) {
           project.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
           (project.client?.toLowerCase() || "").includes(searchTerm.toLowerCase())
         const matchesStatus = statusFilter === "all" || project.status === statusFilter
-        const matchesCategory = categoryFilter === "all" || (project.priority && project.priority === categoryFilter)
         const matchesProject = projectFilter === "all" || project.id === projectFilter
         
-        return matchesSearch && matchesStatus && matchesCategory && matchesProject
+        return matchesSearch && matchesStatus && matchesProject
       })
       .sort((a, b) => {
         const statusPriority = {
@@ -539,7 +542,7 @@ export function Projects({ onProjectSelect }: ProjectsProps) {
         
         return dateB - dateA
       })
-  }, [projects, searchTerm, statusFilter, categoryFilter, projectFilter])
+  }, [projects, searchTerm, statusFilter, projectFilter])
 
   if (loading || tasksLoading || reportsLoading) {
     return (
@@ -553,44 +556,60 @@ export function Projects({ onProjectSelect }: ProjectsProps) {
   }
 
   return (
-    <div className="p-3 sm:p-4 lg:p-6 space-y-4 sm:space-y-6 overflow-y-auto h-full max-w-full">
-      {/* Header - Desktop layout */}
-      <div className="hidden sm:flex sm:items-center justify-between gap-4">
-        <div>
-          <h1 className="text-xl sm:text-2xl font-bold text-gray-900">Projects</h1>
-          <p className="text-sm sm:text-base text-gray-600">Manage and track all your electrical engineering projects</p>
+    <div className="p-3 sm:p-5 lg:p-9 space-y-4 sm:space-y-5 lg:space-y-7 overflow-y-auto h-full bg-gradient-to-br from-gray-50 via-white to-gray-100/50 max-w-full">
+      {/* Modern Header with Glassmorphism */}
+      <div className="bg-white/95 backdrop-blur-sm p-4 sm:p-5 lg:p-7 rounded-xl shadow-lg border border-gray-200/50">
+        <div className="hidden sm:flex sm:items-center justify-between gap-4">
+          <div className="space-y-1">
+            <div className="flex items-center gap-3">
+              <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-gradient-to-br from-orange-500 to-red-600 text-white shadow-lg">
+                <FileText className="h-6 w-6" />
+              </div>
+              <div>
+                <h1 className="text-2xl sm:text-3xl lg:text-5xl font-bold text-gray-900">Projects</h1>
+                <p className="text-base lg:text-lg text-gray-600 mt-1">Manage and track all your electrical engineering projects</p>
+              </div>
+            </div>
+          </div>
+          <div className="flex items-center space-x-4">
+            <Button
+              variant="outline"
+              size="default"
+              onClick={handleRefresh}
+              className="flex items-center gap-2 h-10 px-5 border-gray-300 hover:border-gray-400 hover:shadow-md transition-all duration-200"
+            >
+              <RefreshCw className="h-3 w-3" />
+              Refresh
+            </Button>
+            <ProjectFormModal onProjectCreated={handleProjectCreated} />
+          </div>
         </div>
-        <div className="flex items-center space-x-3">
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={handleRefresh}
-            className="flex items-center gap-2"
-          >
-            <RefreshCw className="h-4 w-4" />
-            Refresh
-          </Button>
-          <ProjectFormModal onProjectCreated={handleProjectCreated} />
+
+        {/* Header - Mobile layout */}
+        <div className="sm:hidden">
+          <div className="text-center mb-4">
+            <div className="flex items-center gap-3 justify-center mb-3">
+              <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br from-orange-500 to-red-600 text-white shadow-lg">
+                <FileText className="h-5 w-5" />
+              </div>
+              <h1 className="text-2xl font-bold text-gray-900">Projects</h1>
+            </div>
+            <p className="text-base text-gray-600 mb-3">Manage and track all your electrical engineering projects</p>
+            <Button
+              variant="outline"
+              size="default"
+              onClick={handleRefresh}
+              className="flex items-center gap-2 h-10 px-5 mx-auto border-gray-300 hover:border-gray-400 hover:shadow-md transition-all duration-200"
+            >
+              <RefreshCw className="h-3 w-3" />
+              Refresh
+            </Button>
+          </div>
         </div>
       </div>
 
-      {/* Header - Mobile layout */}
-      <div className="sm:hidden">
-        <div className="flex items-center justify-between mb-4">
-          <div>
-            <h1 className="text-xl font-bold text-gray-900">Projects</h1>
-            <p className="text-sm text-gray-600">Manage and track all your electrical engineering projects</p>
-          </div>
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={handleRefresh}
-            className="flex items-center gap-2"
-          >
-            <RefreshCw className="h-4 w-4" />
-          </Button>
-        </div>
-        
+      {/* Mobile Filters */}
+      <div className="bg-white/95 backdrop-blur-sm p-3 sm:p-4 rounded-xl shadow-lg border border-gray-200/50 sm:hidden">
         {/* Mobile Filters Row 1 - Search and New Project */}
         <div className="grid grid-cols-2 gap-3 mb-3">
           <div className="relative">
@@ -605,21 +624,8 @@ export function Projects({ onProjectSelect }: ProjectsProps) {
           <ProjectFormModal onProjectCreated={handleProjectCreated} />
         </div>
         
-        {/* Mobile Filters Row 2 - Categories and Status */}
-        <div className="grid grid-cols-2 gap-3">
-          <Select value={categoryFilter} onValueChange={setCategoryFilter}>
-            <SelectTrigger className="w-full h-10">
-              <SelectValue placeholder="All Categories" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">All Categories</SelectItem>
-              {uniqueCategories.map((category) => (
-                <SelectItem key={category} value={category}>
-                  {category}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+        {/* Mobile Filters Row 2 - Status Only */}
+        <div>
           <Select value={statusFilter} onValueChange={setStatusFilter}>
             <SelectTrigger className="w-full h-10">
               <SelectValue placeholder="All Status" />
@@ -636,10 +642,10 @@ export function Projects({ onProjectSelect }: ProjectsProps) {
       </div>
 
       {/* Desktop Filters */}
-      <div className="hidden sm:block">
-        {/* Filters Row 1 - Search and All Projects */}
-        <div className="flex flex-col sm:flex-row gap-3 sm:gap-4 mb-4">
-          <div className="relative w-full sm:w-80">
+      <div className="bg-white/95 backdrop-blur-sm p-4 sm:p-5 rounded-xl shadow-lg border border-gray-200/50 hidden sm:block">
+        {/* All Filters in One Row */}
+        <div className="flex gap-4">
+          <div className="relative flex-1 min-w-0">
             <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
             <Input
               placeholder="Search projects or clients..."
@@ -648,7 +654,7 @@ export function Projects({ onProjectSelect }: ProjectsProps) {
               className="pl-10 h-10"
             />
           </div>
-          <div className="w-full sm:w-48">
+          <div className="w-44">
             <Select value={projectFilter} onValueChange={setProjectFilter}>
               <SelectTrigger className="w-full h-10">
                 <SelectValue placeholder="All Projects" />
@@ -663,90 +669,77 @@ export function Projects({ onProjectSelect }: ProjectsProps) {
               </SelectContent>
             </Select>
           </div>
-        </div>
-
-        {/* Filters Row 2 - Categories and Status */}
-        <div className="flex flex-col sm:flex-row gap-3 sm:gap-4">
-          <div className="w-full sm:w-48">
-            <Select value={categoryFilter} onValueChange={setCategoryFilter}>
+          <div className="w-36">
+            <Select value={statusFilter} onValueChange={setStatusFilter}>
               <SelectTrigger className="w-full h-10">
-                <SelectValue placeholder="All Categories" />
+                <SelectValue placeholder="All Status" />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="all">All Categories</SelectItem>
-                {uniqueCategories.map((category) => (
-                  <SelectItem key={category} value={category}>
-                    {category}
-                  </SelectItem>
-                ))}
+                <SelectItem value="all">All Status</SelectItem>
+                <SelectItem value="planning">Planning</SelectItem>
+                <SelectItem value="in-progress">In-Progress</SelectItem>
+                <SelectItem value="on-hold">On-Hold</SelectItem>
+                <SelectItem value="completed">Completed</SelectItem>
               </SelectContent>
             </Select>
           </div>
-          <Select value={statusFilter} onValueChange={setStatusFilter}>
-            <SelectTrigger className="w-full sm:w-48 h-10">
-              <SelectValue placeholder="Filter by status" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">All Status</SelectItem>
-              <SelectItem value="planning">Planning</SelectItem>
-              <SelectItem value="in-progress">In-Progress</SelectItem>
-              <SelectItem value="on-hold">On-Hold</SelectItem>
-              <SelectItem value="completed">Completed</SelectItem>
-            </SelectContent>
-          </Select>
         </div>
       </div>
 
       {/* Project Stats */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
-        <Card>
-          <CardContent className="p-3 sm:p-4">
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-5 lg:gap-7">
+        <Card className="border-l-4 border-l-blue-500 bg-white/95 backdrop-blur-sm shadow-lg hover:shadow-xl transition-all duration-300 border border-gray-200/50">
+          <CardContent className="p-4 sm:p-5">
             <div className="flex items-center justify-between">
-              <div>
-                <p className="text-xs sm:text-sm text-gray-600">Total Projects</p>
-                <p className="text-lg sm:text-2xl font-bold">{projects.length}</p>
+              <div className="space-y-1">
+                <p className="text-sm font-semibold text-gray-700 uppercase tracking-wide">Total Projects</p>
+                <p className="text-2xl sm:text-3xl font-bold text-gray-900">{projects.length}</p>
+                <p className="text-sm text-gray-600">All projects</p>
               </div>
-              <div className="w-6 h-6 sm:w-8 sm:h-8 bg-blue-100 rounded-full flex items-center justify-center flex-shrink-0">
-                <CheckCircle className="h-3 w-3 sm:h-4 sm:w-4 text-blue-600" />
+              <div className="h-12 w-12 rounded-lg bg-blue-500/10 flex items-center justify-center">
+                <FolderOpen className="h-6 w-6 text-blue-600" />
               </div>
             </div>
           </CardContent>
         </Card>
-        <Card>
-          <CardContent className="p-3 sm:p-4">
+        <Card className="border-l-4 border-l-orange-500 bg-white/95 backdrop-blur-sm shadow-lg hover:shadow-xl transition-all duration-300 border border-gray-200/50">
+          <CardContent className="p-4 sm:p-5">
             <div className="flex items-center justify-between">
-              <div>
-                <p className="text-xs sm:text-sm text-gray-600">In-Progress</p>
-                <p className="text-lg sm:text-2xl font-bold">{projects.filter((p) => p.status === "in-progress").length}</p>
+              <div className="space-y-1">
+                <p className="text-sm font-semibold text-gray-700 uppercase tracking-wide">In Progress</p>
+                <p className="text-2xl sm:text-3xl font-bold text-gray-900">{projects.filter((p) => p.status === "in-progress").length}</p>
+                <p className="text-sm text-gray-600">Active work</p>
               </div>
-              <div className="w-6 h-6 sm:w-8 sm:h-8 bg-orange-100 rounded-full flex items-center justify-center flex-shrink-0">
-                <Play className="h-3 w-3 sm:h-4 sm:w-4 text-orange-600" />
+              <div className="h-12 w-12 rounded-lg bg-orange-500/10 flex items-center justify-center">
+                <Play className="h-6 w-6 text-orange-600" />
               </div>
             </div>
           </CardContent>
         </Card>
-        <Card>
-          <CardContent className="p-3 sm:p-4">
+        <Card className="border-l-4 border-l-green-500 bg-white/95 backdrop-blur-sm shadow-lg hover:shadow-xl transition-all duration-300 border border-gray-200/50">
+          <CardContent className="p-4 sm:p-5">
             <div className="flex items-center justify-between">
-              <div>
-                <p className="text-xs sm:text-sm text-gray-600">Completed</p>
-                <p className="text-lg sm:text-2xl font-bold">{projects.filter((p) => p.status === "completed").length}</p>
+              <div className="space-y-1">
+                <p className="text-sm font-semibold text-gray-700 uppercase tracking-wide">Completed</p>
+                <p className="text-2xl sm:text-3xl font-bold text-gray-900">{projects.filter((p) => p.status === "completed").length}</p>
+                <p className="text-sm text-gray-600">Finished projects</p>
               </div>
-              <div className="w-6 h-6 sm:w-8 sm:h-8 bg-green-100 rounded-full flex items-center justify-center flex-shrink-0">
-                <CheckCircle className="h-3 w-3 sm:h-4 sm:w-4 text-green-600" />
+              <div className="h-12 w-12 rounded-lg bg-green-500/10 flex items-center justify-center">
+                <CheckCircle className="h-6 w-6 text-green-600" />
               </div>
             </div>
           </CardContent>
         </Card>
-        <Card>
-          <CardContent className="p-3 sm:p-4">
+        <Card className="border-l-4 border-l-yellow-500 bg-white/95 backdrop-blur-sm shadow-lg hover:shadow-xl transition-all duration-300 border border-gray-200/50">
+          <CardContent className="p-4 sm:p-5">
             <div className="flex items-center justify-between">
-              <div>
-                <p className="text-xs sm:text-sm text-gray-600">On-Hold</p>
-                <p className="text-lg sm:text-2xl font-bold">{projects.filter((p) => p.status === "on-hold").length}</p>
+              <div className="space-y-1">
+                <p className="text-sm font-semibold text-gray-700 uppercase tracking-wide">On Hold</p>
+                <p className="text-2xl sm:text-3xl font-bold text-gray-900">{projects.filter((p) => p.status === "on-hold").length}</p>
+                <p className="text-sm text-gray-600">Paused projects</p>
               </div>
-              <div className="w-6 h-6 sm:w-8 sm:h-8 bg-yellow-100 rounded-full flex items-center justify-center flex-shrink-0">
-                <Pause className="h-3 w-3 sm:h-4 sm:w-4 text-yellow-600" />
+              <div className="h-12 w-12 rounded-lg bg-yellow-500/10 flex items-center justify-center">
+                <Pause className="h-6 w-6 text-yellow-600" />
               </div>
             </div>
           </CardContent>
@@ -755,7 +748,7 @@ export function Projects({ onProjectSelect }: ProjectsProps) {
 
       {/* Reports Assigned for Review - Notification Section */}
       {getAssignedReportsForCurrentUser().length > 0 && (
-        <Card className="border-l-4 border-l-blue-500 bg-blue-50">
+        <Card className="border-l-4 border-l-blue-500 bg-blue-50/95 backdrop-blur-sm shadow-lg border border-blue-200/50">
           <CardHeader className="pb-3">
             <div className="flex items-center space-x-2">
               <FileText className="h-5 w-5 text-blue-600" />
@@ -824,9 +817,9 @@ export function Projects({ onProjectSelect }: ProjectsProps) {
                           }
                         }}
                         size="sm"
-                        className="bg-blue-600 hover:bg-blue-700 text-white flex-shrink-0"
+                        className="bg-blue-600 hover:bg-blue-700 text-white flex-shrink-0 h-8 px-3"
                       >
-                        <FileText className="h-4 w-4 mr-1" />
+                        <FileText className="h-3 w-3 mr-1" />
                         Review Now
                       </Button>
                     </div>
@@ -839,11 +832,11 @@ export function Projects({ onProjectSelect }: ProjectsProps) {
       )}
       
       {/* Projects Grid - Responsive layout */}
-      <div className="grid grid-cols-1 xl:grid-cols-2 gap-4 sm:gap-6">
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6 lg:gap-8">
         {filteredProjects.map((project) => (
           <Card
             key={project.id}
-            className="border-l-4 border-l-orange-500 hover:shadow-lg transition-shadow overflow-hidden w-full flex flex-col"
+            className="border-l-4 border-l-orange-500 bg-white/95 backdrop-blur-sm hover:shadow-xl transition-all duration-300 overflow-hidden w-full flex flex-col border border-gray-200/50 shadow-lg hover:scale-[1.02] transform"
           >
             <CardHeader className="pb-3 sm:pb-4">
               <div className="flex items-start justify-between gap-3 sm:gap-4">
@@ -924,20 +917,20 @@ export function Projects({ onProjectSelect }: ProjectsProps) {
                   )}
                   <DropdownMenu>
                     <DropdownMenuTrigger asChild>
-                      <Button variant="ghost" size="sm" className="h-8 w-8 p-0">
-                        <MoreHorizontal className="h-4 w-4" />
+                      <Button variant="ghost" size="sm" className="h-6 w-6 p-0">
+                        <MoreHorizontal className="h-3 w-3" />
                       </Button>
                     </DropdownMenuTrigger>
                     <DropdownMenuContent align="end">
                       <DropdownMenuItem onClick={() => handleEditProject(project.id)}>
-                        <Edit className="h-4 w-4 mr-2" />
+                        <Edit className="h-3 w-3 mr-2" />
                         Edit Project
                       </DropdownMenuItem>
                       <DropdownMenuItem 
                         onClick={() => handleDeleteProject(project.id, project.name)}
                         className="text-red-600 focus:text-red-600"
                       >
-                        <Trash2 className="h-4 w-4 mr-2" />
+                        <Trash2 className="h-3 w-3 mr-2" />
                         Delete Project
                       </DropdownMenuItem>
                     </DropdownMenuContent>
@@ -984,11 +977,11 @@ export function Projects({ onProjectSelect }: ProjectsProps) {
                   <div className="space-y-2 sm:space-y-3 flex-grow flex items-center justify-center">
                     <Button
                       variant="outline"
-                      size="sm"
-                      className="text-xs text-gray-600 hover:text-gray-800 border-gray-300"
+                      size="default"
+                      className="h-10 px-5 text-gray-600 hover:text-gray-800 border-gray-300"
                       onClick={() => setViewingReports({ projectId: project.id, projectName: project.name })}
                     >
-                      <FileText className="h-3 w-3 sm:h-4 sm:w-4 mr-1 sm:mr-2" />
+                      <FileText className="h-4 w-4 mr-2" />
                       View All {getProjectReports(project.id).length} Reports →
                     </Button>
                   </div>
@@ -997,8 +990,8 @@ export function Projects({ onProjectSelect }: ProjectsProps) {
                 {/* Action buttons - always at bottom */}
                 <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 sm:gap-3 pt-3 sm:pt-4 mt-auto border-t border-gray-100">
                   <Button
-                    size="sm"
-                    className="bg-gradient-to-r from-orange-500 to-orange-600 hover:from-orange-600 hover:to-orange-700 h-8 px-3 text-xs"
+                    size="default"
+                    className="bg-gradient-to-r from-orange-500 to-orange-600 hover:from-orange-600 hover:to-orange-700 h-10 px-5"
                     onClick={() => onProjectSelect?.(project.id)}
                   >
                     View Schedule
@@ -1006,8 +999,8 @@ export function Projects({ onProjectSelect }: ProjectsProps) {
                   <ReportUploadModal 
                     preselectedProjectId={project.id}
                   >
-                    <Button variant="outline" size="sm" className="h-8 px-3 text-xs">
-                      <FileText className="h-3 w-3 mr-1" />
+                    <Button variant="outline" size="default" className="h-10 px-5">
+                      <FileText className="h-4 w-4 mr-2" />
                       Attach Report
                     </Button>
                   </ReportUploadModal>
@@ -1116,9 +1109,9 @@ export function Projects({ onProjectSelect }: ProjectsProps) {
                 <div className="flex flex-wrap gap-2 mt-3">
                   {/* Download button for all users */}
                   <Button 
-                    size="sm" 
+                    size="default" 
                     variant="outline" 
-                    className="text-xs h-7 px-2 text-gray-600 hover:bg-gray-50 border-gray-200"
+                    className="h-10 px-5 text-gray-600 hover:bg-gray-50 border-gray-200"
                     onClick={async () => {
                       try {
                         const { data, error } = await supabase.storage
@@ -1145,30 +1138,28 @@ export function Projects({ onProjectSelect }: ProjectsProps) {
                     Download
                   </Button>
 
-                  {/* View & Note button for assigned reviewers */}
-                  {isAdmin && isAssignedReviewer(report) && (
-                    <Button 
-                      size="sm" 
-                      variant="outline" 
-                      className="text-xs h-7 px-2 text-purple-600 hover:bg-purple-50 border-purple-200"
-                      onClick={() => {
-                        setDocumentViewerModal({
-                          open: true,
-                          report: report
-                        })
-                      }}
-                    >
-                      View & Note
-                    </Button>
-                  )}
+                  {/* View button for everyone, Note capability for assigned reviewers */}
+                  <Button 
+                    size="default" 
+                    variant="outline" 
+                    className="h-10 px-5 text-purple-600 hover:bg-purple-50 border-purple-200"
+                    onClick={() => {
+                      setDocumentViewerModal({
+                        open: true,
+                        report: report
+                      })
+                    }}
+                  >
+                    {isAdmin && isAssignedReviewer(report) ? 'View & Note' : 'View'}
+                  </Button>
 
                   {/* Approval buttons for pending reports */}
                   {isAdmin && report.status === 'pending' && report.uploaded_by !== user?.id && isAssignedReviewer(report) && (
                     <>
                       <Button 
-                        size="sm" 
+                        size="default" 
                         variant="outline" 
-                        className="text-xs h-7 px-2 text-green-600 hover:bg-green-50 border-green-200"
+                        className="h-10 px-5 text-green-600 hover:bg-green-50 border-green-200"
                         onClick={() => {
                           setReviewerNotesModal({
                             open: true,
@@ -1181,9 +1172,9 @@ export function Projects({ onProjectSelect }: ProjectsProps) {
                         Approve
                       </Button>
                       <Button 
-                        size="sm" 
+                        size="default" 
                         variant="outline" 
-                        className="text-xs h-7 px-2 text-yellow-600 hover:bg-yellow-50 border-yellow-200"
+                        className="h-10 px-5 text-yellow-600 hover:bg-yellow-50 border-yellow-200"
                         onClick={() => {
                           setReviewerNotesModal({
                             open: true,
@@ -1196,9 +1187,9 @@ export function Projects({ onProjectSelect }: ProjectsProps) {
                         Revision
                       </Button>
                       <Button 
-                        size="sm" 
+                        size="default" 
                         variant="outline" 
-                        className="text-xs h-7 px-2 text-red-600 hover:bg-red-50 border-red-200"
+                        className="h-10 px-5 text-red-600 hover:bg-red-50 border-red-200"
                         onClick={() => {
                           setReviewerNotesModal({
                             open: true,
@@ -1219,7 +1210,7 @@ export function Projects({ onProjectSelect }: ProjectsProps) {
                       preselectedProjectId={viewingReports.projectId}
                       replacingReportId={report.id}
                       onUploadComplete={() => {
-                        fetchProjects()
+                        refetchProjects()
                         setViewingReports(null)
                       }}
                     >

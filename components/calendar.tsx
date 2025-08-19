@@ -37,10 +37,11 @@ import {
 } from "lucide-react"
 import { EventFormModal } from "./event-form-modal"
 import { DeleteEventDialog } from "./delete-event-dialog"
+import { DeleteConfirmationDialog } from "./delete-confirmation-dialog"
 import { useEvents } from "@/lib/hooks/useEvents"
-import { useProjectsQuery } from "@/lib/hooks/useProjectsOptimized"
+import { useSupabaseQuery } from "@/lib/hooks/useSupabaseQuery"
 import { usePhotosOptimized, usePhotoCountsByDate, usePhotosForDate, usePhotoOperations } from "@/lib/hooks/usePhotosOptimized"
-import { toast } from "react-hot-toast"
+import { toast } from "@/lib/toast-manager"
 
 // Add throttling utility
 const createThrottledFunction = <T extends unknown[]>(func: (...args: T) => void, delay: number) => {
@@ -127,12 +128,40 @@ export function Calendar() {
   const [isEventSelectionMode, setIsEventSelectionMode] = useState(false)
   const [isPhotoSelectionMode, setIsPhotoSelectionMode] = useState(false)
   
+  // Photo delete dialog state
+  const [photoDeleteDialog, setPhotoDeleteDialog] = useState<{
+    open: boolean
+    photo: Photo | null
+    isDeleting: boolean
+  }>({
+    open: false,
+    photo: null,
+    isDeleting: false
+  })
+
+  // Bulk delete dialogs
+  const [bulkDeleteDialog, setBulkDeleteDialog] = useState<{
+    open: boolean
+    type: 'events' | 'photos' | null
+    count: number
+    isDeleting: boolean
+  }>({
+    open: false,
+    type: null,
+    count: 0,
+    isDeleting: false
+  })
+  
   // Refs for throttling
   const lastRefreshRef = useRef<number>(0)
   
   // Use optimized hooks - single data fetch instead of hundreds of requests
   const { events, loading: eventsLoading, fetchEvents, deleteEvent } = useEvents()
-  const { data: projects = [], isLoading: projectsLoading } = useProjectsQuery()
+  
+  // Use centralized TanStack Query hooks
+  const supabaseQuery = useSupabaseQuery()
+  const { data: projects = [], isLoading: projectsLoading } = supabaseQuery.useProjectsQuery()
+  
   const { data: photos = [] } = usePhotosOptimized(selectedProject)
   const { uploadPhotos, getPhotoUrl, downloadPhoto, deletePhoto, uploading, uploadProgress } = usePhotoOperations()
   
@@ -142,18 +171,12 @@ export function Calendar() {
   // Get photos for selected day - always call the hook
   const dayPhotosFromHook = usePhotosForDate(photos, selectedDay || new Date(), selectedProject)
   
-  // Memoized filtered day photos
+  // Memoized day photos without search filtering
   const dayPhotos = useMemo(() => {
     if (!selectedDay) return []
-    return dayPhotosFromHook.filter((photo) => {
-      if (searchQuery === "") return true
-      return (
-        (photo.title && photo.title.toLowerCase().includes(searchQuery.toLowerCase())) ||
-        photo.file_name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        (photo.description && photo.description.toLowerCase().includes(searchQuery.toLowerCase()))
-      )
-    })
-  }, [dayPhotosFromHook, selectedDay, searchQuery])
+    // Remove search filtering for calendar display - only show suggestions
+    return dayPhotosFromHook
+  }, [dayPhotosFromHook, selectedDay]) // Remove searchQuery dependency
 
   // Throttled refresh function
   const throttledRefresh = useMemo(() => 
@@ -226,21 +249,17 @@ export function Calendar() {
     return days
   }, [])
 
-  // Memoized getEventsForDate function using local timezone with search functionality
+  // Memoized getEventsForDate function using local timezone without search filtering
   const getEventsForDate = useMemo(() => (date: Date | null) => {
     if (!date) return []
     const dateString = formatDateToLocal(date)
     return events.filter((event) => {
       const matchesDate = event.date === dateString
       const matchesProject = selectedProject === "all" || event.project_id === selectedProject
-      const matchesSearch = searchQuery === "" || 
-        event.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        event.description?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        event.location?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        event.type.toLowerCase().includes(searchQuery.toLowerCase())
-      return matchesDate && matchesProject && matchesSearch
+      // Remove search filtering for calendar display - only show suggestions
+      return matchesDate && matchesProject
     })
-  }, [events, selectedProject, searchQuery])
+  }, [events, selectedProject]) // Remove searchQuery dependency
 
   // Memoized search suggestions
   const searchSuggestions = useMemo(() => {
@@ -441,20 +460,63 @@ export function Calendar() {
     }
   }
 
-  const handlePhotoDelete = async (photo: Photo) => {
-    // Add confirmation dialog
-    if (!confirm(`Are you sure you want to delete "${photo.file_name}"?`)) {
-      return
-    }
+  const handlePhotoDelete = (photo: Photo) => {
+    setPhotoDeleteDialog({
+      open: true,
+      photo,
+      isDeleting: false
+    })
+  }
 
+  const confirmPhotoDelete = async () => {
+    if (!photoDeleteDialog.photo) return
+
+    setPhotoDeleteDialog(prev => ({ ...prev, isDeleting: true }))
+    
     try {
-      await deletePhoto(photo.id)
+      await deletePhoto(photoDeleteDialog.photo.id)
       
       // Photos will be automatically refreshed via React Query invalidation
       toast.success("Photo deleted successfully")
+      setPhotoDeleteDialog({ open: false, photo: null, isDeleting: false })
     } catch (error) {
       console.error("Failed to delete photo:", error)
       toast.error("Failed to delete photo")
+      setPhotoDeleteDialog(prev => ({ ...prev, isDeleting: false }))
+    }
+  }
+
+  const confirmBulkDelete = async () => {
+    if (!bulkDeleteDialog.type) return
+
+    setBulkDeleteDialog(prev => ({ ...prev, isDeleting: true }))
+    
+    try {
+      if (bulkDeleteDialog.type === 'events') {
+        await Promise.all(
+          Array.from(selectedEvents).map(eventId => deleteEvent(eventId))
+        )
+        setSelectedEvents(new Set())
+        setIsEventSelectionMode(false)
+        toast.success(`Deleted ${bulkDeleteDialog.count} events`)
+        await fetchEvents() // Refresh events after deletion
+      } else if (bulkDeleteDialog.type === 'photos') {
+        await Promise.all(
+          Array.from(selectedPhotos).map(async photoId => {
+            const photo = dayPhotos.find(p => p.id === photoId)
+            if (photo) await deletePhoto(photo.id)
+          })
+        )
+        setSelectedPhotos(new Set())
+        setIsPhotoSelectionMode(false)
+        toast.success(`Deleted ${bulkDeleteDialog.count} photos`)
+      }
+      
+      setBulkDeleteDialog({ open: false, type: null, count: 0, isDeleting: false })
+    } catch (error) {
+      console.error("Bulk delete error:", error)
+      toast.error(`Failed to delete some ${bulkDeleteDialog.type}`)
+      setBulkDeleteDialog(prev => ({ ...prev, isDeleting: false }))
     }
   }
 
@@ -536,12 +598,8 @@ export function Calendar() {
   
   const filteredEvents = events.filter((event) => {
     const matchesProject = selectedProject === "all" || event.project_id === selectedProject
-    const matchesSearch = searchQuery === "" || 
-      event.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      event.description?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      event.location?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      event.type.toLowerCase().includes(searchQuery.toLowerCase())
-    return matchesProject && matchesSearch
+    // Remove search filtering for calendar display - only show suggestions
+    return matchesProject
   })  // Function to get all upcoming events (excluding today)
   const getAllUpcomingEvents = () => {
     const todayString = formatDateToLocal(today)
@@ -550,12 +608,8 @@ export function Calendar() {
         const eventDate = new Date(event.date + 'T00:00:00')
         const eventDateString = formatDateToLocal(eventDate)
         const matchesProject = selectedProject === "all" || event.project_id === selectedProject
-        const matchesSearch = searchQuery === "" || 
-          event.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
-          event.description?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-          event.location?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-          event.type.toLowerCase().includes(searchQuery.toLowerCase())
-        return eventDateString > todayString && matchesProject && matchesSearch
+        // Remove search filtering for calendar display - only show suggestions
+        return eventDateString > todayString && matchesProject
       })
       .sort((a, b) => {
         // Sort by date first, then by time
@@ -573,12 +627,8 @@ export function Calendar() {
         const eventDate = new Date(event.date + 'T00:00:00')
         const eventDateString = formatDateToLocal(eventDate)
         const matchesProject = selectedProject === "all" || event.project_id === selectedProject
-        const matchesSearch = searchQuery === "" || 
-          event.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
-          event.description?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-          event.location?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-          event.type.toLowerCase().includes(searchQuery.toLowerCase())
-        return eventDateString < todayString && matchesProject && matchesSearch
+        // Remove search filtering for calendar display - only show suggestions
+        return eventDateString < todayString && matchesProject
       })
       .sort((a, b) => {
         // Sort by date descending (most recent first), then by time
@@ -634,19 +684,24 @@ export function Calendar() {
   }
 
   return (
-    <div className="p-2 sm:p-4 lg:p-6 space-y-3 sm:space-y-4 overflow-y-auto h-full bg-gray-50">
-      {/* Mobile-optimized Header */}
-      <div className="bg-white p-3 sm:p-4 rounded-lg shadow-sm">
+    <div className="p-3 sm:p-5 lg:p-9 space-y-4 sm:space-y-5 lg:space-y-7 overflow-y-auto h-full bg-gradient-to-br from-gray-50 via-white to-gray-100/50">
+      {/* Modern Header with Glassmorphism */}
+      <div className="bg-white/95 backdrop-blur-sm p-4 sm:p-5 lg:p-7 rounded-xl shadow-lg border border-gray-200/50">
         {/* Mobile Layout: Title and description centered */}
         <div className="lg:hidden text-center mb-4">
-          <h1 className="text-lg sm:text-xl font-bold text-gray-900">Calendar</h1>
-          <p className="text-xs sm:text-sm text-gray-600">Schedule and track project activities</p>
+          <div className="flex items-center gap-3 justify-center mb-3">
+            <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br from-green-500 to-emerald-600 text-white shadow-lg">
+              <CalendarIcon className="h-5 w-5" />
+            </div>
+            <h1 className="text-2xl font-bold text-gray-900">Calendar</h1>
+          </div>
+          <p className="text-base text-gray-600">Schedule and track project activities</p>
           <div className="flex justify-center mt-3">
             <Button
               variant="outline"
-              size="sm"
+              size="default"
               onClick={handleRefresh}
-              className="flex items-center gap-2"
+              className="flex items-center gap-2 h-10 px-5 py-2 border-gray-300 hover:border-gray-400 hover:shadow-md transition-all duration-200"
             >
               <RefreshCw className="h-4 w-4" />
               Refresh
@@ -654,18 +709,25 @@ export function Calendar() {
           </div>
         </div>
         
-        {/* Desktop Layout: Title and New Event button in row */}
+        {/* Desktop Layout: Enhanced header */}
         <div className="hidden lg:flex items-center justify-between gap-3 sm:gap-4">
-          <div className="text-left flex-1">
-            <h1 className="text-lg sm:text-xl font-bold text-gray-900">Calendar</h1>
-            <p className="text-xs sm:text-sm text-gray-600">Schedule and track project activities</p>
+          <div className="space-y-1">
+            <div className="flex items-center gap-3">
+              <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-gradient-to-br from-green-500 to-emerald-600 text-white shadow-lg">
+                <CalendarIcon className="h-6 w-6" />
+              </div>
+              <div>
+                <h1 className="text-2xl sm:text-3xl lg:text-5xl font-bold text-gray-900">Calendar</h1>
+                <p className="text-base lg:text-lg text-gray-600 mt-1">Schedule and track project activities</p>
+              </div>
+            </div>
           </div>
-          <div className="flex items-center space-x-3">
+          <div className="flex items-center space-x-4">
             <Button
               variant="outline"
-              size="sm"
+              size="default"
               onClick={handleRefresh}
-              className="flex items-center gap-2"
+              className="flex items-center gap-2 h-10 px-5 py-2 border-gray-300 hover:border-gray-400 hover:shadow-md transition-all duration-200"
             >
               <RefreshCw className="h-4 w-4" />
               Refresh
@@ -676,13 +738,16 @@ export function Calendar() {
       </div>
 
       {/* Project Filter and Search - Mobile Optimized */}
-      <div className="bg-white p-3 sm:p-4 rounded-lg shadow-sm border">
-        <div className="flex flex-col sm:flex-row gap-3 sm:gap-4 sm:items-center">
+      <div 
+        className="bg-white/95 backdrop-blur-sm p-4 sm:p-5 rounded-xl shadow-lg border border-gray-200/50 relative"
+        style={{ zIndex: 50 }}
+      >
+        <div className="flex flex-col sm:flex-row gap-4 sm:items-center">
           {/* Mobile: Project Filter and New Event Button in same row */}
-          <div className="flex items-center gap-2 lg:hidden">
+          <div className="flex items-center gap-3 lg:hidden">
             <div className="flex-1">
               <Select value={selectedProject} onValueChange={setSelectedProject}>
-                <SelectTrigger className="w-full h-9">
+                <SelectTrigger className="w-full h-10">
                   <SelectValue placeholder="All Projects" />
                 </SelectTrigger>
                 <SelectContent>
@@ -699,10 +764,9 @@ export function Calendar() {
           </div>
           
           {/* Desktop: Project Filter */}
-          <div className="hidden lg:flex items-center gap-2 sm:flex-none">
-            <span className="text-sm text-gray-700 hidden sm:inline">Filter:</span>
+          <div className="hidden lg:flex items-center gap-3">
             <Select value={selectedProject} onValueChange={setSelectedProject}>
-              <SelectTrigger className="w-full sm:w-48 h-9">
+              <SelectTrigger className="w-44 h-10">
                 <SelectValue placeholder="All Projects" />
               </SelectTrigger>
               <SelectContent>
@@ -717,7 +781,7 @@ export function Calendar() {
           </div>
           
           {/* Search */}
-          <div className="relative flex-1 sm:w-80">
+          <div className="relative flex-1" style={{ zIndex: 1 }}>
             <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
             <Input
               placeholder="Search events..."
@@ -728,7 +792,7 @@ export function Calendar() {
               }}
               onFocus={() => setShowSearchSuggestions(searchQuery.length >= 2)}
               onBlur={() => setTimeout(() => setShowSearchSuggestions(false), 150)}
-              className="pl-10 h-9"
+              className="pl-10 h-10"
             />
             {searchQuery && (
               <Button
@@ -746,7 +810,13 @@ export function Calendar() {
             
             {/* Search Suggestions Dropdown */}
             {showSearchSuggestions && searchSuggestions.length > 0 && (
-              <div className="absolute top-full left-0 right-0 mt-2 bg-white border border-gray-200 rounded-xl shadow-xl z-50 max-h-64 overflow-y-auto backdrop-blur-sm">
+              <div 
+                className="fixed left-0 right-0 mx-4 sm:absolute sm:left-0 sm:right-0 sm:mx-0 mt-2 bg-white border border-gray-200 rounded-xl shadow-2xl max-h-64 overflow-y-auto backdrop-blur-sm"
+                style={{ 
+                  zIndex: 2,
+                  top: typeof window !== 'undefined' && window.innerWidth < 640 ? '260px' : 'auto'
+                }}
+              >
                 <div className="p-2">
                   <div className="text-xs font-medium text-gray-500 px-3 py-2 uppercase tracking-wide">
                     Quick Results
@@ -818,9 +888,9 @@ export function Calendar() {
           </div>
         </div>
       </div>      {/* Mobile-responsive calendar layout */}
-      <div className="flex flex-col lg:grid lg:grid-cols-4 gap-4">
+      <div className="flex flex-col lg:grid lg:grid-cols-4 gap-4 sm:gap-6 lg:gap-8" style={{ zIndex: 1 }}>
         {/* Calendar - Full width on mobile, 3/4 on desktop - Shows FIRST on mobile */}
-        <Card className="lg:col-span-3 order-1 lg:order-1">          <CardHeader>
+        <Card className="lg:col-span-3 order-1 lg:order-1 bg-white/95 backdrop-blur-sm shadow-lg hover:shadow-xl transition-all duration-300 border border-gray-200/50" style={{ zIndex: 1 }}>          <CardHeader>
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
               <div className="flex items-center space-x-2 sm:space-x-4">
                 {/* Navigation arrows and dropdowns aligned together */}
@@ -868,9 +938,9 @@ export function Calendar() {
                 </div>
                 <Button
                   variant="outline"
-                  size="sm"
+                  size="default"
                   onClick={goToToday}
-                  className="text-orange-600 border-orange-200 hover:bg-orange-50 h-8 sm:h-10 px-2 sm:px-3 text-xs sm:text-sm"
+                  className="text-orange-600 border-orange-200 hover:bg-orange-50 h-12 px-6"
                 >
                   Today
                 </Button>
@@ -1022,7 +1092,7 @@ export function Calendar() {
           </Card>
 
           {/* Upcoming Events - Mobile optimized */}
-          <Card>
+          <Card className="bg-white/95 backdrop-blur-sm shadow-lg hover:shadow-xl transition-all duration-300 border border-gray-200/50">
             <CardHeader className="pb-2">
               <CardTitle className="text-sm sm:text-base font-semibold flex items-center justify-between">
                 <div className="flex items-center">
@@ -1086,7 +1156,7 @@ export function Calendar() {
                               variant="secondary" 
                               className={`text-[10px] sm:text-xs ${getEventTypeColor(event.type)} ${isThisWeek ? 'ring-2 ring-blue-200' : ''}`}
                             >
-                              {event.type}
+                              {event.type.charAt(0).toUpperCase() + event.type.slice(1)}
                             </Badge>
                             <Button
                               size="sm"
@@ -1115,7 +1185,7 @@ export function Calendar() {
           </Card>
 
           {/* Past Events */}
-          <Card>
+          <Card className="bg-white/95 backdrop-blur-sm shadow-lg hover:shadow-xl transition-all duration-300 border border-gray-200/50">
             <CardHeader>
               <CardTitle className="text-lg font-semibold flex items-center justify-between">
                 <div className="flex items-center">
@@ -1174,7 +1244,7 @@ export function Calendar() {
                               variant="secondary" 
                               className={`text-xs ${getEventTypeColor(event.type)} opacity-75`}
                             >
-                              {event.type}
+                              {event.type.charAt(0).toUpperCase() + event.type.slice(1)}
                             </Badge>
                             <Button
                               size="sm"
@@ -1211,7 +1281,7 @@ export function Calendar() {
           clearAllSelections()
         }
       }}>
-        <DialogContent className="w-[90vw] max-w-3xl max-h-[90vh] overflow-hidden flex flex-col p-0">
+        <DialogContent className="w-[90vw] max-w-2xl max-h-[85vh] overflow-hidden flex flex-col p-0">
           <DialogHeader className="p-3 sm:p-4 border-b border-gray-200 flex-shrink-0">
             <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
               <div className="flex-1 min-w-0">
@@ -1226,7 +1296,7 @@ export function Calendar() {
           </DialogHeader>
 
           <div className="overflow-y-auto p-3 sm:p-4">
-            <div className="space-y-3">
+            <div className="space-y-4">
 
             {/* Events Section */}
             <div className="space-y-2">
@@ -1281,8 +1351,8 @@ export function Calendar() {
                     selectedDate={selectedDay || undefined}
                     onEventCreated={handleEventCreated}
                     trigger={
-                      <Button size="sm" variant="outline" className="text-xs sm:text-sm">
-                        <CalendarIcon className="h-3 w-3 sm:h-4 sm:w-4 mr-1 sm:mr-2" />
+                      <Button size="default" variant="outline" className="h-10 px-5 py-2">
+                        <CalendarIcon className="h-4 w-4 mr-2" />
                         Add Event
                       </Button>
                     }
@@ -1304,32 +1374,25 @@ export function Calendar() {
                     </div>
                     <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-1.5">
                       <Button
-                        size="sm"
+                        size="default"
                         variant="outline"
                         onClick={() => setSelectedEvents(new Set())}
-                        className="text-xs"
+                        className="h-12 px-6"
                       >
                         Clear Selection
                       </Button>
                       <Button
-                        size="sm"
+                        size="default"
                         variant="destructive"
-                        onClick={async () => {
-                          if (confirm(`Are you sure you want to delete ${selectedEvents.size} selected events?`)) {
-                            // Handle bulk event deletion
-                            try {
-                              await Promise.all(
-                                Array.from(selectedEvents).map(eventId => deleteEvent(eventId))
-                              )
-                              setSelectedEvents(new Set())
-                              await fetchEvents() // Refresh events after deletion
-                            } catch (error) {
-                              console.error('Error deleting events:', error)
-                              alert('Failed to delete some events. Please try again.')
-                            }
-                          }
+                        onClick={() => {
+                          setBulkDeleteDialog({
+                            open: true,
+                            type: 'events',
+                            count: selectedEvents.size,
+                            isDeleting: false
+                          })
                         }}
-                        className="text-xs"
+                        className="h-12 px-6"
                       >
                         Delete Selected Events
                       </Button>
@@ -1455,40 +1518,41 @@ export function Calendar() {
                     </div>
                   )}
                 </div>
-                <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2">                  <input
+                <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3">
+                  <input
                     type="file"
                     id="photo-upload"
                     multiple
-                    accept="image/*"
+                    accept="image/*,video/*"
                     onChange={handleFileUpload}
                     className="hidden"
-                    aria-label="Select photos to upload"
+                    aria-label="Select photos and videos to upload"
                   />
                   <Button
-                    size="sm"
+                    size="default"
                     variant="outline"
                     onClick={() => document.getElementById('photo-upload')?.click()}
-                    className="text-xs sm:text-sm"
+                    className="h-10 px-5 py-2 border-2 border-dashed border-blue-300 hover:border-blue-500 hover:bg-blue-50 text-blue-700 hover:text-blue-800 font-medium transition-all duration-300 shadow-sm hover:shadow-md"
                   >
-                    <Upload className="h-3 w-3 sm:h-4 sm:w-4 mr-1 sm:mr-2" />
-                    Upload Photos
+                    <Upload className="h-4 w-4 mr-2" />
+                    <span>Choose Files</span>
                   </Button>
                   {uploadFiles.length > 0 && (
                     <Button
-                      size="sm"
+                      size="default"
                       onClick={handleUploadAll}
                       disabled={uploading}
-                      className="bg-orange-500 hover:bg-orange-600 text-xs sm:text-sm"
+                      className="h-11 px-6 py-3 bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 text-white font-semibold shadow-lg hover:shadow-xl transition-all duration-300 disabled:opacity-60"
                     >
                       {uploading ? (
                         <>
-                          <div className="animate-spin rounded-full h-3 w-3 sm:h-4 sm:w-4 border-b-2 border-white mr-1 sm:mr-2"></div>
-                          Uploading... ({Math.round(uploadProgress)}%)
+                          <div className="animate-spin rounded-full h-5 w-5 border-2 border-white border-t-transparent mr-2.5"></div>
+                          <span>Uploading... {Math.round(uploadProgress)}%</span>
                         </>
                       ) : (
                         <>
-                          <Upload className="h-3 w-3 sm:h-4 sm:w-4 mr-1 sm:mr-2" />
-                          Upload All ({uploadFiles.length})
+                          <Upload className="h-5 w-5 mr-2.5" />
+                          <span>Upload All ({uploadFiles.length})</span>
                         </>
                       )}
                     </Button>
@@ -1521,14 +1585,12 @@ export function Calendar() {
                         size="sm"
                         variant="destructive"
                         onClick={() => {
-                          if (confirm(`Are you sure you want to delete ${selectedPhotos.size} selected photos?`)) {
-                            // Handle bulk photo deletion
-                            selectedPhotos.forEach(photoId => {
-                              const photo = dayPhotos.find(p => p.id === photoId)
-                              if (photo) handlePhotoDelete(photo)
-                            })
-                            setSelectedPhotos(new Set())
-                          }
+                          setBulkDeleteDialog({
+                            open: true,
+                            type: 'photos',
+                            count: selectedPhotos.size,
+                            isDeleting: false
+                          })
                         }}
                         className="text-xs"
                       >
@@ -1541,48 +1603,68 @@ export function Calendar() {
 
               {/* Photo Title Input */}
               {uploadFiles.length > 0 && (
-                <div className="space-y-2">
-                  <div className="flex flex-col sm:flex-row sm:items-center gap-1.5">
-                    <div className="flex-1">
-                      <Input
-                        type="text"
-                        placeholder="Enter photo title"
-                        value={photoTitle}
-                        onChange={(e) => setPhotoTitle(e.target.value)}
-                        className="w-full text-sm"
-                      />
-                    </div>
-                    {uploadFiles.length > 0 && (
-                      <div className="text-xs text-gray-500 sm:whitespace-nowrap">
-                        ({uploadFiles.map(f => f.name).join(", ")})
+                <div className="bg-gradient-to-r from-blue-50 to-indigo-50 p-5 rounded-xl border border-blue-200 shadow-sm space-y-4">
+                  <div className="flex items-center gap-3 mb-3">
+                    <div className="w-3 h-3 bg-blue-500 rounded-full shadow-sm"></div>
+                    <h4 className="text-base font-semibold text-gray-800">Media Details</h4>
+                    <div className="flex-1 h-px bg-gradient-to-r from-blue-200 to-transparent"></div>
+                  </div>
+                  <div className="space-y-3">
+                    <div className="flex flex-col sm:flex-row sm:items-center gap-4">
+                      <div className="flex-1">
+                        <label className="text-sm font-medium text-gray-700 mb-2 block">
+                          Description (Optional)
+                        </label>
+                        <Input
+                          type="text"
+                          placeholder="Enter a descriptive title for your media files..."
+                          value={photoTitle}
+                          onChange={(e) => setPhotoTitle(e.target.value)}
+                          className="w-full h-11 bg-white border-blue-300 focus:border-blue-500 focus:ring-blue-500/20 rounded-lg shadow-sm text-base"
+                        />
                       </div>
-                    )}
+                      <div className="text-sm text-gray-700 bg-white px-4 py-3 rounded-lg border border-blue-200 shadow-sm min-w-fit">
+                        <div className="flex items-center gap-2">
+                          <div className="w-2 h-2 bg-green-500 rounded-full"></div>
+                          <span className="font-medium">{uploadFiles.length} file{uploadFiles.length > 1 ? 's' : ''} ready</span>
+                        </div>
+                      </div>
+                    </div>
                   </div>
                 </div>
               )}
 
               {/* File Queue */}
               {uploadFiles.length > 0 && (
-                <div className="p-2 sm:p-3 bg-gray-50 rounded-lg space-y-1.5">
-                  <h4 className="text-sm font-medium">Files to Upload:</h4>
-                  <div className="space-y-1.5">
+                <div className="p-4 bg-white rounded-xl border border-gray-200 shadow-sm space-y-3">
+                  <div className="flex items-center justify-between">
+                    <h4 className="text-base font-semibold text-gray-800">Upload Queue</h4>
+                    <div className="text-sm text-gray-500">
+                      Total: {(uploadFiles.reduce((sum, file) => sum + file.size, 0) / 1024 / 1024).toFixed(1)} MB
+                    </div>
+                  </div>
+                  <div className="space-y-2">
                     {uploadFiles.map((file, index) => (
-                      <div key={`upload-${file.name}-${file.size}`} className="p-2 bg-white rounded border">
-                        <div className="flex items-start justify-between">
-                          <div className="flex items-start gap-2 flex-1 min-w-0">
-                            <ImageIcon className="h-4 w-4 text-gray-400 flex-shrink-0 mt-0.5" />
+                      <div key={`upload-${file.name}-${file.size}`} className="p-3 bg-gray-50 rounded-lg border border-gray-200 hover:border-gray-300 transition-colors">
+                        <div className="flex items-center justify-between">
+                          <div className="flex items-center gap-3 flex-1 min-w-0">
+                            <div className="p-2 bg-blue-100 rounded-lg">
+                              <ImageIcon className="h-5 w-5 text-blue-600" />
+                            </div>
                             <div className="flex-1 min-w-0">
-                              <span className="text-sm block break-words">{file.name}</span>
-                              <span className="text-xs text-gray-500 block">
-                                ({(file.size / 1024 / 1024).toFixed(2)} MB)
-                              </span>
+                              <p className="text-sm font-medium text-gray-900 truncate" title={file.name}>
+                                {file.name}
+                              </p>
+                              <p className="text-xs text-gray-500">
+                                {(file.size / 1024 / 1024).toFixed(2)} MB • {file.type}
+                              </p>
                             </div>
                           </div>
                           <Button
                             size="sm"
                             variant="ghost"
                             onClick={() => removeFile(index)}
-                            className="ml-2 flex-shrink-0"
+                            className="ml-3 flex-shrink-0 h-8 w-8 p-0 hover:bg-red-50 hover:text-red-600 transition-colors"
                           >
                             <X className="h-4 w-4" />
                           </Button>
@@ -1593,20 +1675,20 @@ export function Calendar() {
                 </div>
               )}
 
-              {/* Uploaded Photos */}
+              {/* Empty State */}
               {dayPhotos.length === 0 && uploadFiles.length === 0 ? (
-                <div className="border-2 border-dashed border-gray-300 rounded-lg p-4 text-center">
-                  <ImageIcon className="h-6 w-6 text-gray-400 mx-auto mb-2" />
-                  <p className="text-gray-500 mb-2 text-sm">No photos uploaded for this day</p>
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    onClick={() => document.getElementById('photo-upload')?.click()}
-                    className="border-dashed text-xs"
-                  >
-                    <Upload className="h-3 w-3 mr-1" />
-                    Upload First Photo
-                  </Button>
+                <div className="border-2 border-dashed border-gray-300 rounded-xl p-8 text-center bg-gray-50/50">
+                  <div className="max-w-sm mx-auto">
+                    <div className="mb-4">
+                      <div className="w-16 h-16 bg-blue-100 rounded-full flex items-center justify-center mx-auto mb-3">
+                        <ImageIcon className="h-8 w-8 text-blue-600" />
+                      </div>
+                    </div>
+                    <h3 className="text-lg font-medium text-gray-900 mb-2">No media files yet</h3>
+                    <p className="text-gray-500 mb-4 text-sm leading-relaxed">
+                      Upload photos and videos to document this day&apos;s activities and progress
+                    </p>
+                  </div>
                 </div>
               ) : (
                 <div className="grid grid-cols-2 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-2 sm:gap-3">
@@ -1738,6 +1820,27 @@ export function Calendar() {
           setDeleteEventId(null)
           setDeleteEventTitle("")
         }}
+      />
+
+      {/* Photo Delete Dialog */}
+      <DeleteConfirmationDialog
+        isOpen={photoDeleteDialog.open}
+        onClose={() => setPhotoDeleteDialog({ open: false, photo: null, isDeleting: false })}
+        onConfirm={confirmPhotoDelete}
+        title="Delete Photo"
+        description="Are you sure you want to delete this photo? This action cannot be undone."
+        itemName={photoDeleteDialog.photo?.file_name}
+        isLoading={photoDeleteDialog.isDeleting}
+      />
+
+      {/* Bulk Delete Dialog */}
+      <DeleteConfirmationDialog
+        isOpen={bulkDeleteDialog.open}
+        onClose={() => setBulkDeleteDialog({ open: false, type: null, count: 0, isDeleting: false })}
+        onConfirm={confirmBulkDelete}
+        title={`Delete ${bulkDeleteDialog.type === 'events' ? 'Events' : 'Photos'}`}
+        description={`Are you sure you want to delete ${bulkDeleteDialog.count} selected ${bulkDeleteDialog.type}? This action cannot be undone.`}
+        isLoading={bulkDeleteDialog.isDeleting}
       />
     </div>
   )

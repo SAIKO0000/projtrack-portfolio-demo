@@ -83,7 +83,20 @@ export const withAuthErrorHandling = async <T>(
   try {
     return await operation()
   } catch (error) {
-    const friendlyError = handleAuthError(error)
+    // Handle the error more gracefully
+    let errorMessage = 'An unknown error occurred'
+    
+    if (error instanceof Error) {
+      errorMessage = error.message
+    } else if (typeof error === 'object' && error !== null) {
+      // Handle case where error is an object (like "[object Object]")
+      errorMessage = JSON.stringify(error, null, 2)
+      console.error('Detailed error object:', error)
+    } else {
+      errorMessage = String(error)
+    }
+    
+    const friendlyError = handleAuthError(errorMessage)
     console.error('Auth operation failed:', friendlyError)
     
     // If it's a session-related error, clear storage and optionally redirect
@@ -92,6 +105,12 @@ export const withAuthErrorHandling = async <T>(
       if (typeof window !== 'undefined') {
         window.location.href = '/auth/login'
       }
+    }
+    
+    // Don't throw error for status updates, just log and continue
+    if (errorMessage.includes('status') || errorMessage.includes('update')) {
+      console.warn('Non-critical operation failed:', friendlyError)
+      return fallback
     }
     
     return fallback

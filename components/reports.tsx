@@ -36,8 +36,9 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { ReportUploadModal } from "./report-upload-modal"
 import { EditReportModal } from "./edit-report-modal"
 import { ReviewerNotesModal } from "./reviewer-notes-modal"
+import { DeleteConfirmationDialog } from "./delete-confirmation-dialog"
 import { useReports, type ReportWithUploader } from "@/lib/hooks/useReports"
-import { useProjects } from "@/lib/hooks/useProjects"
+import { useSupabaseQuery } from "@/lib/hooks/useSupabaseQuery"
 import { usePersonnel } from "@/lib/hooks/usePersonnel"
 import { useAuth } from "@/lib/auth"
 import { toast } from "react-hot-toast"
@@ -94,6 +95,15 @@ export function Reports({ onTabChangeAction }: ReportsProps = {}) {
     reportId: '',
     reportName: ''
   })
+  const [deleteDialog, setDeleteDialog] = useState<{
+    open: boolean
+    report: EnhancedReport | null
+    isDeleting: boolean
+  }>({
+    open: false,
+    report: null,
+    isDeleting: false
+  })
   const lastRefreshRef = useRef<number>(0)
 
   // Debug: Log modal state changes
@@ -101,8 +111,12 @@ export function Reports({ onTabChangeAction }: ReportsProps = {}) {
     console.log('reviewerNotesModal state changed:', reviewerNotesModal)
   }, [reviewerNotesModal])
 
-  const { reports, loading, fetchReports, downloadReport, deleteReport, updateReport } = useReports()
-  const { projects } = useProjects()
+  const { reports, loading, fetchReports, downloadReport, deleteReport, updateReport, getReportUrl } = useReports()
+  
+  // Use centralized TanStack Query hooks
+  const supabaseQuery = useSupabaseQuery()
+  const { data: projects = [] } = supabaseQuery.useProjectsQuery()
+  
   const { personnel } = usePersonnel()
   const { user } = useAuth()
 
@@ -292,15 +306,69 @@ export function Reports({ onTabChangeAction }: ReportsProps = {}) {
     }
   }
 
-  const handleDelete = async (report: EnhancedReport) => {
-    if (confirm("Are you sure you want to delete this document?")) {
-      try {
-        await deleteReport(report.id)
-        toast.success("Document deleted successfully")
-      } catch (error) {
-        console.error("Delete error:", error)
-        toast.error("Failed to delete document")
+  const handleShare = async (report: EnhancedReport) => {
+    try {
+      const shareUrl = getReportUrl(report.file_path)
+      
+      // Use the Web Share API if available
+      if (navigator.share) {
+        await navigator.share({
+          title: report.file_name,
+          text: `Report: ${report.title || report.file_name}`,
+          url: shareUrl,
+        })
+      } else if (navigator.clipboard && navigator.clipboard.writeText) {
+        // Fallback: copy to clipboard if available
+        await navigator.clipboard.writeText(shareUrl)
+        toast.success("Share link copied to clipboard!")
+      } else {
+        // Final fallback: create a temporary input element
+        const textArea = document.createElement('textarea')
+        textArea.value = shareUrl
+        textArea.style.position = 'fixed'
+        textArea.style.left = '-999999px'
+        textArea.style.top = '-999999px'
+        document.body.appendChild(textArea)
+        textArea.focus()
+        textArea.select()
+        
+        try {
+          document.execCommand('copy')
+          toast.success("Share link copied to clipboard!")
+        } catch (err) {
+          console.error('Fallback copy failed:', err)
+          toast.error("Unable to copy link. Please copy manually: " + shareUrl)
+        }
+        
+        document.body.removeChild(textArea)
       }
+    } catch (error) {
+      console.error("Share error:", error)
+      toast.error("Failed to share file")
+    }
+  }
+
+  const handleDelete = (report: EnhancedReport) => {
+    setDeleteDialog({
+      open: true,
+      report,
+      isDeleting: false
+    })
+  }
+
+  const confirmDelete = async () => {
+    if (!deleteDialog.report) return
+
+    setDeleteDialog(prev => ({ ...prev, isDeleting: true }))
+    
+    try {
+      await deleteReport(deleteDialog.report.id)
+      toast.success("Document deleted successfully")
+      setDeleteDialog({ open: false, report: null, isDeleting: false })
+    } catch (error) {
+      console.error("Delete error:", error)
+      toast.error("Failed to delete document")
+      setDeleteDialog(prev => ({ ...prev, isDeleting: false }))
     }
   }
 
@@ -456,8 +524,19 @@ export function Reports({ onTabChangeAction }: ReportsProps = {}) {
     return matchesSearch && matchesProject && matchesCategory && matchesStatus
   })
 
-  const uniqueProjects = [...new Set(enhancedReports.map((report) => report.projectName))]
-  const uniqueCategories = [...new Set(enhancedReports.map((report) => report.category).filter(Boolean))]
+  const uniqueProjects = [...new Set([
+    ...projects.map((project) => project.name),
+    ...enhancedReports.map((report) => report.projectName)
+  ])].sort()
+  const uniqueCategories = [...new Set([
+    "Financial Reports",
+    "Progress Reports", 
+    "Technical Documentation",
+    "Safety Reports",
+    "Quality Reports",
+    "Other",
+    ...enhancedReports.map((report) => report.category).filter(Boolean)
+  ])].sort()
 
   const formatDate = (dateString: string | null) => {
     if (!dateString) return "Unknown"
@@ -465,146 +544,184 @@ export function Reports({ onTabChangeAction }: ReportsProps = {}) {
   }
 
   return (
-    <div className="p-3 sm:p-4 lg:p-6 space-y-4 sm:space-y-6 overflow-y-auto h-full max-w-full">
-      <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4">
-        <div className="text-center sm:text-left">
-          <h1 className="text-xl sm:text-2xl lg:text-3xl font-bold text-gray-900">Reports & Documents</h1>
-          <p className="text-sm text-gray-600">Manage project documents, reports, and files</p>
-        </div>
-        <div className="flex items-center space-x-3">
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={handleRefresh}
-            className="flex items-center gap-2"
-          >
-            <RefreshCw className="h-4 w-4" />
-            Refresh
-          </Button>
-          <ReportUploadModal onUploadComplete={handleUploadComplete}>
-            <Button className="bg-gradient-to-r from-orange-500 to-orange-600 hover:from-orange-600 hover:to-orange-700 w-full sm:w-auto hidden sm:flex">
-              <Upload className="h-4 w-4 mr-2" />
-              <span className="hidden sm:inline">Upload Document</span>
-              <span className="sm:hidden">Upload</span>
+    <div className="p-3 sm:p-5 lg:p-9 space-y-4 sm:space-y-5 lg:space-y-7 overflow-y-auto h-full bg-gradient-to-br from-gray-50 via-white to-gray-100/50 max-w-full">
+      <div className="bg-white/95 backdrop-blur-sm p-4 sm:p-5 lg:p-7 rounded-xl shadow-lg border border-gray-200/50">
+        {/* Desktop layout */}
+        <div className="hidden sm:flex sm:items-start sm:justify-between gap-4">
+          <div className="space-y-1">
+            <div className="flex items-center gap-3">
+              <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-gradient-to-br from-blue-500 to-indigo-600 text-white shadow-lg">
+                <FileText className="h-6 w-6" />
+              </div>
+              <div>
+                <h1 className="text-2xl sm:text-3xl lg:text-5xl font-bold text-gray-900">Reports & Documents</h1>
+                <p className="text-base lg:text-lg text-gray-600 mt-1">Manage project documents, reports, and files</p>
+              </div>
+            </div>
+          </div>
+          <div className="flex items-center space-x-3">
+            <Button
+              variant="outline"
+              size="default"
+              onClick={handleRefresh}
+              className="flex items-center gap-2 h-10 px-5 py-2 border-gray-300 hover:border-gray-400 hover:shadow-md transition-all duration-200"
+            >
+              <RefreshCw className="h-4 w-4" />
+              Refresh
             </Button>
-          </ReportUploadModal>
-        </div>
-      </div>
-
-      <div className="grid grid-cols-2 sm:grid-cols-2 lg:grid-cols-4 gap-2 sm:gap-3 lg:gap-4">
-        <Card>
-          <CardContent className="p-3 sm:p-4">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-xs sm:text-sm text-gray-600">Total Documents</p>
-                <p className="text-lg sm:text-2xl font-bold">{enhancedReports.length}</p>
-              </div>
-              <div className="w-6 h-6 sm:w-8 sm:h-8 bg-blue-100 rounded-full flex items-center justify-center">
-                <FileText className="h-3 w-3 sm:h-4 sm:w-4 text-blue-600" />
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="p-3 sm:p-4">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-xs sm:text-sm text-gray-600">Pending Review</p>
-                <p className="text-lg sm:text-2xl font-bold">{enhancedReports.filter((r) => r.status === "pending").length}</p>
-              </div>
-              <div className="w-6 h-6 sm:w-8 sm:h-8 bg-yellow-100 rounded-full flex items-center justify-center">
-                <Clock className="h-3 w-3 sm:h-4 sm:w-4 text-yellow-600" />
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="p-3 sm:p-4">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-xs sm:text-sm text-gray-600">Approved</p>
-                <p className="text-lg sm:text-2xl font-bold">{enhancedReports.filter((r) => r.status === "approved").length}</p>
-              </div>
-              <div className="w-6 h-6 sm:w-8 sm:h-8 bg-green-100 rounded-full flex items-center justify-center">
-                <CheckCircle className="h-3 w-3 sm:h-4 sm:w-4 text-green-600" />
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="p-3 sm:p-4">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-xs sm:text-sm text-gray-600">Need Revision</p>
-                <p className="text-lg sm:text-2xl font-bold">{enhancedReports.filter((r) => r.status === "revision").length}</p>
-              </div>
-              <div className="w-6 h-6 sm:w-8 sm:h-8 bg-orange-100 rounded-full flex items-center justify-center">
-                <AlertCircle className="h-3 w-3 sm:h-4 sm:w-4 text-orange-600" />
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-      </div>
-
-      <div className="flex flex-col gap-4">
-        <div className="relative flex-1">
-          <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
-          <Input
-            placeholder="Search documents..."
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-            className="pl-10"
-          />
-        </div>
-        <div className="grid grid-cols-2 gap-3">
-          <Select value={projectFilter} onValueChange={setProjectFilter}>
-            <SelectTrigger className="w-full">
-              <SelectValue placeholder="Filter by project" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">All Projects</SelectItem>
-              {uniqueProjects.map((projectName) => (
-                <SelectItem key={projectName} value={projectName}>
-                  {projectName}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-          <Select value={categoryFilter} onValueChange={setCategoryFilter}>
-            <SelectTrigger className="w-full">
-              <SelectValue placeholder="Filter by category" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">All Categories</SelectItem>
-              {uniqueCategories.map((category) => (
-                <SelectItem key={category} value={category || ""}>
-                  {category}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </div>
-        <div className="grid grid-cols-2 gap-3">
-          <Select value={statusFilter} onValueChange={setStatusFilter}>
-            <SelectTrigger className="w-full">
-              <SelectValue placeholder="Filter by status" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">All Status</SelectItem>
-              <SelectItem value="approved">Approved</SelectItem>
-              <SelectItem value="pending">Pending</SelectItem>
-              <SelectItem value="revision">Revision</SelectItem>
-              <SelectItem value="rejected">Rejected</SelectItem>
-            </SelectContent>
-          </Select>
-          {/* Mobile Upload Button - only visible on mobile */}
-          <div className="sm:hidden">
             <ReportUploadModal onUploadComplete={handleUploadComplete}>
-              <Button className="bg-gradient-to-r from-orange-500 to-orange-600 hover:from-orange-600 hover:to-orange-700 w-full h-10">
+              <Button className="bg-gradient-to-r from-orange-500 to-orange-600 hover:from-orange-600 hover:to-orange-700 w-full sm:w-auto h-10 px-5 py-2">
                 <Upload className="h-4 w-4 mr-2" />
-                Upload
+                Upload Document
               </Button>
             </ReportUploadModal>
+          </div>
+        </div>
+
+        {/* Mobile layout */}
+        <div className="sm:hidden text-center">
+          <div className="flex items-center gap-3 justify-center mb-3">
+            <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br from-blue-500 to-indigo-600 text-white shadow-lg">
+              <FileText className="h-5 w-5" />
+            </div>
+            <div>
+              <h1 className="text-xl font-bold text-gray-900">Reports & Documents</h1>
+            </div>
+          </div>
+          <p className="text-sm text-gray-600 mb-3">Manage project documents, reports, and files</p>
+          <div className="flex justify-center">
+            <Button
+              variant="outline"
+              size="default"
+              onClick={handleRefresh}
+              className="flex items-center gap-2 h-12 px-6"
+            >
+              <RefreshCw className="h-4 w-4" />
+              Refresh
+            </Button>
+          </div>
+        </div>
+      </div>
+
+      {/* Enhanced Stats Cards */}
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-5 lg:gap-7">
+        <Card className="border-l-4 border-l-blue-500 bg-white/95 backdrop-blur-sm shadow-lg hover:shadow-xl transition-all duration-300 border border-gray-200/50">
+          <CardContent className="p-4 sm:p-5">
+            <div className="flex items-center justify-between">
+              <div className="space-y-1">
+                <p className="text-sm font-semibold text-gray-700 uppercase tracking-wide">Total Documents</p>
+                <p className="text-2xl sm:text-3xl font-bold text-gray-900">{enhancedReports.length}</p>
+                <p className="text-sm text-gray-600">All files uploaded</p>
+              </div>
+              <div className="h-12 w-12 rounded-lg bg-blue-500/10 flex items-center justify-center">
+                <FileText className="h-6 w-6 text-blue-600" />
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card className="border-l-4 border-l-yellow-500 bg-white/95 backdrop-blur-sm shadow-lg hover:shadow-xl transition-all duration-300 border border-gray-200/50">
+          <CardContent className="p-4 sm:p-5">
+            <div className="flex items-center justify-between">
+              <div className="space-y-1">
+                <p className="text-sm font-semibold text-gray-700 uppercase tracking-wide">Pending Review</p>
+                <p className="text-2xl sm:text-3xl font-bold text-gray-900">{enhancedReports.filter((r) => r.status === "pending").length}</p>
+                <p className="text-sm text-gray-600">Awaiting approval</p>
+              </div>
+              <div className="h-12 w-12 rounded-lg bg-yellow-500/10 flex items-center justify-center">
+                <Clock className="h-6 w-6 text-yellow-600" />
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card className="border-l-4 border-l-green-500 bg-white/95 backdrop-blur-sm shadow-lg hover:shadow-xl transition-all duration-300 border border-gray-200/50">
+          <CardContent className="p-4 sm:p-5">
+            <div className="flex items-center justify-between">
+              <div className="space-y-1">
+                <p className="text-sm font-semibold text-gray-700 uppercase tracking-wide">Approved</p>
+                <p className="text-2xl sm:text-3xl font-bold text-gray-900">{enhancedReports.filter((r) => r.status === "approved").length}</p>
+                <p className="text-sm text-gray-600">Ready for use</p>
+              </div>
+              <div className="h-12 w-12 rounded-lg bg-green-500/10 flex items-center justify-center">
+                <CheckCircle className="h-6 w-6 text-green-600" />
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card className="border-l-4 border-l-orange-500 bg-white/95 backdrop-blur-sm shadow-lg hover:shadow-xl transition-all duration-300 border border-gray-200/50">
+          <CardContent className="p-4 sm:p-5">
+            <div className="flex items-center justify-between">
+              <div className="space-y-1">
+                <p className="text-sm font-semibold text-gray-700 uppercase tracking-wide">Need Revision</p>
+                <p className="text-2xl sm:text-3xl font-bold text-gray-900">{enhancedReports.filter((r) => r.status === "revision").length}</p>
+                <p className="text-sm text-gray-600">Requires changes</p>
+              </div>
+              <div className="h-12 w-12 rounded-lg bg-orange-500/10 flex items-center justify-center">
+                <AlertCircle className="h-6 w-6 text-orange-600" />
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* Search and Filters - Single row layout */}
+      <div className="bg-white/95 backdrop-blur-sm p-4 sm:p-5 rounded-xl shadow-lg border border-gray-200/50">
+        <div className="flex flex-col sm:flex-row gap-4">
+          {/* Search bar */}
+          <div className="relative flex-1">
+            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
+            <Input
+              placeholder="Search documents..."
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              className="pl-10 h-10"
+            />
+          </div>
+          
+          {/* Filters */}
+          <div className="flex gap-3 sm:gap-4">
+            <Select value={projectFilter} onValueChange={setProjectFilter}>
+              <SelectTrigger className="w-36 sm:w-40 h-10">
+                <SelectValue placeholder="All Projects" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Projects</SelectItem>
+                {uniqueProjects.map((projectName) => (
+                  <SelectItem key={projectName} value={projectName}>
+                    {projectName}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            
+            <Select value={categoryFilter} onValueChange={setCategoryFilter}>
+              <SelectTrigger className="w-32 sm:w-36 h-10">
+                <SelectValue placeholder="All Categories" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Categories</SelectItem>
+                {uniqueCategories.map((category) => (
+                  <SelectItem key={category} value={category || ""}>
+                    {category}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            
+            <Select value={statusFilter} onValueChange={setStatusFilter}>
+              <SelectTrigger className="w-28 sm:w-32 h-10">
+                <SelectValue placeholder="All Status" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Status</SelectItem>
+                <SelectItem value="approved">Approved</SelectItem>
+                <SelectItem value="pending">Pending</SelectItem>
+                <SelectItem value="revision">Revision</SelectItem>
+                <SelectItem value="rejected">Rejected</SelectItem>
+              </SelectContent>
+            </Select>
           </div>
         </div>
       </div>
@@ -691,51 +808,52 @@ export function Reports({ onTabChangeAction }: ReportsProps = {}) {
                   <div className="flex flex-wrap items-center justify-center sm:justify-end gap-1 pt-2 border-t border-gray-100">
                     <Button 
                       variant="ghost" 
-                      size="sm" 
+                      size="default" 
                       onClick={() => handleView(report)}
-                      className="h-8 px-2 hover:bg-blue-100 hover:text-blue-600 transition-all duration-200 group"
+                      className="h-10 px-5 py-2 hover:bg-blue-100 hover:text-blue-600 transition-all duration-200 group"
                       title="View file"
                     >
-                      <Eye className="h-4 w-4 mr-1 group-hover:scale-110 transition-transform duration-200" />
+                      <Eye className="h-4 w-4 mr-2 group-hover:scale-110 transition-transform duration-200" />
                       <span className="hidden sm:inline">View</span>
                     </Button>
                     <Button 
                       variant="ghost" 
-                      size="sm" 
+                      size="default" 
                       onClick={() => handleEdit(report)}
-                      className="h-8 px-2 hover:bg-orange-100 hover:text-orange-600 transition-all duration-200 group"
+                      className="h-10 px-5 py-2 hover:bg-orange-100 hover:text-orange-600 transition-all duration-200 group"
                       title="Edit document"
                     >
-                      <Edit className="h-4 w-4 mr-1 group-hover:scale-110 transition-transform duration-200" />
+                      <Edit className="h-4 w-4 mr-2 group-hover:scale-110 transition-transform duration-200" />
                       <span className="hidden sm:inline">Edit</span>
                     </Button>
                     <Button 
                       variant="ghost" 
-                      size="sm" 
+                      size="default" 
                       onClick={() => handleDownload(report)}
-                      className="h-8 px-2 hover:bg-green-100 hover:text-green-600 transition-all duration-200 group"
+                      className="h-10 px-5 py-2 hover:bg-green-100 hover:text-green-600 transition-all duration-200 group"
                       title="Download file"
                     >
-                      <Download className="h-4 w-4 mr-1 group-hover:scale-110 transition-transform duration-200" />
+                      <Download className="h-4 w-4 mr-2 group-hover:scale-110 transition-transform duration-200" />
                       <span className="hidden sm:inline">Download</span>
                     </Button>
                     <Button 
                       variant="ghost" 
-                      size="sm"
-                      className="h-8 px-2 hover:bg-purple-100 hover:text-purple-600 transition-all duration-200 group"
+                      size="default"
+                      onClick={() => handleShare(report)}
+                      className="h-10 px-5 py-2 hover:bg-purple-100 hover:text-purple-600 transition-all duration-200 group"
                       title="Share file"
                     >
-                      <Share className="h-4 w-4 mr-1 group-hover:scale-110 transition-transform duration-200" />
+                      <Share className="h-4 w-4 mr-2 group-hover:scale-110 transition-transform duration-200" />
                       <span className="hidden sm:inline">Share</span>
                     </Button>
                     <Button 
                       variant="ghost" 
-                      size="sm" 
+                      size="default" 
                       onClick={() => handleDelete(report)}
-                      className="h-8 px-2 hover:bg-red-100 hover:text-red-600 transition-all duration-200 group"
+                      className="h-10 px-5 py-2 hover:bg-red-100 hover:text-red-600 transition-all duration-200 group"
                       title="Delete document"
                     >
-                      <Trash2 className="h-4 w-4 mr-1 group-hover:scale-110 transition-transform duration-200" />
+                      <Trash2 className="h-4 w-4 mr-2 group-hover:scale-110 transition-transform duration-200" />
                       <span className="hidden sm:inline">Delete</span>
                     </Button>
 
@@ -744,49 +862,35 @@ export function Reports({ onTabChangeAction }: ReportsProps = {}) {
                       <>
                         <Button 
                           variant="ghost" 
-                          size="sm" 
+                          size="default" 
                           onClick={() => handleReportStatusUpdate(report.id, 'approved')}
-                          className="h-8 px-2 hover:bg-green-100 hover:text-green-600 transition-all duration-200 group"
+                          className="h-12 px-6 hover:bg-green-100 hover:text-green-600 transition-all duration-200 group"
                           title="Approve report"
                         >
-                          <CheckCircle className="h-4 w-4 mr-1 group-hover:scale-110 transition-transform duration-200" />
+                          <CheckCircle className="h-4 w-4 mr-2 group-hover:scale-110 transition-transform duration-200" />
                           <span className="hidden sm:inline">Approve</span>
                         </Button>
                         <Button 
                           variant="ghost" 
-                          size="sm" 
+                          size="default" 
                           onClick={() => handleReportStatusUpdate(report.id, 'revision')}
-                          className="h-8 px-2 hover:bg-yellow-100 hover:text-yellow-600 transition-all duration-200 group"
+                          className="h-12 px-6 hover:bg-yellow-100 hover:text-yellow-600 transition-all duration-200 group"
                           title="Request revision"
                         >
-                          <RotateCcw className="h-4 w-4 mr-1 group-hover:scale-110 transition-transform duration-200" />
+                          <RotateCcw className="h-4 w-4 mr-2 group-hover:scale-110 transition-transform duration-200" />
                           <span className="hidden sm:inline">Revision</span>
                         </Button>
                         <Button 
                           variant="ghost" 
-                          size="sm" 
+                          size="default" 
                           onClick={() => handleReportStatusUpdate(report.id, 'rejected')}
-                          className="h-8 px-2 hover:bg-red-100 hover:text-red-600 transition-all duration-200 group"
+                          className="h-12 px-6 hover:bg-red-100 hover:text-red-600 transition-all duration-200 group"
                           title="Reject report"
                         >
-                          <X className="h-4 w-4 mr-1 group-hover:scale-110 transition-transform duration-200" />
+                          <X className="h-4 w-4 mr-2 group-hover:scale-110 transition-transform duration-200" />
                           <span className="hidden sm:inline">Reject</span>
                         </Button>
                       </>
-                    )}
-
-                    {/* View Document Button for Non-Assigned Reviewers and Other Users */}
-                    {(!isAssignedReviewer(report) || report.uploaded_by === user?.id) && (
-                      <Button 
-                        variant="ghost" 
-                        size="sm" 
-                        onClick={() => handleView(report)}
-                        className="h-8 px-2 hover:bg-indigo-100 hover:text-indigo-600 transition-all duration-200 group"
-                        title="View document"
-                      >
-                        <FileText className="h-4 w-4 mr-1 group-hover:scale-110 transition-transform duration-200" />
-                        <span className="hidden sm:inline">View Document</span>
-                      </Button>
                     )}
                   </div>
 
@@ -811,9 +915,9 @@ export function Reports({ onTabChangeAction }: ReportsProps = {}) {
                           onUploadComplete={handleUploadComplete}
                         >
                           <Button
-                            size="sm"
+                            size="default"
                             variant="outline"
-                            className="h-6 px-2 text-xs bg-blue-50 border-blue-200 text-blue-700 hover:bg-blue-100"
+                            className="h-12 px-6 bg-blue-50 border-blue-200 text-blue-700 hover:bg-blue-100"
                           >
                             Replace Report
                           </Button>
@@ -851,6 +955,16 @@ export function Reports({ onTabChangeAction }: ReportsProps = {}) {
         onSubmitAction={handleReviewerNotesSubmit}
         reportName={reviewerNotesModal.reportName}
         action={reviewerNotesModal.action}
+      />
+
+      <DeleteConfirmationDialog
+        isOpen={deleteDialog.open}
+        onClose={() => setDeleteDialog({ open: false, report: null, isDeleting: false })}
+        onConfirm={confirmDelete}
+        title="Delete Document"
+        description="Are you sure you want to delete this document? This action cannot be undone."
+        itemName={deleteDialog.report?.file_name}
+        isLoading={deleteDialog.isDeleting}
       />
     </div>
   )

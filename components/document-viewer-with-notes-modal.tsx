@@ -362,11 +362,13 @@ export function DocumentViewerWithNotesModal({
                   </Label>
                   <Textarea
                     id="notes-mobile"
-                    placeholder="Add your notes, comments, or feedback here..."
+                    placeholder={userRole === 'viewer' ? "View only - You are not assigned to review this report" : "Add your notes, comments, or feedback here..."}
                     value={notes}
                     onChange={(e) => setNotes(e.target.value)}
                     className="min-h-24 resize-none text-sm"
                     rows={4}
+                    disabled={userRole === 'viewer'}
+                    readOnly={userRole === 'viewer'}
                   />
                 </div>
 
@@ -378,17 +380,19 @@ export function DocumentViewerWithNotesModal({
                 )}
 
                 <div className="space-y-3">
-                  {/* Save Notes Button */}
-                  <Button
-                    onClick={handleSaveNotes}
-                    disabled={isSubmitting}
-                    className="w-full flex items-center gap-2"
-                    variant="outline"
-                    size="sm"
-                  >
-                    <Save className="h-4 w-4" />
-                    Save Notes
-                  </Button>
+                  {/* Save Notes Button - Only show for reviewers */}
+                  {userRole === 'reviewer' && (
+                    <Button
+                      onClick={handleSaveNotes}
+                      disabled={isSubmitting}
+                      className="w-full flex items-center gap-2"
+                      variant="outline"
+                      size="sm"
+                    >
+                      <Save className="h-4 w-4" />
+                      Save Notes
+                    </Button>
+                  )}
 
                   {/* Reviewer Actions */}
                   {userRole === 'reviewer' && (
@@ -446,10 +450,12 @@ export function DocumentViewerWithNotesModal({
                 </Label>
                 <Textarea
                   id="notes-desktop"
-                  placeholder="Add your notes, comments, or feedback here..."
+                  placeholder={userRole === 'viewer' ? "View only - You are not assigned to review this report" : "Add your notes, comments, or feedback here..."}
                   value={notes}
                   onChange={(e) => setNotes(e.target.value)}
                   className="flex-1 min-h-32 resize-none"
+                  disabled={userRole === 'viewer'}
+                  readOnly={userRole === 'viewer'}
                 />
 
                 {report.description && (
@@ -460,16 +466,18 @@ export function DocumentViewerWithNotesModal({
                 )}
 
                 <div className="mt-6 space-y-3">
-                  {/* Save Notes Button */}
-                  <Button
-                    onClick={handleSaveNotes}
-                    disabled={isSubmitting}
-                    className="w-full flex items-center gap-2"
-                    variant="outline"
-                  >
-                    <Save className="h-4 w-4" />
-                    Save Notes
-                  </Button>
+                  {/* Save Notes Button - Only show for reviewers */}
+                  {userRole === 'reviewer' && (
+                    <Button
+                      onClick={handleSaveNotes}
+                      disabled={isSubmitting}
+                      className="w-full flex items-center gap-2"
+                      variant="outline"
+                    >
+                      <Save className="h-4 w-4" />
+                      Save Notes
+                    </Button>
+                  )}
 
                   {/* Reviewer Actions */}
                   {userRole === 'reviewer' && (

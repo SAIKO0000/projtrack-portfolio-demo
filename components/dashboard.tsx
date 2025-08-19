@@ -1,7 +1,7 @@
 
 "use client"
 
-import { useEffect, useState, useMemo, useCallback, useRef } from "react"
+import { useState, useMemo, useCallback, useRef } from "react"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -9,13 +9,12 @@ import { Progress } from "@/components/ui/progress"
 import { FolderOpen, Clock, Users, AlertTriangle, TrendingUp, MoreHorizontal, Edit, Trash2, RefreshCw } from "lucide-react"
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell } from "recharts"
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
-import { useProjects } from "@/lib/hooks/useProjects"
-import { useTasks } from "@/lib/hooks/useTasks"
-import { supabase, type Personnel, type Project, type Task } from "@/lib/supabase"
+import { type Project, type Task } from "@/lib/supabase"
 import { ProjectFormModal } from "@/components/project-form-modal"
 import { EditProjectModal } from "@/components/edit-project-modal"
 import { ContentSkeleton } from "@/components/ui/content-skeleton"
 import { toast } from "react-hot-toast"
+import { useSupabaseQuery } from "@/lib/hooks/useSupabaseQuery"
 
 // Add throttling utility
 const createThrottledFunction = <T extends unknown[]>(func: (...args: T) => void, delay: number) => {
@@ -38,58 +37,38 @@ const createThrottledFunction = <T extends unknown[]>(func: (...args: T) => void
   }
 }
 
-// Personnel cache
-const personnelCache = { data: null as Personnel[] | null, timestamp: 0 }
-const PERSONNEL_CACHE_DURATION = 60000 // 1 minute
-
 export function Dashboard() {
-  const { projects, loading: projectsLoading, fetchProjects, deleteProject } = useProjects()
-  const { tasks, loading: tasksLoading } = useTasks()
-  const [personnel, setPersonnel] = useState<Personnel[]>([])
-  const [personnelLoading, setPersonnelLoading] = useState(true)
+  // Use optimized TanStack Query hooks instead of individual hooks
+  const supabaseQuery = useSupabaseQuery()
+  
+  const { 
+    data: projects = [], 
+    isLoading: projectsLoading, 
+    isFetching: projectsRefetching,
+    refetch: refetchProjects 
+  } = supabaseQuery.useProjectsQuery()
+  
+  const { 
+    data: personnel = [], 
+    isLoading: personnelLoading,
+    refetch: refetchPersonnel 
+  } = supabaseQuery.usePersonnelQuery()
+  
+  const { 
+    data: tasks = [], 
+    isLoading: tasksLoading,
+    refetch: refetchTasks 
+  } = supabaseQuery.useTasksQuery()
+
   const [editingProject, setEditingProject] = useState<Project | null>(null)
   const lastRefreshRef = useRef<number>(0)
 
-  const fetchPersonnel = useCallback(async (force = false) => {
-    const now = Date.now()
-    
-    // Check cache first
-    if (!force && personnelCache.data && now - personnelCache.timestamp < PERSONNEL_CACHE_DURATION) {
-      setPersonnel(personnelCache.data)
-      setPersonnelLoading(false)
-      return
-    }
-
-    try {
-      setPersonnelLoading(true)
-      const { data, error } = await supabase.from('personnel').select('*')
-      
-      if (error) {
-        console.error('Error fetching personnel:', error)
-        return
-      }
-
-      const personnelData = data || []
-      setPersonnel(personnelData)
-      
-      // Update cache
-      personnelCache.data = personnelData
-      personnelCache.timestamp = now
-    } catch (error) {
-      console.error('Error fetching personnel data:', error)
-    } finally {
-      setPersonnelLoading(false)
-    }
-  }, [])
-
-  useEffect(() => {
-    fetchPersonnel()
-  }, [fetchPersonnel])
+  // Combined loading states (remove the unused loading variable)
+  // We'll use the individual loading states as needed
 
   const handleProjectCreated = useCallback(() => {
-    // Only refresh if necessary
-    setTimeout(() => fetchProjects(), 100) // Small delay to prevent race conditions
-  }, [fetchProjects])
+    // TanStack Query will automatically update the cache
+  }, [])
 
   // Throttled refresh function
   const throttledRefresh = useMemo(() => 
@@ -102,8 +81,9 @@ export function Dashboard() {
 
       try {
         await Promise.all([
-          fetchProjects(true),
-          fetchPersonnel(true)
+          refetchProjects(),
+          refetchPersonnel(),
+          refetchTasks()
         ])
         lastRefreshRef.current = now
         toast.success("Dashboard refreshed successfully")
@@ -112,7 +92,7 @@ export function Dashboard() {
         toast.error("Failed to refresh dashboard")
       }
     }, 3000), // 3 second throttle
-    [fetchProjects, fetchPersonnel]
+    [refetchProjects, refetchPersonnel, refetchTasks]
   )
 
   const handleRefresh = useCallback(() => {
@@ -122,15 +102,25 @@ export function Dashboard() {
   const handleDeleteProject = useCallback(async (projectId: string, projectName: string) => {
     if (confirm(`Are you sure you want to delete the project "${projectName}"? This action cannot be undone.`)) {
       try {
-        await deleteProject(projectId)
+        // We need to import deleteProject from the optimized hook or create a mutation
+        // For now, we'll use the direct Supabase call and let TanStack Query handle the cache
+        const response = await fetch('/api/projects', {
+          method: 'DELETE',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ id: projectId })
+        })
+        
+        if (!response.ok) throw new Error('Failed to delete project')
+        
+        // Invalidate and refetch projects
+        await refetchProjects()
         toast.success("Project deleted successfully")
-        // Don't call fetchProjects here as the hook should handle the update
       } catch (error) {
         console.error("Delete error:", error)
         toast.error("Failed to delete project")
       }
     }
-  }, [deleteProject])
+  }, [refetchProjects])
 
   const handleEditProject = useCallback((projectId: string) => {
     const project = projects.find(p => p.id === projectId)
@@ -333,14 +323,19 @@ export function Dashboard() {
     }
   }
 
-  const getPriorityColor = (priority: string) => {
-    switch (priority) {
-      case "high":
-        return "bg-red-100 text-red-800"
-      case "medium":
-        return "bg-yellow-100 text-yellow-800"
-      case "low":
+
+  const getTaskStatusColor = (status: string) => {
+    switch (status) {
+      case "completed":
         return "bg-green-100 text-green-800"
+      case "in-progress":
+        return "bg-blue-100 text-blue-800"
+      case "planning":
+        return "bg-purple-100 text-purple-800"
+      case "on-hold":
+        return "bg-yellow-100 text-yellow-800"
+      case "delayed":
+        return "bg-red-100 text-red-800"
       default:
         return "bg-gray-100 text-gray-800"
     }
@@ -430,7 +425,7 @@ export function Dashboard() {
 
   const upcomingTasks = getUpcomingTasks()
 
-  const getTaskUrgencyBadge = (task: Task & { isOverdue?: boolean; isToday?: boolean; isTomorrow?: boolean; priority?: string }) => {
+  const getTaskUrgencyBadge = (task: Task & { isOverdue?: boolean; isToday?: boolean; isTomorrow?: boolean; priority?: string; status?: string }) => {
     if (task.isOverdue) {
       return <Badge className="bg-red-100 text-red-800">Overdue</Badge>
     }
@@ -440,7 +435,9 @@ export function Dashboard() {
     if (task.isTomorrow) {
       return <Badge className="bg-yellow-100 text-yellow-800">Due Tomorrow</Badge>
     }
-    return <Badge className={getPriorityColor(task.priority)}>{task.priority}</Badge>
+    // Show task status instead of priority
+    const status = task.status || 'unknown'
+    return <Badge className={getTaskStatusColor(status)}>{status.replace("-", " ").replace(/\b\w/g, (l: string) => l.toUpperCase())}</Badge>
   }
 
   const formatTaskDate = (dateString: string | null) => {
@@ -474,141 +471,179 @@ export function Dashboard() {
   }
 
   return (
-    <div className="p-3 sm:p-4 lg:p-6 space-y-4 sm:space-y-6 overflow-y-auto h-full">
-      {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between space-y-3 sm:space-y-0">
-        <div>
-          <h1 className="text-xl sm:text-2xl font-bold text-gray-900">Dashboard</h1>
-          <p className="text-sm sm:text-base text-gray-600">Welcome back! Here&apos;s what&apos;s happening with your projects.</p>
+    <div className="p-2 sm:p-4 md:p-6 lg:p-8 xl:p-10 2xl:p-12 space-y-3 sm:space-y-4 md:space-y-5 lg:space-y-6 xl:space-y-7 2xl:space-y-8 overflow-y-auto h-full bg-gradient-to-br from-gray-50 via-white to-gray-100/50">
+      {/* Modern Header with Glassmorphism */}
+      <div className="bg-white/95 backdrop-blur-sm p-3 sm:p-4 md:p-5 lg:p-6 xl:p-7 2xl:p-8 rounded-xl shadow-lg border border-gray-200/50">
+        {/* Desktop layout */}
+        <div className="hidden sm:flex sm:items-start sm:justify-between gap-4">
+          <div className="space-y-1">
+            <div className="flex items-center gap-3">
+              <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-gradient-to-br from-indigo-500 to-purple-600 text-white shadow-lg">
+                <TrendingUp className="h-6 w-6" />
+              </div>
+              <div>
+                <h1 className="text-2xl md:text-3xl lg:text-4xl xl:text-5xl 2xl:text-6xl font-bold text-gray-900">Dashboard</h1>
+                <p className="text-base lg:text-lg xl:text-xl text-gray-600 mt-1">Welcome! Stay updated with reports and tasks</p>
+              </div>
+            </div>
+          </div>
+          <div className="flex items-center space-x-3">
+            <Button
+              variant="outline"
+              size="default"
+              onClick={handleRefresh}
+              className="flex items-center gap-2 h-10 px-5 py-2 border-gray-300 hover:border-gray-400 hover:shadow-md transition-all duration-200"
+            >
+              <RefreshCw className="h-4 w-4" />
+              Refresh
+            </Button>
+            <ProjectFormModal onProjectCreated={handleProjectCreated} />
+          </div>
         </div>
-        <div className="flex items-center space-x-3">
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={handleRefresh}
-            className="flex items-center gap-2"
-          >
-            <RefreshCw className="h-4 w-4" />
-            Refresh
-          </Button>
-          <ProjectFormModal onProjectCreated={handleProjectCreated} />
+
+        {/* Mobile layout */}
+        <div className="sm:hidden text-center">
+          <div className="flex items-center gap-3 justify-center mb-3">
+            <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br from-indigo-500 to-purple-600 text-white shadow-lg">
+              <TrendingUp className="h-5 w-5" />
+            </div>
+            <div>
+              <h1 className="text-xl font-bold text-gray-900">Dashboard</h1>
+            </div>
+          </div>
+          <p className="text-sm text-gray-600 mb-3">Welcome! Stay updated with reports and tasks</p>
+          <div className="flex justify-center gap-2">
+            <Button
+              variant="outline"
+              size="default"
+              onClick={handleRefresh}
+              className="flex items-center gap-2 h-10 px-4"
+            >
+              <RefreshCw className="h-4 w-4" />
+              Refresh
+            </Button>
+            <ProjectFormModal onProjectCreated={handleProjectCreated} />
+          </div>
         </div>
       </div>
 
       {/* Stats Cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-3 sm:gap-4 lg:gap-6">
-        <Card className="border-l-4 border-l-blue-500">
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-xs sm:text-sm font-medium">Total Projects</CardTitle>
-            <FolderOpen className="h-4 w-4 text-blue-500 flex-shrink-0" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-xl sm:text-2xl font-bold">{projectAnalytics.total}</div>
-            <p className="text-xs text-muted-foreground mt-1">
-              <span className="text-green-600">{projectAnalytics.completed}</span> completed, <span className="text-orange-600">{projectAnalytics.inProgress}</span> active
-            </p>
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4 md:gap-5 lg:gap-6 xl:gap-7 2xl:gap-8">
+        <Card className="border-l-4 border-l-blue-500 bg-white/95 backdrop-blur-sm shadow-lg hover:shadow-xl transition-all duration-300 border border-gray-200/50">
+          <CardContent className="p-3 sm:p-4 md:p-5">
+            <div className="flex items-center justify-between">
+              <div className="space-y-1">
+                <p className="text-xs sm:text-sm font-semibold text-gray-700 uppercase tracking-wide">Total Projects</p>
+                <p className="text-xl sm:text-2xl md:text-3xl font-bold text-gray-900">{projectAnalytics.total}</p>
+                <p className="text-xs sm:text-sm text-gray-600">All active projects</p>
+              </div>
+              <div className="h-10 w-10 sm:h-12 sm:w-12 rounded-lg bg-blue-500/10 flex items-center justify-center">
+                <FolderOpen className="h-5 w-5 sm:h-6 sm:w-6 text-blue-600" />
+              </div>
+            </div>
           </CardContent>
         </Card>
 
-        <Card className="border-l-4 border-l-orange-500">
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-xs sm:text-sm font-medium">Active Projects</CardTitle>
-            <FolderOpen className="h-4 w-4 text-orange-500 flex-shrink-0" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-xl sm:text-2xl font-bold">{stats.activeProjects}</div>
-            <p className="text-xs text-muted-foreground mt-1">
-              <span className="text-blue-600">{projectAnalytics.planning}</span> in planning phase
-            </p>
+        <Card className="border-l-4 border-l-orange-500 bg-white/95 backdrop-blur-sm shadow-lg hover:shadow-xl transition-all duration-300 border border-gray-200/50">
+          <CardContent className="p-3 sm:p-4 md:p-5">
+            <div className="flex items-center justify-between">
+              <div className="space-y-1">
+                <p className="text-xs sm:text-sm font-semibold text-gray-700 uppercase tracking-wide">Active Projects</p>
+                <p className="text-xl sm:text-2xl md:text-3xl font-bold text-gray-900">{stats.activeProjects}</p>
+                <p className="text-xs sm:text-sm text-gray-600">Currently in progress</p>
+              </div>
+              <div className="h-10 w-10 sm:h-12 sm:w-12 rounded-lg bg-orange-500/10 flex items-center justify-center">
+                <FolderOpen className="h-5 w-5 sm:h-6 sm:w-6 text-orange-600" />
+              </div>
+            </div>
           </CardContent>
         </Card>
 
-        <Card className="border-l-4 border-l-red-500">
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-xs sm:text-sm font-medium">Overdue Tasks</CardTitle>
-            <AlertTriangle className="h-4 w-4 text-red-500 flex-shrink-0" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-xl sm:text-2xl font-bold">{stats.overdueTasks}</div>
-            <p className="text-xs text-muted-foreground mt-1">
-              <span className="text-red-600">{stats.overdueTasks > 0 ? 'Needs' : 'No'}</span> immediate attention
-            </p>
+        <Card className="border-l-4 border-l-red-500 bg-white/95 backdrop-blur-sm shadow-lg hover:shadow-xl transition-all duration-300 border border-gray-200/50">
+          <CardContent className="p-3 sm:p-4 md:p-5">
+            <div className="flex items-center justify-between">
+              <div className="space-y-1">
+                <p className="text-xs sm:text-sm font-semibold text-gray-700 uppercase tracking-wide">Overdue Tasks</p>
+                <p className="text-xl sm:text-2xl md:text-3xl font-bold text-gray-900">{stats.overdueTasks}</p>
+                <p className="text-xs sm:text-sm text-gray-600">Need attention</p>
+              </div>
+              <div className="h-10 w-10 sm:h-12 sm:w-12 rounded-lg bg-red-500/10 flex items-center justify-center">
+                <AlertTriangle className="h-5 w-5 sm:h-6 sm:w-6 text-red-600" />
+              </div>
+            </div>
           </CardContent>
         </Card>
 
-        <Card className="border-l-4 border-l-green-500">
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-xs sm:text-sm font-medium">Team Members</CardTitle>
-            <Users className="h-4 w-4 text-green-500 flex-shrink-0" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-xl sm:text-2xl font-bold">{stats.totalPersonnel}</div>
-            <p className="text-xs text-muted-foreground mt-1">
-              <span className="text-green-600">Across</span> {projectAnalytics.total} projects
-            </p>
-          </CardContent>
-        </Card>
-
-        <Card className="border-l-4 border-l-purple-500">
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-xs sm:text-sm font-medium">Overall Progress</CardTitle>
-            <TrendingUp className="h-4 w-4 text-purple-500 flex-shrink-0" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-xl sm:text-2xl font-bold">{projectAnalytics.avgCompletion}%</div>
-            <p className="text-xs text-muted-foreground mt-1">
-              <span className="text-green-600">{projectAnalytics.projectsWithTasks}</span> projects with tasks
-            </p>
+        <Card className="border-l-4 border-l-green-500 bg-white/95 backdrop-blur-sm shadow-lg hover:shadow-xl transition-all duration-300 border border-gray-200/50">
+          <CardContent className="p-3 sm:p-4 md:p-5">
+            <div className="flex items-center justify-between">
+              <div className="space-y-1">
+                <p className="text-xs sm:text-sm font-semibold text-gray-700 uppercase tracking-wide">Team Members</p>
+                <p className="text-xl sm:text-2xl md:text-3xl font-bold text-gray-900">{stats.totalPersonnel}</p>
+                <p className="text-xs sm:text-sm text-gray-600">Active personnel</p>
+              </div>
+              <div className="h-10 w-10 sm:h-12 sm:w-12 rounded-lg bg-green-500/10 flex items-center justify-center">
+                <Users className="h-5 w-5 sm:h-6 sm:w-6 text-green-600" />
+              </div>
+            </div>
           </CardContent>
         </Card>
       </div>
 
       {/* Charts Row */}
-      <div className="grid grid-cols-1 xl:grid-cols-2 gap-4 sm:gap-6">
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-sm sm:text-base">Project Progress</CardTitle>
-            <CardDescription className="text-xs sm:text-sm">Monthly project completion trends</CardDescription>
+      <div className="grid grid-cols-1 xl:grid-cols-2 gap-4 sm:gap-5 md:gap-6 lg:gap-7">
+        <Card className="bg-white/95 backdrop-blur-sm shadow-lg border border-gray-200/50">
+          <CardHeader className="border-b border-gray-100">
+            <CardTitle className="text-lg sm:text-xl font-bold text-gray-900">Project Progress</CardTitle>
+            <CardDescription className="text-sm sm:text-base text-gray-600">Monthly project completion trends</CardDescription>
           </CardHeader>
-          <CardContent>
-            <ResponsiveContainer width="100%" height={250} className="sm:h-[300px]">
-              <BarChart data={projectProgressData} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
-                <CartesianGrid strokeDasharray="3 3" />
+          <CardContent className="p-6">
+            <ResponsiveContainer width="100%" height={280} className="sm:h-[330px]">
+              <BarChart data={projectProgressData} margin={{ top: 15, right: 15, left: 5, bottom: 5 }}>
+                <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
                 <XAxis 
                   dataKey="name" 
-                  fontSize={10}
+                  fontSize={11}
+                  fontWeight={500}
                   angle={-45}
                   textAnchor="end"
-                  height={60}
+                  height={65}
                   interval={0}
+                  tick={{ fill: '#6b7280' }}
                 />
-                <YAxis fontSize={10} width={30} />
+                <YAxis fontSize={11} fontWeight={500} width={35} tick={{ fill: '#6b7280' }} />
                 <Tooltip 
                   formatter={(value, name) => [value, name]}
                   labelFormatter={(label) => `Month: ${label}`}
-                  contentStyle={{ fontSize: '12px' }}
+                  contentStyle={{ 
+                    fontSize: '13px',
+                    backgroundColor: 'rgba(255, 255, 255, 0.95)',
+                    border: '1px solid #e5e7eb',
+                    borderRadius: '8px',
+                    boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)'
+                  }}
                 />
-                <Bar dataKey="started" fill="#3B82F6" name="Started" />
-                <Bar dataKey="completed" fill="#10B981" name="Completed" />
-                <Bar dataKey="ongoing" fill="#F59E0B" name="Ongoing" />
+                <Bar dataKey="started" fill="#3B82F6" name="Started" radius={[2, 2, 0, 0]} />
+                <Bar dataKey="completed" fill="#10B981" name="Completed" radius={[2, 2, 0, 0]} />
+                <Bar dataKey="ongoing" fill="#F59E0B" name="Ongoing" radius={[2, 2, 0, 0]} />
               </BarChart>
             </ResponsiveContainer>
           </CardContent>
         </Card>
 
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-sm sm:text-base">Project Status Distribution</CardTitle>
-            <CardDescription className="text-xs sm:text-sm">Current status of all projects</CardDescription>
+        <Card className="bg-white/95 backdrop-blur-sm shadow-lg border border-gray-200/50">
+          <CardHeader className="border-b border-gray-100">
+            <CardTitle className="text-lg sm:text-xl font-bold text-gray-900">Project Status Distribution</CardTitle>
+            <CardDescription className="text-sm sm:text-base text-gray-600">Current status of all projects</CardDescription>
           </CardHeader>
-          <CardContent>
-            <ResponsiveContainer width="100%" height={250} className="sm:h-[300px]">
-              <PieChart margin={{ top: 10, right: 10, left: 10, bottom: 10 }}>
+          <CardContent className="p-6">
+            <ResponsiveContainer width="100%" height={280} className="sm:h-[330px]">
+              <PieChart margin={{ top: 15, right: 15, left: 15, bottom: 15 }}>
                 <Pie
                   data={statusData}
                   cx="50%"
                   cy="50%"
-                  innerRadius={35}
+                  innerRadius={40}
                   outerRadius={75}
                   paddingAngle={3}
                   dataKey="value"
@@ -639,60 +674,83 @@ export function Dashboard() {
       </div>
 
       {/* Recent Projects and Tasks */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 sm:gap-6">
-        <Card className="lg:col-span-2">
-          <CardHeader>
-            <CardTitle className="text-sm sm:text-base">Recent Projects</CardTitle>
-            <CardDescription className="text-xs sm:text-sm">Latest project updates and progress</CardDescription>
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-5 sm:gap-7">
+        <Card className="lg:col-span-2 bg-white/95 backdrop-blur-sm shadow-lg border border-gray-200/50">
+          <CardHeader className="border-b border-gray-100">
+            <CardTitle className="text-lg sm:text-xl font-bold text-gray-900">Recent Projects</CardTitle>
+            <CardDescription className="text-sm sm:text-base text-gray-600">Latest project updates and progress</CardDescription>
           </CardHeader>
-          <CardContent>
-            <div className="space-y-3 sm:space-y-4">
+          <CardContent className="p-6">
+            <div className="space-y-3">
               {projects.slice(0, 4).map((project) => (
                 <div
                   key={project.id}
-                  className="flex items-center space-x-3 sm:space-x-4 p-3 sm:p-4 bg-gray-50 rounded-lg hover:bg-gray-100 transition-colors"
+                  className="relative p-4 rounded-lg border transition-colors hover:bg-gray-50 bg-white border-gray-200 cursor-pointer"
                 >
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center justify-between mb-2">
-                      <h3 className="text-sm font-medium text-gray-900 truncate">{project.name}</h3>
-                      <Badge className={`${getStatusColor(project.status || 'unknown')} text-xs flex-shrink-0 ml-2`}>
-                        {(project.status || 'unknown').replace("-", " ")}
-                      </Badge>
+                  <div className="flex h-full">
+                    {/* Icon column */}
+                    <div className="flex-shrink-0 mr-4 mt-1">
+                      <div className="w-10 h-10 rounded-lg bg-orange-100 flex items-center justify-center">
+                        <FolderOpen className="h-5 w-5 text-orange-600" />
+                      </div>
                     </div>
-                    <p className="text-xs text-gray-500 mb-2">{project.client}</p>
-                    <div className="flex items-center justify-between mb-2">
-                      <div className="flex items-center space-x-2 sm:space-x-4 text-xs text-gray-500">
-                        <span className="flex items-center">
-                          <Clock className="h-3 w-3 mr-1 flex-shrink-0" />
-                          <span className="hidden sm:inline">Due </span>{formatDate(project.end_date)}
+                    
+                    {/* Content column */}
+                    <div className="flex-1 min-w-0">
+                      {/* Header with status */}
+                      <div className="flex items-start justify-between mb-2">
+                        <div className="flex-1 min-w-0">
+                          <h3 className="text-base font-bold text-gray-900 mb-1 break-words">
+                            {project.name}
+                          </h3>
+                          <p className="text-sm text-gray-600 mb-2 font-medium">{project.client}</p>
+                        </div>
+                        <div className="ml-3 flex items-center gap-2">
+                          <Badge className={`${getStatusColor(project.status || 'unknown')} text-sm flex-shrink-0 font-medium px-3 py-1`}>
+                            {(project.status || 'unknown').replace("-", " ").replace(/\b\w/g, (l: string) => l.toUpperCase())}
+                          </Badge>
+                          <DropdownMenu>
+                            <DropdownMenuTrigger asChild>
+                              <Button variant="ghost" size="sm" className="h-8 w-8 p-0 hover:bg-gray-200/50">
+                                <MoreHorizontal className="h-4 w-4" />
+                              </Button>
+                            </DropdownMenuTrigger>
+                            <DropdownMenuContent align="end" className="bg-white/95 backdrop-blur-sm">
+                              <DropdownMenuItem onClick={() => handleEditProject(project.id)} className="text-sm p-2">
+                                <Edit className="h-4 w-4 mr-2" />
+                                Edit Project
+                              </DropdownMenuItem>
+                              <DropdownMenuItem 
+                                onClick={() => handleDeleteProject(project.id, project.name)}
+                                className="text-red-600 focus:text-red-600 text-sm p-2"
+                              >
+                                <Trash2 className="h-4 w-4 mr-2" />
+                                Delete Project
+                              </DropdownMenuItem>
+                            </DropdownMenuContent>
+                          </DropdownMenu>
+                        </div>
+                      </div>
+
+                      {/* Progress */}
+                      <div className="mb-3">
+                        <Progress value={getProjectTaskProgress(project.id)} className="h-2" />
+                        <span className="text-sm text-gray-600 mt-1 block font-medium">
+                          {getProjectTaskCounts(project.id).completed}/{getProjectTaskCounts(project.id).total} tasks ({getProjectTaskProgress(project.id)}%)
                         </span>
                       </div>
-                      <DropdownMenu>
-                        <DropdownMenuTrigger asChild>
-                          <Button variant="ghost" size="sm" className="h-8 w-8 p-0">
-                            <MoreHorizontal className="h-4 w-4" />
-                          </Button>
-                        </DropdownMenuTrigger>
-                        <DropdownMenuContent align="end">
-                          <DropdownMenuItem onClick={() => handleEditProject(project.id)}>
-                            <Edit className="h-4 w-4 mr-2" />
-                            Edit Project
-                          </DropdownMenuItem>
-                          <DropdownMenuItem 
-                            onClick={() => handleDeleteProject(project.id, project.name)}
-                            className="text-red-600 focus:text-red-600"
-                          >
-                            <Trash2 className="h-4 w-4 mr-2" />
-                            Delete Project
-                          </DropdownMenuItem>
-                        </DropdownMenuContent>
-                      </DropdownMenu>
-                    </div>
-                    <div className="mt-2">
-                      <Progress value={getProjectTaskProgress(project.id)} className="h-2" />
-                      <span className="text-xs text-gray-500 mt-1 block">
-                        {getProjectTaskCounts(project.id).completed}/{getProjectTaskCounts(project.id).total} tasks ({getProjectTaskProgress(project.id)}%)
-                      </span>
+
+                      {/* Footer info */}
+                      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between text-sm text-gray-500 space-y-1 sm:space-y-0">
+                        <span className="flex items-center">
+                          <Clock className="h-4 w-4 mr-2 flex-shrink-0" />
+                          {formatDate(project.start_date)} - {formatDate(project.end_date)}
+                        </span>
+                        <span className="flex items-center">
+                          <Users className="h-4 w-4 mr-1" />
+                          {project.team_size || 1} members
+                        </span>
+                      </div>
                     </div>
                   </div>
                 </div>
@@ -701,37 +759,38 @@ export function Dashboard() {
           </CardContent>
         </Card>
 
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-sm sm:text-base">Upcoming Tasks</CardTitle>
-            <CardDescription className="text-xs sm:text-sm">Tasks requiring attention</CardDescription>
+        <Card className="bg-white/95 backdrop-blur-sm shadow-lg border border-gray-200/50">
+          <CardHeader className="border-b border-gray-100">
+            <CardTitle className="text-lg sm:text-xl font-bold text-gray-900">Upcoming Tasks</CardTitle>
+            <CardDescription className="text-sm sm:text-base text-gray-600">Tasks requiring attention</CardDescription>
           </CardHeader>
-          <CardContent>
-            <div className="space-y-3">
+          <CardContent className="p-6">
+            <div className="space-y-4">
               {upcomingTasks.length > 0 ? upcomingTasks.map((task) => (
-                <div key={task.id} className="flex items-start space-x-3 p-3 bg-gray-50 rounded-lg hover:bg-gray-100 transition-colors">
+                <div key={task.id} className="flex items-start space-x-4 p-4 bg-gradient-to-r from-gray-50/80 to-white rounded-xl hover:from-blue-50/50 hover:to-blue-50/30 hover:shadow-md transition-all duration-200 border border-gray-100/50">
                   <div className="flex-1 min-w-0">
-                    <div className="flex items-start justify-between mb-1">
-                      <h4 className="text-sm font-medium text-gray-900 truncate pr-2">{task.title}</h4>
+                    <div className="flex items-start justify-between mb-2">
+                      <h4 className="text-base font-bold text-gray-900 truncate pr-3">{task.title}</h4>
                       <div className="flex-shrink-0">
                         {getTaskUrgencyBadge(task)}
                       </div>
                     </div>
-                    <p className="text-xs text-gray-500 mb-2 truncate">
+                    <p className="text-sm text-gray-600 mb-3 truncate font-medium">
                       {task.project_name}
                       {task.project_client && ` • ${task.project_client}`}
                     </p>
                     <div className="flex items-center justify-between">
-                      <span className={`text-xs ${task.isOverdue ? 'text-red-600 font-medium' : 'text-gray-500'}`}>
+                      <span className={`text-sm font-medium ${task.isOverdue ? 'text-red-600' : 'text-gray-600'}`}>
                         {formatTaskDate(task.due_date)}
                       </span>
                     </div>
                   </div>
                 </div>
               )) : (
-                <div className="text-center py-6">
-                  <Clock className="h-6 sm:h-8 w-6 sm:w-8 text-gray-400 mx-auto mb-2" />
-                  <p className="text-sm text-gray-500">No upcoming tasks</p>
+                <div className="text-center py-8">
+                  <Clock className="h-8 sm:h-10 w-8 sm:w-10 text-gray-400 mx-auto mb-3" />
+                  <p className="text-base text-gray-500 font-medium">No upcoming tasks</p>
+                  <p className="text-sm text-gray-400 mt-1">All tasks are completed or scheduled later</p>
                 </div>
               )}
             </div>
@@ -743,8 +802,8 @@ export function Dashboard() {
       <EditProjectModal
         project={editingProject}
         open={!!editingProject}
-        onOpenChange={(open) => !open && setEditingProject(null)}
-        onProjectUpdated={handleProjectUpdated}
+        onOpenChangeAction={(open) => !open && setEditingProject(null)}
+        onProjectUpdatedAction={handleProjectUpdated}
       />
     </div>
   )

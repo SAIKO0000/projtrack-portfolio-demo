@@ -37,6 +37,9 @@ interface UseStructuredExportProps {
     estimated_hours?: number
     is_overdue?: boolean
     days_until_deadline?: number
+    completed_at?: string
+    notes?: string
+    assignee_headcounts?: Record<string, number>
   }>
 }
 
@@ -93,7 +96,10 @@ export function useStructuredExport({ projects, tasks }: UseStructuredExportProp
         category: task.category,
         estimated_hours: task.estimated_hours,
         is_overdue: task.is_overdue,
-        days_until_deadline: task.days_until_deadline
+        days_until_deadline: task.days_until_deadline,
+        completed_at: task.completed_at,
+        notes: task.notes,
+        assignee_headcounts: task.assignee_headcounts
       }))
 
       setExportProgress(50)

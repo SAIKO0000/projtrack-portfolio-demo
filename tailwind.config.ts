@@ -1,7 +1,8 @@
 import type { Config } from "tailwindcss"
+import tailwindcssAnimate from "tailwindcss-animate"
 
 const config: Config = {
-  darkMode: ["class"],
+  darkMode: "class",
   content: [
     "./pages/**/*.{ts,tsx}",
     "./components/**/*.{ts,tsx}",
@@ -18,7 +19,67 @@ const config: Config = {
         "2xl": "1400px",
       },
     },
+    screens: {
+      // Mobile Phones (Portrait & Landscape)
+      'xs': '360px',        // 360×800 - Small phones
+      'phone-sm': '375px',  // 375×812 - iPhone 12/13/14 size  
+      'phone-md': '390px',  // 390×844 - iPhone 14 Pro size
+      'phone-lg': '430px',  // 430×932 - iPhone 14 Pro Max size
+      'phone-landscape': '640px', // Landscape mode for phones
+      
+      // Tablets (Portrait & Landscape)
+      'sm': '768px',        // 768×1024 - iPad Mini/Standard tablets
+      'tablet-md': '820px', // 820×1180 - iPad Air
+      'tablet-lg': '834px', // 834×1112 - iPad Pro 11" 
+      'tablet-xl': '1024px', // 1024×1366 - iPad Pro 12.9" landscape
+      
+      // Laptops/Desktops
+      'md': '1280px',       // 1280×800/720 - Small laptops
+      'lg': '1366px',       // 1366×768 - Common laptop size
+      'xl': '1440px',       // 1440×900/1536×864 - Large laptops
+      '2xl': '1920px',      // 1920×1080 - Full HD displays
+      '3xl': '2560px',      // 2560×1440 - 2K/QHD displays
+      
+      // Utility breakpoints
+      'mobile-nav': '1024px', // Below this, show mobile navigation
+    },
     extend: {
+      // Responsive spacing system for modals and components
+      spacing: {
+        'modal-xs': '0.5rem',     // 8px - Extra small spacing for mobile
+        'modal-sm': '0.75rem',    // 12px - Small spacing 
+        'modal-md': '1rem',       // 16px - Medium spacing
+        'modal-lg': '1.5rem',     // 24px - Large spacing
+        'modal-xl': '2rem',       // 32px - Extra large spacing
+        'modal-2xl': '2.5rem',    // 40px - 2x Extra large spacing
+        'safe-area-inset': 'env(safe-area-inset-top, 0px)', // Safe area for mobile
+      },
+      
+      // Modal sizing system
+      maxWidth: {
+        'modal-xs': '20rem',      // 320px
+        'modal-sm': '24rem',      // 384px  
+        'modal-md': '28rem',      // 448px
+        'modal-lg': '32rem',      // 512px
+        'modal-xl': '36rem',      // 576px
+        'modal-2xl': '42rem',     // 672px
+        'modal-3xl': '48rem',     // 768px
+        'modal-4xl': '56rem',     // 896px
+        'modal-5xl': '64rem',     // 1024px
+        'modal-full': '95vw',     // Almost full width with margin
+      },
+      
+      maxHeight: {
+        'modal-xs': '20rem',      // 320px
+        'modal-sm': '24rem',      // 384px
+        'modal-md': '32rem',      // 512px
+        'modal-lg': '40rem',      // 640px
+        'modal-xl': '48rem',      // 768px
+        'modal-2xl': '56rem',     // 896px
+        'modal-screen': '90vh',   // 90% of viewport height
+        'modal-screen-sm': '85vh', // 85% for smaller screens
+      },
+
       colors: {
         // GYG Power Systems Brand Colors
         "gyg-orange": {
@@ -100,7 +161,7 @@ const config: Config = {
       },
     },
   },
-  plugins: [require("tailwindcss-animate")],
+  plugins: [tailwindcssAnimate],
 } satisfies Config
 
 export default config

@@ -1,15 +1,16 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { useEffect, useCallback } from 'react'
-import { supabase, queryKeys, getInvalidateQueries } from '@/lib/supabase-query'
-import type { Database } from '@/lib/supabase.types'
+import { supabase, queryKeys } from '@/lib/supabase-query'
+import { createSmartInvalidation } from './useSmartInvalidation'
+import type { Project, Personnel, Task } from '@/lib/supabase'
 
-type Project = Database['public']['Tables']['projects']['Row']
-type ProjectInsert = Database['public']['Tables']['projects']['Insert']
-type ProjectUpdate = Database['public']['Tables']['projects']['Update']
+type ProjectInsert = Omit<Project, 'id' | 'created_at' | 'updated_at'>
+type ProjectUpdate = Partial<ProjectInsert>
 
 // Enhanced Projects Query Hook with Realtime Subscriptions
 export function useProjectsQuery() {
   const queryClient = useQueryClient()
+  const smartInvalidation = createSmartInvalidation(queryClient)
 
   const query = useQuery({
     queryKey: queryKeys.projects(),
@@ -46,13 +47,18 @@ export function useProjectsQuery() {
           table: 'projects'
         },
         (payload) => {
-          console.log('Projects realtime update:', payload)
+          console.log('Project change detected:', payload)
           
-          // Invalidate and refetch projects data
-          queryClient.invalidateQueries({ queryKey: queryKeys.projects() })
-          
-          // Also invalidate dashboard stats since they depend on projects
-          queryClient.invalidateQueries({ queryKey: queryKeys.dashboardStats() })
+          if (payload.eventType === 'INSERT' && payload.new) {
+            smartInvalidation.onProjectCreate(payload.new as Project)
+          } else if (payload.eventType === 'UPDATE' && payload.new) {
+            smartInvalidation.onProjectUpdate(payload.new as Project)
+          } else if (payload.eventType === 'DELETE' && payload.old) {
+            smartInvalidation.onProjectDelete((payload.old as Project).id)
+          } else {
+            // Fallback: only invalidate dashboard stats for unknown changes
+            queryClient.invalidateQueries({ queryKey: queryKeys.dashboardStats(), exact: true })
+          }
         }
       )
       .subscribe()
@@ -60,7 +66,7 @@ export function useProjectsQuery() {
     return () => {
       supabase.removeChannel(channel)
     }
-  }, [queryClient])
+  }, [queryClient, smartInvalidation])
 
   return query
 }
@@ -174,6 +180,7 @@ export function useProjectQuery(projectId: string) {
 // Create Project Mutation
 export function useCreateProject() {
   const queryClient = useQueryClient()
+  const smartInvalidation = createSmartInvalidation(queryClient)
 
   return useMutation({
     mutationFn: async (newProject: ProjectInsert) => {
@@ -190,15 +197,8 @@ export function useCreateProject() {
       return data
     },
     onSuccess: (data) => {
-      // Update projects list cache
-      queryClient.setQueryData(queryKeys.projects(), (old: Project[] = []) => {
-        return [data, ...old]
-      })
-      
-      // Invalidate related queries
-      const invalidateQueries = getInvalidateQueries(queryClient)
-      invalidateQueries.projects()
-      invalidateQueries.dashboard()
+      // Use smart invalidation instead of manual cache updates
+      smartInvalidation.onProjectCreate(data)
     },
     onError: (error) => {
       console.error('Create project error:', error)
@@ -209,6 +209,7 @@ export function useCreateProject() {
 // Update Project Mutation
 export function useUpdateProject() {
   const queryClient = useQueryClient()
+  const smartInvalidation = createSmartInvalidation(queryClient)
 
   return useMutation({
     mutationFn: async ({ id, updates }: { id: string; updates: ProjectUpdate }) => {
@@ -226,18 +227,8 @@ export function useUpdateProject() {
       return data
     },
     onSuccess: (data) => {
-      // Update specific project cache
-      queryClient.setQueryData(queryKeys.project(data.id), data)
-      
-      // Update projects list cache
-      queryClient.setQueryData(queryKeys.projects(), (old: Project[] = []) => {
-        return old.map(project => project.id === data.id ? data : project)
-      })
-      
-      // Invalidate related queries
-      const invalidateQueries = getInvalidateQueries(queryClient)
-      invalidateQueries.projectData(data.id)
-      invalidateQueries.dashboard()
+      // Use smart invalidation
+      smartInvalidation.onProjectUpdate(data)
     }
   })
 }
@@ -245,6 +236,7 @@ export function useUpdateProject() {
 // Delete Project Mutation
 export function useDeleteProject() {
   const queryClient = useQueryClient()
+  const smartInvalidation = createSmartInvalidation(queryClient)
 
   return useMutation({
     mutationFn: async (projectId: string) => {
@@ -260,18 +252,8 @@ export function useDeleteProject() {
       return projectId
     },
     onSuccess: (deletedId) => {
-      // Remove from projects list cache
-      queryClient.setQueryData(queryKeys.projects(), (old: Project[] = []) => {
-        return old.filter(project => project.id !== deletedId)
-      })
-      
-      // Remove specific project cache
-      queryClient.removeQueries({ queryKey: queryKeys.project(deletedId) })
-      
-      // Invalidate related queries
-      const invalidateQueries = getInvalidateQueries(queryClient)
-      invalidateQueries.projects()
-      invalidateQueries.dashboard()
+      // Use smart invalidation
+      smartInvalidation.onProjectDelete(deletedId)
     }
   })
 }

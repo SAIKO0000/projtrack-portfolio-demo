@@ -14,6 +14,7 @@ import { DeadlineNotificationPopup } from "@/components/deadline-notification-po
 import { useAuth } from "@/lib/auth"
 import { useAutoNotifications } from "@/lib/hooks/useAutoNotifications"
 import { useNotificationManager } from "@/lib/hooks/useNotificationManager"
+import { useDynamicTitle } from "@/lib/hooks/useDynamicTitle"
 
 export default function Home() {
   const [activeTab, setActiveTab] = useState("dashboard")
@@ -23,6 +24,9 @@ export default function Home() {
 
   // Auto-trigger notifications when user logs in
   useAutoNotifications()
+
+  // Update page title dynamically
+  useDynamicTitle(activeTab)
 
   // Manage notification popup state
   const {
@@ -119,9 +123,9 @@ export default function Home() {
       <DeadlineNotificationPopup
         tasks={upcomingTasks}
         isVisible={showPopup}
-        onClose={dismissPopup}
-        onTaskClick={handleTaskClick}
-        onViewAllClick={() => {
+        onCloseAction={dismissPopup}
+        onTaskClickAction={handleTaskClick}
+        onViewAllClickAction={() => {
           dismissPopup();
           setActiveTab("gantt");
         }}

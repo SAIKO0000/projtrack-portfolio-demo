@@ -1,36 +1,14 @@
 "use client"
 
-import { useState, useMemo, useCallback, useRef } from "react"
+import { useState, useMemo, useCallback } from "react"
 import { Card, CardContent } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { UserAvatar } from "@/components/user-avatar"
-import { Search, Mail, Phone, Users, Briefcase, RefreshCw } from "lucide-react"
+import { Search, Mail, Phone, Users, Briefcase } from "lucide-react"
 import { usePersonnel } from "@/lib/hooks/usePersonnel"
 import { useProjectsQuery } from "@/lib/hooks/useProjectsOptimized"
 import { ProfileModal } from "./profile-modal"
-import { toast } from "react-hot-toast"
-
-// Add throttling utility
-const createThrottledFunction = <T extends unknown[]>(func: (...args: T) => void, delay: number) => {
-  let timeoutId: NodeJS.Timeout | null = null
-  let lastExecTime = 0
-  
-  return (...args: T) => {
-    const currentTime = Date.now()
-    
-    if (currentTime - lastExecTime > delay) {
-      func(...args)
-      lastExecTime = currentTime
-    } else {
-      if (timeoutId) clearTimeout(timeoutId)
-      timeoutId = setTimeout(() => {
-        func(...args)
-        lastExecTime = Date.now()
-      }, delay - (currentTime - lastExecTime))
-    }
-  }
-}
 
 type Personnel = {
   id: number
@@ -47,9 +25,8 @@ export function Team() {
   const [searchTerm, setSearchTerm] = useState("")
   const [selectedPersonnel, setSelectedPersonnel] = useState<Personnel | null>(null)
   const [isProfileModalOpen, setIsProfileModalOpen] = useState(false)
-  const lastRefreshRef = useRef<number>(0)
   
-  const { personnel, loading, error, fetchPersonnel } = usePersonnel()
+  const { personnel, loading, error } = usePersonnel()
   const { data: projects = [], isLoading: projectsLoading } = useProjectsQuery()
 
   // Memoize filtered members to prevent unnecessary recalculations
@@ -74,33 +51,6 @@ export function Team() {
     setIsProfileModalOpen(true)
   }, [])
 
-  // Throttled refresh function
-  const throttledRefresh = useMemo(() => 
-    createThrottledFunction(async () => {
-      const now = Date.now()
-      if (now - lastRefreshRef.current < 30000) { // 30 seconds
-        toast.success("Data is already up to date")
-        return
-      }
-
-      try {
-        if (fetchPersonnel) {
-          await fetchPersonnel()
-        }
-        lastRefreshRef.current = now
-        toast.success("Team data refreshed successfully")
-      } catch (error) {
-        console.error('Error refreshing team data:', error)
-        toast.error("Failed to refresh team data")
-      }
-    }, 3000), // 3 second throttle
-    [fetchPersonnel]
-  )
-
-  const handleRefresh = useCallback(() => {
-    throttledRefresh()
-  }, [throttledRefresh])
-
   if (loading || projectsLoading) {
     return (
       <div className="flex items-center justify-center h-full">
@@ -124,46 +74,65 @@ export function Team() {
   }
 
   return (
-    <div className="p-4 sm:p-6 space-y-4 sm:space-y-6 overflow-y-auto h-full bg-gray-50/30">
-      {/* Header */}
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-xl sm:text-2xl font-bold text-gray-900">Team</h1>
-          <p className="text-sm text-gray-600 mt-1">Manage your electrical engineering team and workload</p>
+    <div className="p-3 sm:p-5 lg:p-9 space-y-4 sm:space-y-5 lg:space-y-7 overflow-y-auto h-full bg-gradient-to-br from-gray-50 via-white to-gray-100/50">
+      {/* Modern Header with Glassmorphism */}
+      <div className="bg-white/95 backdrop-blur-sm p-4 sm:p-5 lg:p-7 rounded-xl shadow-lg border border-gray-200/50">
+        {/* Desktop layout */}
+        <div className="hidden sm:flex sm:items-start sm:justify-between gap-4">
+          <div className="space-y-1">
+            <div className="flex items-center gap-3">
+              <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-gradient-to-br from-purple-500 to-fuchsia-600 text-white shadow-lg">
+                <Users className="h-6 w-6" />
+              </div>
+              <div>
+                <h1 className="text-2xl lg:text-3xl xl:text-5xl font-bold text-gray-900">Team</h1>
+                <p className="text-base lg:text-lg text-gray-600 mt-1">Manage your electrical engineering team and workload</p>
+              </div>
+            </div>
+          </div>
         </div>
-        <Button
-          onClick={handleRefresh}
-          variant="outline"
-          size="sm"
-        >
-          <RefreshCw className="h-4 w-4" />
-        </Button>
+
+        {/* Mobile layout */}
+        <div className="sm:hidden text-center">
+          <div className="flex items-center gap-3 justify-center mb-3">
+            <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br from-purple-500 to-fuchsia-600 text-white shadow-lg">
+              <Users className="h-5 w-5" />
+            </div>
+            <div>
+              <h1 className="text-xl font-bold text-gray-900">Team</h1>
+            </div>
+          </div>
+          <p className="text-sm text-gray-600 mb-3">Manage your electrical engineering team and workload</p>
+        </div>
       </div>
 
-      {/* Team Stats */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-3 sm:gap-4">
-        <Card className="border-l-4 border-l-blue-500">
-          <CardContent className="p-4">
+      {/* Enhanced Team Stats */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-5 lg:gap-7">
+        <Card className="border-l-4 border-l-blue-500 bg-white/95 backdrop-blur-sm shadow-lg hover:shadow-xl transition-all duration-300 border border-gray-200/50">
+          <CardContent className="p-4 sm:p-5 lg:p-6">
             <div className="flex items-center justify-between">
-              <div>
-                <p className="text-xs sm:text-sm font-medium text-gray-600 uppercase tracking-wide">Total Members</p>
-                <p className="text-lg sm:text-xl font-bold text-gray-900 mt-1">{stats.totalMembers}</p>
+              <div className="space-y-1">
+                <p className="text-sm sm:text-base font-semibold text-gray-700 uppercase tracking-wide">Total Members</p>
+                <p className="text-2xl sm:text-3xl font-bold text-gray-900">{stats.totalMembers}</p>
+                <p className="text-sm text-gray-600">Active team members</p>
               </div>
-              <div className="w-8 h-8 bg-blue-100 rounded-xl flex items-center justify-center">
-                <Users className="h-4 w-4 text-blue-600" />
+              <div className="h-12 w-12 rounded-lg bg-blue-500/10 flex items-center justify-center">
+                <Users className="h-6 w-6 text-blue-600" />
               </div>
             </div>
           </CardContent>
         </Card>
-        <Card className="border-l-4 border-l-orange-500">
-          <CardContent className="p-4">
+
+        <Card className="border-l-4 border-l-orange-500 bg-white/95 backdrop-blur-sm shadow-lg hover:shadow-xl transition-all duration-300 border border-gray-200/50">
+          <CardContent className="p-4 sm:p-5 lg:p-6">
             <div className="flex items-center justify-between">
-              <div>
-                <p className="text-xs sm:text-sm font-medium text-gray-600 uppercase tracking-wide">Active Projects</p>
-                <p className="text-lg sm:text-xl font-bold text-gray-900 mt-1">{stats.activeProjects}</p>
+              <div className="space-y-1">
+                <p className="text-sm sm:text-base font-semibold text-gray-700 uppercase tracking-wide">Active Projects</p>
+                <p className="text-2xl sm:text-3xl font-bold text-gray-900">{stats.activeProjects}</p>
+                <p className="text-sm text-gray-600">Currently running</p>
               </div>
-              <div className="w-8 h-8 bg-orange-100 rounded-xl flex items-center justify-center">
-                <Briefcase className="h-4 w-4 text-orange-600" />
+              <div className="h-12 w-12 rounded-lg bg-orange-500/10 flex items-center justify-center">
+                <Briefcase className="h-6 w-6 text-orange-600" />
               </div>
             </div>
           </CardContent>
@@ -171,9 +140,9 @@ export function Team() {
       </div>
 
       {/* Search Filter */}
-      <div className="max-w-md">
-        <div className="relative">
-          <Search className="absolute left-4 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
+      <div className="bg-white/95 backdrop-blur-sm p-4 sm:p-5 rounded-xl shadow-lg border border-gray-200/50">
+        <div className="relative max-w-md">
+          <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
           <Input
             placeholder="Search team members..."
             value={searchTerm}

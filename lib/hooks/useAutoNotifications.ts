@@ -1,8 +1,8 @@
 import { useEffect, useCallback, useRef } from 'react';
 import { useAuth } from '@/lib/auth';
 import { useFCM } from '@/lib/hooks/useFCM';
-import { DeadlineNotificationService } from '@/lib/deadline-notification-service';
 import { MobileNotificationService } from '@/lib/mobile-notification-service';
+import { enhancedNotificationService } from '@/lib/enhanced-notification-service';
 import { toast } from 'react-hot-toast';
 
 /**
@@ -42,7 +42,7 @@ export const useAutoNotifications = () => {
     const currentUserId = user.id;
     const now = Date.now();
     const timeSinceLastNotification = now - lastNotificationTimeRef.current;
-    const minTimeBetweenNotifications = 5 * 60 * 1000; // 5 minutes
+    const minTimeBetweenNotifications = 30 * 60 * 1000; // 30 minutes - increased to reduce redundancy
 
     // Check if this is the same session and user, and we've recently sent notifications
     if (sessionIdRef.current === currentSessionId && 
@@ -117,31 +117,33 @@ export const useAutoNotifications = () => {
         }
         
         try {
-          // Check for upcoming deadlines and auto-notify
-          console.log('🔔 Starting auto-notification check after login...');
-          const upcomingTasks = await DeadlineNotificationService.checkTaskDeadlines();
-          console.log('📋 Tasks found for notification:', upcomingTasks.length);
+          // Check for upcoming deadlines and calendar events - comprehensive notification check
+          console.log('🔔 Starting comprehensive auto-notification check after login...');
+          const { tasks: upcomingTasks, events: upcomingEvents } = await enhancedNotificationService.checkAllUpcomingNotifications();
+          console.log('📋 Summary:', upcomingTasks.length, 'tasks,', upcomingEvents.length, 'events');
           
+          // Additional individual notifications for better user awareness
           if (upcomingTasks.length > 0) {
-            // Send individual notifications for each task with detailed info
-            upcomingTasks.forEach((task, index) => {
+            console.log('📱 Sending individual task notifications for better awareness...');
+            upcomingTasks.forEach((task: unknown, index: number) => {
+              const typedTask = task as Record<string, unknown>;
               setTimeout(async () => {
-                console.log(`📱 Sending individual task notification: ${task.title}`);
+                console.log(`📱 Sending individual task notification: ${typedTask.title}`);
                 
                 try {
                   // Use mobile service for better cross-platform compatibility
                   const success = await mobileService.sendMobileNotification({
-                    title: task.project_name,
-                    body: `${task.title}\n${task.status}, ${task.priority} priority\n${new Date(task.end_date).toLocaleDateString()}\n${task.daysRemaining === 0 ? '🚨 DUE TODAY' : task.daysRemaining === 1 ? '⚠️ 1 day' : '⏰ ' + task.daysRemaining + ' days'}`,
+                    title: String(typedTask.project_name),
+                    body: `${typedTask.title}\n${typedTask.status}, ${typedTask.priority} priority\n${new Date(String(typedTask.end_date)).toLocaleDateString()}\n${typedTask.daysRemaining === 0 ? '🚨 DUE TODAY' : typedTask.daysRemaining === 1 ? '⚠️ 1 day' : '⏰ ' + typedTask.daysRemaining + ' days'}`,
                     icon: '/logo.svg',
                     badge: '/logo.svg',
-                    tag: `task-${task.id}`,
-                    requireInteraction: task.daysRemaining <= 1,
-                    vibrate: task.daysRemaining <= 1 ? [200, 100, 200] : [100],
+                    tag: `task-${typedTask.id}`,
+                    requireInteraction: Number(typedTask.daysRemaining) <= 1,
+                    vibrate: Number(typedTask.daysRemaining) <= 1 ? [200, 100, 200] : [100],
                     data: {
-                      taskId: task.id,
-                      projectName: task.project_name,
-                      daysRemaining: task.daysRemaining.toString(),
+                      taskId: String(typedTask.id),
+                      projectName: String(typedTask.project_name),
+                      daysRemaining: String(typedTask.daysRemaining),
                       type: 'task_deadline'
                     }
                   });
@@ -150,19 +152,19 @@ export const useAutoNotifications = () => {
                     console.warn('📱 Mobile notification failed, falling back to basic notification');
                     // Fallback to basic notification
                     if ('Notification' in window && Notification.permission === 'granted') {
-                      const dueDate = new Date(task.end_date).toLocaleDateString();
-                      const urgencyIcon = task.daysRemaining === 0 ? '🚨' : 
-                                        task.daysRemaining <= 1 ? '⚠️' : '⏰';
+                      const dueDate = new Date(String(typedTask.end_date)).toLocaleDateString();
+                      const urgencyIcon = Number(typedTask.daysRemaining) === 0 ? '🚨' : 
+                                        Number(typedTask.daysRemaining) <= 1 ? '⚠️' : '⏰';
                       
-                      const title = task.project_name;
-                      const body = `${task.title}\n${task.status}, ${task.priority} priority\n${dueDate}\n${urgencyIcon} ${task.daysRemaining === 0 ? 'DUE TODAY' : task.daysRemaining === 1 ? '1 day' : task.daysRemaining + ' days'}`;
+                      const title = String(typedTask.project_name);
+                      const body = `${typedTask.title}\n${typedTask.status}, ${typedTask.priority} priority\n${dueDate}\n${urgencyIcon} ${Number(typedTask.daysRemaining) === 0 ? 'DUE TODAY' : Number(typedTask.daysRemaining) === 1 ? '1 day' : typedTask.daysRemaining + ' days'}`;
                       
                       new Notification(title, {
                         body: body,
                         icon: '/logo.svg',
                         badge: '/logo.svg',
-                        tag: `task-${task.id}`,
-                        requireInteraction: task.daysRemaining <= 1
+                        tag: `task-${typedTask.id}`,
+                        requireInteraction: Number(typedTask.daysRemaining) <= 1
                       });
                     }
                   }
@@ -171,9 +173,9 @@ export const useAutoNotifications = () => {
                 }
                 
                 // Show toast notification as well
-                const urgencyIcon = task.daysRemaining === 0 ? '🚨' : 
-                                  task.daysRemaining <= 1 ? '⚠️' : '⏰';
-                toast.error(`${urgencyIcon} ${task.project_name}: ${task.title} - ${task.daysRemaining === 0 ? 'Due today!' : task.daysRemaining === 1 ? 'Due tomorrow!' : task.daysRemaining + ' days left'}`, {
+                const urgencyIcon = Number(typedTask.daysRemaining) === 0 ? '🚨' : 
+                                  Number(typedTask.daysRemaining) <= 1 ? '⚠️' : '⏰';
+                toast.error(`${urgencyIcon} ${typedTask.project_name}: ${typedTask.title} - ${Number(typedTask.daysRemaining) === 0 ? 'Due today!' : Number(typedTask.daysRemaining) === 1 ? 'Due tomorrow!' : typedTask.daysRemaining + ' days left'}`, {
                   duration: 6000,
                 });
               }, index * 2000); // Stagger notifications by 2 seconds

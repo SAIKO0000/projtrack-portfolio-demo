@@ -172,7 +172,7 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
       }
 
       toast.success('Welcome back! Successfully signed in.', {
-        duration: 3000,
+        duration: 2000, // Reduced duration
         style: {
           background: 'linear-gradient(to right, #f97316, #ea580c)',
           color: 'white',

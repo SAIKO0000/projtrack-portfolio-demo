@@ -12,7 +12,20 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { Badge } from "@/components/ui/badge"
 import { useProjects } from "@/lib/hooks/useProjects"
 import { useGanttTasks } from "@/lib/hooks/useGanttTasks"
-import { Plus, Calendar as CalendarIcon, Clock, X } from "lucide-react"
+import { 
+  Plus, 
+  Calendar as CalendarIcon, 
+  Clock, 
+  X, 
+  FolderOpen,
+  User,
+  Users,
+  Activity,
+  FileText,
+  Loader2,
+  Edit,
+  CheckSquare
+} from "lucide-react"
 import { format } from "date-fns"
 import { cn } from "@/lib/utils"
 import { toast } from "react-hot-toast"
@@ -34,12 +47,16 @@ const PROJECT_ROLES = [
 interface TaskFormData {
   title: string
   description: string
+  notes: string // New notes field
   project_id: string
   start_date: Date | undefined
   end_date: Date | undefined
   status: string
   phase: string
   assignees: string[] // Changed from single assignee to multiple
+  assignee_headcounts: Record<string, number> // Head count for each role
+  duration_days: number | undefined // New field for duration input
+  date_input_mode: 'calendar' | 'duration' // New field to track input mode
 }
 
 interface TaskFormModalProps {
@@ -55,12 +72,16 @@ export function TaskFormModalOptimized({ onTaskCreated }: TaskFormModalProps) {
   const [formData, setFormData] = useState<TaskFormData>({
     title: "",
     description: "",
+    notes: "", // Initialize notes field
     project_id: "",
     start_date: undefined,
     end_date: undefined,
     status: "not-started",
     phase: "Planning",
-    assignees: [] // Changed from assignee: "" to assignees: []
+    assignees: [], // Changed from assignee: "" to assignees: []
+    assignee_headcounts: {}, // Initialize empty headcounts
+    duration_days: undefined,
+    date_input_mode: 'calendar'
   })
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -117,6 +138,7 @@ export function TaskFormModalOptimized({ onTaskCreated }: TaskFormModalProps) {
       const taskData = {
         title: formData.title,
         description: formData.description || null,
+        notes: formData.notes || null, // Include notes field
         project_id: formData.project_id,
         start_date: formatDateToLocal(startDate),
         end_date: formatDateToLocal(endDate),
@@ -127,6 +149,7 @@ export function TaskFormModalOptimized({ onTaskCreated }: TaskFormModalProps) {
         phase: formData.phase || null,
         category: "planning", // Set default category
         assignee: formData.assignees.length > 0 ? formData.assignees.join(", ") : null, // Join multiple assignees
+        assignee_headcounts: formData.assignee_headcounts, // Store headcount data
         assigned_to: null,
         estimated_hours: duration * 8, // Assume 8 hours per day
         duration,
@@ -143,12 +166,16 @@ export function TaskFormModalOptimized({ onTaskCreated }: TaskFormModalProps) {
       setFormData({
         title: "",
         description: "",
+        notes: "", // Include notes field in reset
         project_id: "",
         start_date: undefined,
         end_date: undefined,
         status: "not-started",
         phase: "Planning",
-        assignees: [] // Reset to empty array
+        assignees: [], // Reset to empty array
+        assignee_headcounts: {}, // Reset headcounts
+        duration_days: undefined,
+        date_input_mode: 'calendar'
       })
       
       // Refresh data
@@ -161,24 +188,70 @@ export function TaskFormModalOptimized({ onTaskCreated }: TaskFormModalProps) {
     }
   }
 
-  const handleInputChange = (field: keyof TaskFormData, value: string | Date) => {
-    setFormData(prev => ({ ...prev, [field]: value }))
+  const handleInputChange = (field: keyof TaskFormData, value: string | Date | number) => {
+    setFormData(prev => {
+      const newData = { ...prev, [field]: value }
+      
+      // Auto-calculate end date when duration is entered and start date exists
+      if (field === 'duration_days' && typeof value === 'number' && newData.start_date) {
+        const endDate = new Date(newData.start_date)
+        endDate.setDate(endDate.getDate() + value - 1) // -1 because the duration includes the start date
+        newData.end_date = endDate
+      }
+      
+      // Auto-calculate duration when dates change
+      if ((field === 'start_date' || field === 'end_date') && newData.start_date && newData.end_date) {
+        const timeDiff = newData.end_date.getTime() - newData.start_date.getTime()
+        const dayDiff = Math.ceil(timeDiff / (1000 * 60 * 60 * 24)) + 1 // +1 to include both start and end dates
+        newData.duration_days = dayDiff
+      }
+      
+      return newData
+    })
+  }
+
+  // Calculate duration in days between start and end date
+  const calculateDuration = () => {
+    if (formData.start_date && formData.end_date) {
+      const timeDiff = formData.end_date.getTime() - formData.start_date.getTime()
+      const dayDiff = Math.ceil(timeDiff / (1000 * 60 * 60 * 24)) + 1
+      return dayDiff
+    }
+    return null
   }
 
   const handleAddAssignee = () => {
     if (selectedRole && !formData.assignees.includes(selectedRole)) {
       setFormData(prev => ({
         ...prev,
-        assignees: [...prev.assignees, selectedRole]
+        assignees: [...prev.assignees, selectedRole],
+        assignee_headcounts: {
+          ...prev.assignee_headcounts,
+          [selectedRole]: 1 // Default to 1 person
+        }
       }))
       setSelectedRole("")
     }
   }
 
   const handleRemoveAssignee = (assigneeToRemove: string) => {
+    setFormData(prev => {
+      const { [assigneeToRemove]: _, ...remainingHeadcounts } = prev.assignee_headcounts
+      return {
+        ...prev,
+        assignees: prev.assignees.filter(assignee => assignee !== assigneeToRemove),
+        assignee_headcounts: remainingHeadcounts
+      }
+    })
+  }
+
+  const handleHeadcountChange = (assignee: string, headcount: number) => {
     setFormData(prev => ({
       ...prev,
-      assignees: prev.assignees.filter(assignee => assignee !== assigneeToRemove)
+      assignee_headcounts: {
+        ...prev.assignee_headcounts,
+        [assignee]: Math.max(1, headcount) // Ensure at least 1
+      }
     }))
   }
 
@@ -190,52 +263,98 @@ export function TaskFormModalOptimized({ onTaskCreated }: TaskFormModalProps) {
           Add Task
         </Button>
       </DialogTrigger>
-      <DialogContent className="sm:max-w-[600px] max-h-[90vh] overflow-y-auto">
-        <DialogHeader>
-          <DialogTitle className="flex items-center space-x-2">
-            <CalendarIcon className="h-5 w-5" />
-            <span>Create New Task</span>
+      <DialogContent className="sm:max-w-[650px] max-w-[95vw] max-h-[88vh] overflow-y-auto bg-white/95 backdrop-blur-sm border border-gray-200/50 shadow-2xl mx-4">
+        <DialogHeader className="space-y-2 p-3 sm:p-4 border-b border-gray-100">
+          <DialogTitle className="text-lg sm:text-xl font-bold text-gray-900 flex items-center">
+            <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-lg bg-gradient-to-br from-orange-500 to-orange-600 flex items-center justify-center mr-3 shadow-lg">
+              <CheckSquare className="h-4 w-4 sm:h-5 sm:w-5 text-white" />
+            </div>
+            <div>
+              <span className="block">Create New Task</span>
+              <span className="text-xs font-normal text-gray-600 block mt-1">Add a new task to your project timeline</span>
+            </div>
           </DialogTitle>
         </DialogHeader>
         
-        <form onSubmit={handleSubmit} className="space-y-6">
-          {/* Basic Information */}
+        <form onSubmit={handleSubmit} className="space-y-3 sm:space-y-4 p-3 sm:p-4">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div className="md:col-span-2">
-              <Label htmlFor="title">Task Title *</Label>
-              <Input
-                id="title"
-                value={formData.title}
-                onChange={(e) => handleInputChange("title", e.target.value)}
-                placeholder="Enter task title"
-                required
-              />
+            {/* Task Title */}
+            <div className="md:col-span-2 space-y-2">
+              <Label htmlFor="title" className="text-sm font-semibold text-gray-700 flex items-center">
+                <CheckSquare className="h-4 w-4 mr-2 text-orange-500" />
+                Task Title *
+              </Label>
+              <div className="relative">
+                <CheckSquare className="absolute left-4 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
+                <Input
+                  id="title"
+                  value={formData.title}
+                  onChange={(e) => handleInputChange("title", e.target.value)}
+                  placeholder="e.g., Install main electrical panel"
+                  className="w-full pl-12 h-12 bg-white/80 border-gray-200 focus:border-orange-500 focus:ring-orange-500/20 rounded-xl text-gray-900 placeholder:text-gray-500"
+                  required
+                />
+              </div>
             </div>
             
-            <div className="md:col-span-2">
-              <Label htmlFor="description">Description</Label>
-              <Textarea
-                id="description"
-                value={formData.description}
-                onChange={(e) => handleInputChange("description", e.target.value)}
-                placeholder="Enter task description"
-                rows={3}
-              />
+            {/* Description */}
+            <div className="md:col-span-2 space-y-2">
+              <Label htmlFor="description" className="text-sm font-semibold text-gray-700 flex items-center">
+                <FileText className="h-4 w-4 mr-2 text-orange-500" />
+                Description
+              </Label>
+              <div className="relative">
+                <FileText className="absolute left-4 top-4 h-4 w-4 text-gray-400" />
+                <Textarea
+                  id="description"
+                  value={formData.description}
+                  onChange={(e) => handleInputChange("description", e.target.value)}
+                  placeholder="Detailed description of the task..."
+                  rows={3}
+                  className="w-full pl-12 pt-4 bg-white/80 border-gray-200 focus:border-orange-500 focus:ring-orange-500/20 rounded-xl text-gray-900 placeholder:text-gray-500 resize-none"
+                />
+              </div>
             </div>
 
-            <div>
-              <Label htmlFor="project">Project *</Label>
+            {/* Notes */}
+            <div className="md:col-span-2 space-y-2">
+              <Label htmlFor="notes" className="text-sm font-semibold text-gray-700 flex items-center">
+                <FileText className="h-4 w-4 mr-2 text-blue-500" />
+                Notes
+              </Label>
+              <div className="relative">
+                <FileText className="absolute left-4 top-4 h-4 w-4 text-gray-400" />
+                <Textarea
+                  id="notes"
+                  value={formData.notes}
+                  onChange={(e) => handleInputChange("notes", e.target.value)}
+                  placeholder="Additional notes for the task..."
+                  rows={2}
+                  className="w-full pl-12 pt-4 bg-white/80 border-gray-200 focus:border-blue-500 focus:ring-blue-500/20 rounded-xl text-gray-900 placeholder:text-gray-500 resize-none"
+                />
+              </div>
+            </div>
+
+            {/* Project Selection */}
+            <div className="space-y-2">
+              <Label htmlFor="project" className="text-sm font-semibold text-gray-700 flex items-center">
+                <FolderOpen className="h-4 w-4 mr-2 text-orange-500" />
+                Project *
+              </Label>
               <Select 
                 value={formData.project_id} 
                 onValueChange={(value) => handleInputChange("project_id", value)}
               >
-                <SelectTrigger>
+                <SelectTrigger className="h-12 bg-white/80 border-gray-200 focus:border-orange-500 focus:ring-orange-500/20 rounded-xl">
                   <SelectValue placeholder="Select project" />
                 </SelectTrigger>
                 <SelectContent>
                   {projects.map((project) => (
                     <SelectItem key={project.id} value={project.id}>
-                      {project.name}
+                      <div className="flex items-center">
+                        <div className="w-2 h-2 rounded-full bg-orange-500 mr-2"></div>
+                        {project.name}
+                      </div>
                     </SelectItem>
                   ))}
                 </SelectContent>
@@ -243,30 +362,52 @@ export function TaskFormModalOptimized({ onTaskCreated }: TaskFormModalProps) {
             </div>
 
             {/* Multiple Assignees Section */}
-            <div className="space-y-2">
-              <Label>Assignees</Label>
+            <div className="space-y-3">
+              <Label className="text-sm font-semibold text-gray-700 flex items-center">
+                <Users className="h-4 w-4 mr-2 text-orange-500" />
+                Assignees
+              </Label>
               
-              {/* Current Assignees */}
+              {/* Current Assignees with Head Count Management */}
               {formData.assignees.length > 0 && (
-                <div className="flex flex-wrap gap-2 mb-2">
-                  {formData.assignees.map((assignee, index) => (
-                    <Badge 
-                      key={index} 
-                      variant="secondary" 
-                      className="flex items-center gap-1 pr-1"
-                    >
-                      {assignee}
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        size="sm"
-                        className="h-4 w-4 p-0 hover:bg-destructive hover:text-destructive-foreground"
-                        onClick={() => handleRemoveAssignee(assignee)}
-                      >
-                        <X className="h-3 w-3" />
-                      </Button>
-                    </Badge>
-                  ))}
+                <div className="space-y-3">
+                  <Label className="text-sm font-medium text-gray-600">Assigned Roles</Label>
+                  <div className="space-y-2">
+                    {formData.assignees.map((assignee, index) => (
+                      <div key={index} className="flex items-center gap-3 p-3 bg-gray-50 rounded-lg border">
+                        <div className="flex-1">
+                          <Badge variant="secondary" className="text-sm">
+                            {assignee}
+                          </Badge>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <Label className="text-xs text-gray-500">People:</Label>
+                          <Input
+                            type="number"
+                            min="1"
+                            max="50"
+                            value={formData.assignee_headcounts[assignee] || 1}
+                            onChange={(e) => {
+                              const headcount = parseInt(e.target.value)
+                              if (!isNaN(headcount) && headcount > 0) {
+                                handleHeadcountChange(assignee, headcount)
+                              }
+                            }}
+                            className="w-16 h-8 text-center text-sm"
+                          />
+                        </div>
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="sm"
+                          className="h-8 w-8 p-0 hover:bg-red-100 hover:text-red-600"
+                          onClick={() => handleRemoveAssignee(assignee)}
+                        >
+                          <X className="h-4 w-4" />
+                        </Button>
+                      </div>
+                    ))}
+                  </div>
                 </div>
               )}
 
@@ -303,20 +444,23 @@ export function TaskFormModalOptimized({ onTaskCreated }: TaskFormModalProps) {
             </div>
           </div>
 
-          {/* Dates */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div>
-              <Label>Start Date *</Label>
+          {/* Date Range */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 items-start">
+            <div className="space-y-3">
+              <Label className="text-sm font-semibold text-gray-700 flex items-center">
+                <CalendarIcon className="h-4 w-4 mr-2 text-orange-500" />
+                Start Date *
+              </Label>
               <Popover>
                 <PopoverTrigger asChild>
                   <Button
                     variant="outline"
                     className={cn(
-                      "w-full justify-start text-left font-normal",
-                      !formData.start_date && "text-muted-foreground"
+                      "w-full h-12 justify-start text-left font-normal bg-white/80 border-gray-200 hover:border-orange-500 focus:border-orange-500 focus:ring-orange-500/20 rounded-xl",
+                      !formData.start_date && "text-gray-500"
                     )}
                   >
-                    <CalendarIcon className="mr-2 h-4 w-4" />
+                    <CalendarIcon className="mr-3 h-4 w-4 text-gray-400" />
                     {formData.start_date ? format(formData.start_date, "PPP") : "Pick a date"}
                   </Button>
                 </PopoverTrigger>
@@ -362,78 +506,189 @@ export function TaskFormModalOptimized({ onTaskCreated }: TaskFormModalProps) {
               )}
             </div>
 
-            <div>
-              <Label>End Date *</Label>
-              <Popover>
-                <PopoverTrigger asChild>
+            <div className="space-y-3">
+              <div className="flex items-center justify-between">
+                <Label className="text-sm font-semibold text-gray-700 flex items-center">
+                  <CalendarIcon className="h-4 w-4 mr-2 text-orange-500" />
+                  End Date *
+                </Label>
+                <div className="flex items-center space-x-2">
                   <Button
+                    type="button"
                     variant="outline"
-                    className={cn(
-                      "w-full justify-start text-left font-normal",
-                      !formData.end_date && "text-muted-foreground"
+                    size="sm"
+                    onClick={() => handleInputChange("date_input_mode", 
+                      formData.date_input_mode === 'calendar' ? 'duration' : 'calendar'
                     )}
+                    className="text-xs h-7 px-2"
                   >
-                    <CalendarIcon className="mr-2 h-4 w-4" />
-                    {formData.end_date ? format(formData.end_date, "PPP") : "Pick a date"}
+                    {formData.date_input_mode === 'calendar' ? 'Use Days' : 'Use Calendar'}
                   </Button>
-                </PopoverTrigger>
-                <PopoverContent className="w-auto p-0" align="start">
-                  <Calendar
-                    mode="single"
-                    selected={formData.end_date}
-                    onSelect={(date) => date && handleInputChange("end_date", date)}
-                    disabled={(date) => {
-                      // End date cannot be before start date
-                      if (formData.start_date && date < formData.start_date) {
-                        return true
-                      }
-                      
-                      // End date cannot be before project start date
-                      const selectedProject = projects.find(p => p.id === formData.project_id)
-                      if (selectedProject?.start_date) {
-                        const projectStartDate = new Date(selectedProject.start_date)
-                        const projectStart = new Date(projectStartDate.getFullYear(), projectStartDate.getMonth(), projectStartDate.getDate())
-                        const checkDate = new Date(date.getFullYear(), date.getMonth(), date.getDate())
-                        return checkDate < projectStart
-                      }
-                      
-                      return false
-                    }}
-                    initialFocus
-                  />
-                </PopoverContent>
-              </Popover>
+                </div>
+              </div>
+              
+              {formData.date_input_mode === 'calendar' ? (
+                <Popover>
+                  <PopoverTrigger asChild>
+                    <Button
+                      variant="outline"
+                      className={cn(
+                        "w-full h-12 justify-start text-left font-normal bg-white/80 border-gray-200 hover:border-orange-500 focus:border-orange-500 focus:ring-orange-500/20 rounded-xl",
+                        !formData.end_date && "text-gray-500"
+                      )}
+                    >
+                      <CalendarIcon className="mr-3 h-4 w-4 text-gray-400" />
+                      {formData.end_date ? format(formData.end_date, "PPP") : "Pick a date"}
+                    </Button>
+                  </PopoverTrigger>
+                  <PopoverContent className="w-auto p-0" align="start">
+                    <Calendar
+                      mode="single"
+                      selected={formData.end_date}
+                      onSelect={(date) => date && handleInputChange("end_date", date)}
+                      disabled={(date) => {
+                        // End date cannot be before start date
+                        if (formData.start_date && date < formData.start_date) {
+                          return true
+                        }
+                        
+                        // End date cannot be before project start date
+                        const selectedProject = projects.find(p => p.id === formData.project_id)
+                        if (selectedProject?.start_date) {
+                          const projectStartDate = new Date(selectedProject.start_date)
+                          const projectStart = new Date(projectStartDate.getFullYear(), projectStartDate.getMonth(), projectStartDate.getDate())
+                          const checkDate = new Date(date.getFullYear(), date.getMonth(), date.getDate())
+                          if (checkDate < projectStart) {
+                            return true
+                          }
+                        }
+                        
+                        // End date cannot be after project end date
+                        if (selectedProject?.end_date) {
+                          const projectEndDate = new Date(selectedProject.end_date)
+                          const projectEnd = new Date(projectEndDate.getFullYear(), projectEndDate.getMonth(), projectEndDate.getDate())
+                          const checkDate = new Date(date.getFullYear(), date.getMonth(), date.getDate())
+                          if (checkDate > projectEnd) {
+                            return true
+                          }
+                        }
+                        
+                        return false
+                      }}
+                      initialFocus
+                    />
+                  </PopoverContent>
+                </Popover>
+              ) : (
+                <div className="space-y-2">
+                  <div className="flex gap-2">
+                    <Input
+                      type="number"
+                      min="1"
+                      max="365"
+                      value={formData.duration_days || ''}
+                      onChange={(e) => {
+                        const days = parseInt(e.target.value)
+                        if (!isNaN(days) && days > 0) {
+                          handleInputChange("duration_days", days)
+                        }
+                      }}
+                      placeholder="Number of days"
+                      className="flex-1 h-12 bg-white/80 border-gray-200 focus:border-orange-500 focus:ring-orange-500/20 rounded-xl"
+                    />
+                    <div className="flex items-center px-3 bg-gray-100 rounded-xl">
+                      <span className="text-sm text-gray-600">days</span>
+                    </div>
+                  </div>
+                  {formData.start_date && formData.duration_days && (
+                    <p className="text-xs text-gray-600">
+                      End date will be: {(() => {
+                        const endDate = new Date(formData.start_date)
+                        endDate.setDate(endDate.getDate() + formData.duration_days - 1)
+                        return endDate.toLocaleDateString("en-US", {
+                          year: 'numeric',
+                          month: 'long',
+                          day: 'numeric'
+                        })
+                      })()}
+                    </p>
+                  )}
+                </div>
+              )}
+              
+              {/* Duration Display */}
+              {formData.start_date && formData.end_date && (
+                <div className="mt-2 p-2 bg-blue-50 rounded-lg border border-blue-200">
+                  <div className="flex items-center text-blue-700">
+                    <Clock className="h-4 w-4 mr-2" />
+                    <span className="text-sm font-medium">
+                      Duration: {calculateDuration()} day{calculateDuration() !== 1 ? 's' : ''}
+                    </span>
+                  </div>
+                </div>
+              )}
             </div>
           </div>
 
           {/* Status and Phase */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div>
-              <Label htmlFor="status">Status</Label>
+            <div className="space-y-3">
+              <Label htmlFor="status" className="text-sm font-semibold text-gray-700 flex items-center">
+                <Activity className="h-4 w-4 mr-2 text-orange-500" />
+                Status
+              </Label>
               <Select 
                 value={formData.status} 
                 onValueChange={(value) => handleInputChange("status", value)}
               >
-                <SelectTrigger>
+                <SelectTrigger className="h-12 bg-white/80 border-gray-200 focus:border-orange-500 focus:ring-orange-500/20 rounded-xl">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="not-started">Not Started</SelectItem>
-                  <SelectItem value="in-progress">In Progress</SelectItem>
-                  <SelectItem value="completed">Completed</SelectItem>
-                  <SelectItem value="delayed">Delayed</SelectItem>
-                  <SelectItem value="on-hold">On Hold</SelectItem>
+                  <SelectItem value="not-started">
+                    <div className="flex items-center">
+                      <div className="w-3 h-3 rounded-full bg-gray-500 mr-2"></div>
+                      Not Started
+                    </div>
+                  </SelectItem>
+                  <SelectItem value="in-progress">
+                    <div className="flex items-center">
+                      <div className="w-3 h-3 rounded-full bg-blue-500 mr-2"></div>
+                      In Progress
+                    </div>
+                  </SelectItem>
+                  <SelectItem value="completed">
+                    <div className="flex items-center">
+                      <div className="w-3 h-3 rounded-full bg-green-500 mr-2"></div>
+                      Completed
+                    </div>
+                  </SelectItem>
+                  <SelectItem value="delayed">
+                    <div className="flex items-center">
+                      <div className="w-3 h-3 rounded-full bg-red-500 mr-2"></div>
+                      Delayed
+                    </div>
+                  </SelectItem>
+                  <SelectItem value="on-hold">
+                    <div className="flex items-center">
+                      <div className="w-3 h-3 rounded-full bg-yellow-500 mr-2"></div>
+                      On Hold
+                    </div>
+                  </SelectItem>
                 </SelectContent>
               </Select>
             </div>
 
-            <div>
-              <Label htmlFor="phase">Phase</Label>
+            <div className="space-y-3">
+              <Label htmlFor="phase" className="text-sm font-semibold text-gray-700 flex items-center">
+                <Clock className="h-4 w-4 mr-2 text-orange-500" />
+                Phase
+              </Label>
               <Select 
                 value={formData.phase} 
                 onValueChange={(value) => handleInputChange("phase", value)}
               >
-                <SelectTrigger>
+                <SelectTrigger className="h-12 bg-white/80 border-gray-200 focus:border-orange-500 focus:ring-orange-500/20 rounded-xl">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
@@ -449,24 +704,26 @@ export function TaskFormModalOptimized({ onTaskCreated }: TaskFormModalProps) {
           </div>
 
           {/* Submit Button */}
-          <div className="flex justify-end space-x-2 pt-4">
+          <div className="flex flex-col sm:flex-row justify-end gap-3 pt-4 border-t border-gray-100">
             <Button
               type="button"
               variant="outline"
               onClick={() => setOpen(false)}
               disabled={loading}
+              className="h-12 px-6 border-gray-200 hover:border-gray-300 hover:bg-gray-50 rounded-xl font-medium transition-all duration-200"
             >
+              <X className="h-4 w-4 mr-2" />
               Cancel
             </Button>
             <Button 
               type="submit" 
               disabled={loading}
-              className="bg-gradient-to-r from-orange-500 to-orange-600 hover:from-orange-600 hover:to-orange-700"
+              className="h-12 px-8 bg-gradient-to-r from-orange-500 to-orange-600 hover:from-orange-600 hover:to-orange-700 text-white rounded-xl font-medium shadow-lg hover:shadow-xl transition-all duration-200"
             >
               {loading ? (
                 <>
-                  <Clock className="h-4 w-4 mr-2 animate-spin" />
-                  Creating...
+                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                  Creating Task...
                 </>
               ) : (
                 <>

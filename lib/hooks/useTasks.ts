@@ -1,53 +1,108 @@
-import { useState, useEffect, useCallback } from 'react';
-import { supabase } from '@/lib/supabase';
-import type { Database } from '@/lib/supabase';
-import { cache, CACHE_KEYS } from '@/lib/cache';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
+import { supabase } from '@/lib/supabase'
+import type { Database } from '@/lib/supabase'
+import { queryKeys } from '@/lib/supabase-query'
+import { withAuthErrorHandling } from '@/lib/auth-utils'
+import { toast } from 'react-hot-toast'
 
-export type Task = Database['public']['Tables']['tasks']['Row'];
-
-// Import the global invalidation function from useGanttTasks to keep them synchronized
-import { triggerTasksRefresh as triggerGanttRefresh } from './useGanttTasks';
-
-// Global task cache invalidation
-let globalTasksVersion = 0;
-const versionWatchers: Set<() => void> = new Set();
-
-export const triggerTasksRefresh = () => {
-  globalTasksVersion++;
-  // Clear cache when triggered
-  cache.invalidate(CACHE_KEYS.TASKS);
-  triggerGanttRefresh(); // Also trigger gantt refresh
-  versionWatchers.forEach(watcher => watcher());
-};
+export type Task = Database['public']['Tables']['tasks']['Row']
 
 export function useTasks() {
-  const [tasks, setTasks] = useState<Task[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-  const [lastVersion, setLastVersion] = useState(0);
+  const queryClient = useQueryClient()
 
-  const fetchTasks = useCallback(async (forceRefresh = false) => {
-    try {
-      setLoading(true);
-      setError(null);
+  // Main tasks query with aggressive caching
+  const query = useQuery({
+    queryKey: queryKeys.tasks(),
+    queryFn: async () => {
+      return withAuthErrorHandling(async () => {
+        const { data, error } = await supabase
+          .from('tasks')
+          .select(`
+            *,
+            project:projects(id, name),
+            assignee:personnel(id, name)
+          `)
+          .order('created_at', { ascending: false })
 
-      // Use cache if available and not forcing refresh
-      if (!forceRefresh) {
-        const cachedTasks = cache.get<Task[]>(CACHE_KEYS.TASKS);
-        if (cachedTasks) {
-          setTasks(cachedTasks);
-          setLoading(false);
-          setLastVersion(globalTasksVersion);
-          return;
-        }
-      }
+        if (error) throw error
+        return data || []
+      }, [])
+    },
+    staleTime: 5 * 60 * 1000, // 5 minutes - tasks change more frequently
+    gcTime: 15 * 60 * 1000, // 15 minutes
+    refetchOnWindowFocus: false,
+    refetchOnMount: false,
+  })
 
-      const { data, error: fetchError } = await supabase
-        .from('tasks')
-        .select('*')
-        .order('created_at', { ascending: false });
+  // Update task mutation
+  const updateTaskMutation = useMutation({
+    mutationFn: async ({ id, updates }: { id: string; updates: Partial<Task> }) => {
+      return withAuthErrorHandling(async () => {
+        const { data, error } = await supabase
+          .from('tasks')
+          .update(updates)
+          .eq('id', id)
+          .select(`
+            *,
+            project:projects(id, name),
+            assignee:personnel(id, name)
+          `)
+          .single()
 
-      if (fetchError) {
+        if (error) throw error
+        return data
+      }, undefined)
+    },
+    onSuccess: (updatedTask) => {
+      // Update cache with the updated task
+      queryClient.setQueryData(queryKeys.tasks(), (old: Task[] | undefined) =>
+        old ? old.map(t => t.id === updatedTask.id ? updatedTask : t) : [updatedTask]
+      )
+      toast.success('Task updated successfully')
+    },
+    onError: (error) => {
+      console.error('Update task error:', error)
+      toast.error('Failed to update task')
+    }
+  })
+
+  // Delete task mutation
+  const deleteTaskMutation = useMutation({
+    mutationFn: async (taskId: string) => {
+      return withAuthErrorHandling(async () => {
+        const { error } = await supabase
+          .from('tasks')
+          .delete()
+          .eq('id', taskId)
+
+        if (error) throw error
+        return taskId
+      }, undefined)
+    },
+    onSuccess: (deletedId) => {
+      // Update cache by removing the deleted task
+      queryClient.setQueryData(queryKeys.tasks(), (old: Task[] | undefined) =>
+        old ? old.filter(t => t.id !== deletedId) : []
+      )
+      toast.success('Task deleted successfully')
+    },
+    onError: (error) => {
+      console.error('Delete task error:', error)
+      toast.error('Failed to delete task')
+    }
+  })
+
+  return {
+    tasks: query.data || [],
+    loading: query.isLoading,
+    error: query.error?.message || null,
+    refetch: query.refetch,
+    updateTask: updateTaskMutation.mutate,
+    deleteTask: deleteTaskMutation.mutate,
+    isUpdating: updateTaskMutation.isPending,
+    isDeleting: deleteTaskMutation.isPending
+  }
+}
         throw fetchError;
       }
 

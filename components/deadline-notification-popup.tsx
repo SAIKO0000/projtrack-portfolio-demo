@@ -83,6 +83,14 @@ export function DeadlineNotificationPopup({
           exit={{ x: 400, opacity: 0 }}
           transition={{ type: "spring", stiffness: 300, damping: 30 }}
           className="fixed top-4 right-4 z-50 w-80 md:w-96 max-h-[90vh] overflow-hidden"
+          drag="x"
+          dragConstraints={{ left: -100, right: 100 }}
+          dragElastic={0.2}
+          onDragEnd={(event, info) => {
+            if (info.offset.x > 100) {
+              onClose()
+            }
+          }}
         >
           <Card className="border-l-4 border-l-orange-500 bg-white shadow-xl backdrop-blur-sm">
             <CardContent className="p-0">
@@ -97,7 +105,7 @@ export function DeadlineNotificationPopup({
                     variant="ghost"
                     size="sm"
                     onClick={onClose}
-                    className="h-6 w-6 p-0 text-white hover:bg-white/20"
+                    className="h-6 w-6 p-0 text-white hover:bg-white/20 z-10"
                   >
                     <X className="h-4 w-4" />
                   </Button>

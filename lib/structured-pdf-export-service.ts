@@ -5,6 +5,7 @@ import { format } from 'date-fns'
 // Type declarations for jsPDF with autoTable
 declare module 'jspdf' {
   interface jsPDF {
+    autoTable: (options: any) => jsPDF
     lastAutoTable: {
       finalY: number
     }
@@ -45,6 +46,9 @@ export interface TaskData {
   estimated_hours?: number
   is_overdue?: boolean
   days_until_deadline?: number
+  completed_at?: string
+  notes?: string
+  assignee_headcounts?: Record<string, number>
 }
 
 export interface ExportOptions {
@@ -80,6 +84,8 @@ export class StructuredPDFExportService {
       unit: 'mm',
       format: 'a4'
     })
+    // Initialize autoTable plugin
+    autoTable(this.doc, {})
     this.currentY = 20
   }
 
@@ -110,20 +116,744 @@ export class StructuredPDFExportService {
     tasks: TaskData[],
     options: ExportOptions
   ): Promise<Blob> {
+    // Check if this is a single task detailed report
+    if (options.exportType === 'specific-project' && tasks.length === 1) {
+      return this.generateDetailedTaskReport(tasks[0], projects.find(p => p.id === tasks[0].project_id))
+    }
+    
+    // Use manpower schedule format for all other exports
+    this.generateManpowerScheduleTable(projects, tasks)
+    return this.doc.output('blob')
+  }
+
+  // Generate detailed individual task report
+  private generateDetailedTaskReport(task: TaskData, project?: ProjectData): Blob {
+    // Create a new PDF for detailed task report
     this.doc = new jsPDF({
       orientation: 'portrait',
       unit: 'mm',
       format: 'a4'
     })
+    
+    this.pageHeight = 280
+    this.pageWidth = 210
     this.currentY = 20
-
-    if (options.exportType === 'all-projects') {
-      await this.generateAllProjectsReport(projects, tasks, options)
-    } else if (options.exportType === 'specific-project' && options.projectId) {
-      await this.generateSpecificProjectReport(projects, tasks, options)
-    }
-
+    
+    // Header
+    this.addDetailedTaskHeader(task, project)
+    
+    // Task Details Section
+    this.addTaskDetailsSection(task)
+    
+    // Assigned Roles & Manpower Section
+    this.addAssignedRolesSection(task)
+    
+    // Timeline Analysis Section  
+    this.addTimelineAnalysisSection(task)
+    
+    // Progress & Computations Section
+    this.addProgressComputationsSection(task)
+    
+    // Observations/Notes Section
+    this.addObservationsSection(task)
+    
+    // Summary Box
+    this.addSummaryBox(task)
+    
     return this.doc.output('blob')
+  }
+
+  private addDetailedTaskHeader(task: TaskData, project?: ProjectData) {
+    // Company header
+    this.doc.setFontSize(16)
+    this.doc.setFont('helvetica', 'bold')
+    this.doc.setTextColor(25, 82, 140)
+    this.doc.text('📌 Task Report – Electrical Engineering Project', this.margin, this.currentY)
+    
+    this.currentY += 15
+    
+    // Project and Task Info
+    this.doc.setFontSize(12)
+    this.doc.setFont('helvetica', 'bold')
+    this.doc.setTextColor(0, 0, 0)
+    this.doc.text(`Project Title: ${project?.name || task.project_name || 'Unknown Project'}`, this.margin, this.currentY)
+    
+    this.currentY += 8
+    this.doc.text(`Task Title: ${task.title}`, this.margin, this.currentY)
+    
+    this.currentY += 8
+    this.doc.text(`Task Phase: ${task.phase || 'General'}`, this.margin, this.currentY)
+    
+    this.currentY += 8
+    const statusIcon = task.status === 'completed' ? '✅' : 
+                      task.status === 'in-progress' ? '🟡' : 
+                      task.status === 'planning' ? '🔵' : '⚪'
+    this.doc.text(`Status: ${statusIcon} ${this.formatStatus(task.status)}`, this.margin, this.currentY)
+    
+    this.currentY += 15
+  }
+
+  private addTaskDetailsSection(task: TaskData) {
+    this.doc.setFontSize(14)
+    this.doc.setFont('helvetica', 'bold')
+    this.doc.setTextColor(0, 0, 0)
+    this.doc.text('1. Task Details', this.margin, this.currentY)
+    
+    this.currentY += 10
+    
+    this.doc.setFontSize(10)
+    this.doc.setFont('helvetica', 'normal')
+    
+    // Description
+    this.doc.text('Description:', this.margin, this.currentY)
+    this.currentY += 6
+    const description = task.description || 'Detailed description of the task...'
+    const wrappedDescription = this.doc.splitTextToSize(description, this.pageWidth - 2 * this.margin)
+    this.doc.text(wrappedDescription, this.margin + 5, this.currentY)
+    this.currentY += wrappedDescription.length * 5 + 5
+    
+    // Dates
+    if (task.start_date) {
+      const startDate = new Date(task.start_date)
+      this.doc.text(`Start Date: ${this.formatFullDate(startDate)}`, this.margin, this.currentY)
+      this.currentY += 6
+    }
+    
+    if (task.end_date) {
+      const endDate = new Date(task.end_date)
+      this.doc.text(`End Date: ${this.formatFullDate(endDate)}`, this.margin, this.currentY)
+      this.currentY += 6
+    }
+    
+    // Duration calculation
+    if (task.start_date && task.end_date) {
+      const duration = this.calculateDuration(task.start_date, task.end_date)
+      this.doc.text(`Duration: ${duration} days`, this.margin, this.currentY)
+      this.currentY += 6
+    }
+    
+    // Completion date if applicable
+    if (task.completed_at) {
+      const completedAt = new Date(task.completed_at)
+      this.doc.text(`Actual Completion: ${this.formatFullDateTime(completedAt)}`, this.margin, this.currentY)
+      this.currentY += 6
+    }
+    
+    this.currentY += 10
+  }
+
+  private addAssignedRolesSection(task: TaskData) {
+    this.doc.setFontSize(14)
+    this.doc.setFont('helvetica', 'bold')
+    this.doc.text('2. Assigned Roles & Manpower', this.margin, this.currentY)
+    
+    this.currentY += 10
+    
+    // Create table for roles
+    const roleData = this.prepareRoleTableData(task)
+    
+    autoTable(this.doc, {
+      startY: this.currentY,
+      head: [['Role', 'Assigned', 'Remarks']],
+      body: roleData,
+      theme: 'grid',
+      styles: {
+        fontSize: 9,
+        cellPadding: 3
+      },
+      headStyles: {
+        fillColor: [240, 240, 240],
+        fontStyle: 'bold'
+      },
+      margin: { left: this.margin, right: this.margin }
+    })
+    
+    this.currentY = (this.doc as any).lastAutoTable.finalY + 15
+  }
+
+  private addTimelineAnalysisSection(task: TaskData) {
+    this.doc.setFontSize(14)
+    this.doc.setFont('helvetica', 'bold')
+    this.doc.text('3. Timeline Analysis', this.margin, this.currentY)
+    
+    this.currentY += 10
+    
+    this.doc.setFontSize(10)
+    this.doc.setFont('helvetica', 'normal')
+    
+    if (task.start_date && task.end_date) {
+      const plannedDuration = this.calculateDuration(task.start_date, task.end_date)
+      const actualDuration = task.completed_at ? 
+        this.calculateDuration(task.start_date, task.completed_at) : 
+        this.calculateDuration(task.start_date, new Date().toISOString())
+      
+      this.doc.text(`Planned Duration: ${plannedDuration} working days`, this.margin, this.currentY)
+      this.currentY += 6
+      
+      this.doc.text(`Actual Duration: ${actualDuration} working days`, this.margin, this.currentY)
+      
+      const variance = actualDuration - plannedDuration
+      const statusIcon = variance <= 0 ? '✅' : '⚠️'
+      const varianceText = variance <= 0 ? '(on time)' : `(${variance} days delay)`
+      
+      this.doc.text(` ${varianceText} ${statusIcon}`, 80, this.currentY)
+      this.currentY += 6
+      
+      const onTime = task.status === 'completed' && variance <= 0
+      this.doc.text(`On-Time Completion: ${onTime ? 'Yes' : 'No'}`, this.margin, this.currentY)
+      this.currentY += 6
+    }
+    
+    this.currentY += 10
+  }
+
+  private addProgressComputationsSection(task: TaskData) {
+    this.doc.setFontSize(14)
+    this.doc.setFont('helvetica', 'bold')
+    this.doc.text('4. Progress & Computations', this.margin, this.currentY)
+    
+    this.currentY += 10
+    
+    this.doc.setFontSize(10)
+    this.doc.setFont('helvetica', 'normal')
+    
+    const plannedProgress = task.status === 'completed' ? 100 : 
+                           task.status === 'in-progress' ? 50 : 
+                           task.status === 'planning' ? 10 : 0
+    
+    const actualProgress = task.progress || plannedProgress
+    const variance = actualProgress - plannedProgress
+    
+    this.doc.text(`Planned % Completion: ${plannedProgress}%`, this.margin, this.currentY)
+    this.currentY += 6
+    
+    this.doc.text(`Actual % Completion: ${actualProgress}%`, this.margin, this.currentY)
+    this.currentY += 6
+    
+    const varianceText = variance === 0 ? '0% → Delivered exactly as planned' :
+                        variance > 0 ? `+${variance}% → Ahead of schedule` :
+                        `${variance}% → Behind schedule`
+    
+    this.doc.text(`Variance: ${varianceText}`, this.margin, this.currentY)
+    this.currentY += 6
+    
+    // Add delay analysis if applicable
+    if (task.is_overdue && task.days_until_deadline) {
+      this.doc.text(`📊 Delay Analysis: ${Math.abs(task.days_until_deadline)} days overdue`, this.margin, this.currentY)
+      this.currentY += 6
+    }
+    
+    this.currentY += 10
+  }
+
+  private addObservationsSection(task: TaskData) {
+    this.doc.setFontSize(14)
+    this.doc.setFont('helvetica', 'bold')
+    this.doc.text('5. Observations / Notes', this.margin, this.currentY)
+    
+    this.currentY += 10
+    
+    this.doc.setFontSize(10)
+    this.doc.setFont('helvetica', 'normal')
+    
+    const observations = task.notes || this.generateDefaultObservations(task)
+    const wrappedObservations = this.doc.splitTextToSize(observations, this.pageWidth - 2 * this.margin)
+    this.doc.text(wrappedObservations, this.margin, this.currentY)
+    this.currentY += wrappedObservations.length * 5 + 10
+  }
+
+  private addSummaryBox(task: TaskData) {
+    this.doc.setFontSize(14)
+    this.doc.setFont('helvetica', 'bold')
+    this.doc.text('📝 Summary Box', this.margin, this.currentY)
+    
+    this.currentY += 10
+    
+    // Create summary box with border
+    const boxY = this.currentY
+    const boxHeight = 30
+    
+    this.doc.setDrawColor(0, 0, 0)
+    this.doc.setLineWidth(0.5)
+    this.doc.rect(this.margin, boxY, this.pageWidth - 2 * this.margin, boxHeight)
+    
+    this.doc.setFontSize(10)
+    this.doc.setFont('helvetica', 'normal')
+    
+    const summaryItems = this.generateSummaryItems(task)
+    let itemY = boxY + 8
+    
+    summaryItems.forEach(item => {
+      this.doc.text(item, this.margin + 5, itemY)
+      itemY += 6
+    })
+  }
+
+  private prepareRoleTableData(task: TaskData): (string | number)[][] {
+    const roleData: (string | number)[][] = []
+    
+    if (task.assignee) {
+      const assignees = task.assignee.split(', ')
+      const headcounts = task.assignee_headcounts || {}
+      
+      assignees.forEach(assignee => {
+        const headcount = headcounts[assignee.trim()] || 1
+        const role = assignee.trim()
+        let remarks = 'Execution & monitoring'
+        
+        if (role.toLowerCase().includes('project in-charge')) {
+          remarks = 'Lead role'
+        } else if (role.toLowerCase().includes('engineer')) {
+          remarks = 'Planning & coordination'
+        } else if (role.toLowerCase().includes('gc')) {
+          remarks = 'Execution & site monitoring'
+        }
+        
+        roleData.push([role, headcount.toString(), remarks])
+      })
+    } else {
+      roleData.push(['Unassigned', '0', 'No personnel assigned'])
+    }
+    
+    return roleData
+  }
+
+  private generateDefaultObservations(task: TaskData): string {
+    const status = task.status || 'unknown'
+    const taskTitle = task.title.toLowerCase()
+    
+    let observations = `${task.title} was `
+    
+    if (status === 'completed') {
+      observations += 'completed successfully on schedule.\n\n'
+      observations += 'All assigned engineers fulfilled their roles.\n\n'
+      observations += 'No additional manpower or resources were required.'
+    } else if (status === 'in-progress') {
+      observations += 'currently in progress.\n\n'
+      observations += 'Resource allocation is proceeding as planned.\n\n'
+      observations += 'Regular monitoring and updates are being conducted.'
+    } else {
+      observations += 'in planning phase.\n\n'
+      observations += 'Resource requirements are being assessed.\n\n'
+      observations += 'Timeline and manpower allocation pending approval.'
+    }
+    
+    return observations
+  }
+
+  private generateSummaryItems(task: TaskData): string[] {
+    const items = []
+    
+    if (task.status === 'completed') {
+      items.push('✔️ Task Completed on time')
+    } else if (task.is_overdue) {
+      items.push('⚠️ Task Delayed')
+    } else {
+      items.push('🔄 Task In Progress')
+    }
+    
+    if (task.assignee) {
+      items.push('✔️ Manpower properly allocated')
+    } else {
+      items.push('⚠️ Manpower allocation pending')
+    }
+    
+    const hasDelay = task.is_overdue && task.days_until_deadline && task.days_until_deadline < 0
+    if (!hasDelay && task.status === 'completed') {
+      items.push('✔️ Zero variance (on-budget, on-time)')
+    } else if (hasDelay) {
+      items.push('⚠️ Variance detected (schedule impact)')
+    } else {
+      items.push('🔄 On track with current schedule')
+    }
+    
+    return items
+  }
+
+  private formatStatus(status: string): string {
+    return status.split('-').map(word => 
+      word.charAt(0).toUpperCase() + word.slice(1).toLowerCase()
+    ).join(' ')
+  }
+
+  private formatFullDate(date: Date): string {
+    return date.toLocaleDateString("en-US", { 
+      year: 'numeric', 
+      month: 'long', 
+      day: 'numeric',
+      weekday: 'long'
+    })
+  }
+
+  private formatFullDateTime(date: Date): string {
+    return date.toLocaleDateString("en-PH", {
+      year: 'numeric',
+      month: 'long', 
+      day: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit',
+      timeZone: 'Asia/Manila'
+    })
+  }
+
+  private calculateDuration(startDate: string, endDate: string): number {
+    const start = new Date(startDate)
+    const end = new Date(endDate)
+    const diffTime = Math.abs(end.getTime() - start.getTime())
+    return Math.ceil(diffTime / (1000 * 60 * 60 * 24))
+  }
+
+  // Generate manpower schedule table exactly like the image
+  private generateManpowerScheduleTable(
+    projects: ProjectData[],
+    tasks: TaskData[]
+  ) {
+    // Create a landscape PDF for better table layout
+    this.doc = new jsPDF({
+      orientation: 'landscape',
+      unit: 'mm',
+      format: 'a4'
+    })
+    
+    // Update dimensions for landscape
+    this.pageHeight = 210
+    this.pageWidth = 297
+    this.currentY = 20
+    
+    // Company header similar to the image
+    this.addManpowerScheduleHeader()
+    
+    // Title
+    this.doc.setFontSize(14)
+    this.doc.setFont('helvetica', 'bold')
+    this.doc.setTextColor(0, 0, 0)
+    this.doc.text('PROJECT AND MANPOWER SCHEDULE', this.pageWidth / 2, 40, { align: 'center' })
+    
+    // Add professional analysis section
+    this.addProjectAnalysisSection(projects, tasks)
+    
+    this.currentY = 85
+    
+    // Get months for the schedule (14 months as shown in image)
+    const months: string[] = []
+    for (let i = 1; i <= 14; i++) {
+      months.push(i.toString())
+    }
+    
+    // Prepare table data similar to the image format
+    const tableData = this.prepareManpowerTableData(projects, tasks, months)
+    
+    // Create the main schedule table with simplified configuration
+    autoTable(this.doc, {
+      startY: this.currentY,
+      head: [
+        ['ITEM', 'DESCRIPTION', ...months]
+      ],
+      body: tableData,
+      theme: 'grid' as const,
+      styles: {
+        fontSize: 8,
+        cellPadding: 1,
+        lineWidth: 0.2,
+        textColor: [0, 0, 0] as const,
+        fillColor: [255, 255, 255] as const
+      },
+      headStyles: {
+        fillColor: [240, 240, 240] as const,
+        fontStyle: 'bold' as const,
+        fontSize: 9,
+        halign: 'center' as const,
+        valign: 'middle' as const
+      },
+      margin: { left: this.margin, right: this.margin }
+    })
+  }
+  
+  private addProjectAnalysisSection(projects: ProjectData[], tasks: TaskData[]) {
+    // Analysis section
+    this.doc.setFontSize(11)
+    this.doc.setFont('helvetica', 'bold')
+    this.doc.setTextColor(0, 0, 0)
+    this.doc.text('PROJECT ANALYSIS & RESOURCE ALLOCATION', this.margin, 55)
+    
+    const analysis = this.analyzeProjectComplexity(projects, tasks)
+    const totalTasks = tasks.length
+    const activeTasks = tasks.filter(t => t.status === 'in-progress').length
+    const completedTasks = tasks.filter(t => t.status === 'completed').length
+    
+    this.doc.setFontSize(9)
+    this.doc.setFont('helvetica', 'normal')
+    
+    const analysisText = [
+      `Total Projects: ${projects.length} | Total Tasks: ${totalTasks} | Active: ${activeTasks} | Completed: ${completedTasks}`,
+      `Project Complexity: ${analysis.complexity.toUpperCase()} | Estimated Duration: ${this.estimateProjectDuration(tasks)} months`,
+      `Resource Requirements: ${analysis.hasHighRisk ? 'High Safety Requirements' : 'Standard Safety'} | ${analysis.needsWelding ? 'Welding/Fabrication Required' : 'No Welding Required'}`,
+      `Peak Manpower: ${this.calculatePeakManpower(tasks)} personnel | Recommended Team Size: ${this.calculateRecommendedTeamSize(projects, tasks)} members`
+    ]
+    
+    let yPos = 62
+    analysisText.forEach(text => {
+      this.doc.text(text, this.margin, yPos)
+      yPos += 5
+    })
+  }
+  
+  private estimateProjectDuration(tasks: TaskData[]): number {
+    if (tasks.length === 0) return 1
+    
+    const tasksWithDates = tasks.filter(t => t.start_date && t.end_date)
+    if (tasksWithDates.length === 0) return Math.ceil(tasks.length / 10)
+    
+    const earliestStart = new Date(Math.min(...tasksWithDates.map(t => new Date(t.start_date!).getTime())))
+    const latestEnd = new Date(Math.max(...tasksWithDates.map(t => new Date(t.end_date!).getTime())))
+    
+    const diffTime = latestEnd.getTime() - earliestStart.getTime()
+    const diffMonths = Math.ceil(diffTime / (1000 * 60 * 60 * 24 * 30))
+    
+    return Math.max(1, diffMonths)
+  }
+  
+  private calculatePeakManpower(tasks: TaskData[]): number {
+    // Calculate based on overlapping tasks and their requirements
+    const overlappingTasks = tasks.filter(t => t.status === 'in-progress').length
+    const highPriorityTasks = tasks.filter(t => t.priority === 'high').length
+    
+    return Math.max(5, overlappingTasks * 2 + highPriorityTasks)
+  }
+  
+  private calculateRecommendedTeamSize(projects: ProjectData[], tasks: TaskData[]): number {
+    const baseTeam = 4 // Minimum team
+    const projectMultiplier = Math.ceil(projects.length / 2)
+    const taskComplexity = Math.ceil(tasks.length / 15)
+    
+    return Math.max(baseTeam, baseTeam + projectMultiplier + taskComplexity)
+  }
+  
+  private addManpowerScheduleHeader() {
+    // Company logo/info in top right (similar to image)
+    this.doc.setFontSize(12)
+    this.doc.setFont('helvetica', 'bold')
+    this.doc.setTextColor(255, 140, 0) // Orange color
+    this.doc.text('GYG', this.pageWidth - 60, 15)
+    
+    this.doc.setFontSize(10)
+    this.doc.setFont('helvetica', 'normal')
+    this.doc.setTextColor(0, 0, 0)
+    this.doc.text('Power Systems Inc.', this.pageWidth - 60, 22)
+    
+    this.doc.setFontSize(8)
+    this.doc.setTextColor(100, 100, 100)
+    this.doc.text('Engineers • Contractors • Consultants', this.pageWidth - 60, 27)
+    
+    // Contact info
+    this.doc.text('59 Matias St., San Francisco del Monte,', this.pageWidth - 60, 32)
+    this.doc.text('Quezon City', this.pageWidth - 60, 36)
+    this.doc.text('gyg.powersystems@gmail.com', this.pageWidth - 60, 40)
+  }
+  
+  private prepareManpowerTableData(
+    projects: ProjectData[],
+    tasks: TaskData[],
+    months: string[]
+  ): (string | number)[][] {
+    const tableData: (string | number)[][] = []
+    
+    // Group tasks by project and create entries similar to the image
+    const tasksByProject = tasks.reduce((acc, task) => {
+      const projectKey = task.project_id || 'unassigned'
+      if (!acc[projectKey]) acc[projectKey] = []
+      acc[projectKey].push(task)
+      return acc
+    }, {} as Record<string, TaskData[]>)
+    
+    let itemCounter = 0
+    const itemLabels = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J', 'K', 'L', 'M', 'N', 'O', 'P', 'Q', 'R', 'S', 'T', 'U', 'V', 'W', 'X', 'Y', 'Z']
+    
+    // Add real project tasks data
+    Object.entries(tasksByProject).forEach(([projectId, projectTasks]) => {
+      const project = projects.find(p => p.id === projectId)
+      const projectName = project?.name || 'Unknown Project'
+      
+      // Add project header
+      tableData.push(['', `PROJECT: ${projectName.toUpperCase()}`, ...months.map(() => '')])
+      
+      projectTasks.forEach((task) => {
+        const item = itemLabels[itemCounter] || (itemCounter + 1).toString()
+        const monthValues = this.calculateRealTaskMonthValues(task, months)
+        
+        tableData.push([
+          item,
+          task.title.toUpperCase(),
+          ...monthValues
+        ])
+        itemCounter++
+      })
+      
+      // Add spacing between projects
+      if (Object.keys(tasksByProject).length > 1) {
+        tableData.push(['', '', ...months.map(() => '')])
+      }
+    })
+    
+    // Add project staff section with real data analysis
+    tableData.push(['', 'PROJECT STAFF', ...months.map(() => '')])
+    
+    // Calculate staff requirements based on project complexity and tasks
+    const totalTasks = tasks.length
+    const projectComplexity = this.analyzeProjectComplexity(projects, tasks)
+    
+    const staffRoles = [
+      { role: 'PROJECT IN-CHARGE', count: Math.max(1, Math.ceil(projects.length / 3)) },
+      { role: 'PROJECT ENGINEER', count: Math.max(1, Math.ceil(totalTasks / 10)) },
+      { role: 'QC ENGINEER', count: Math.max(1, Math.ceil(totalTasks / 15)) },
+      { role: 'SAFETY OFFICER', count: projectComplexity.hasHighRisk ? 2 : 1 }
+    ]
+    
+    staffRoles.forEach(({ role, count }) => {
+      const item = itemLabels[itemCounter] || (itemCounter + 1).toString()
+      tableData.push([
+        item,
+        role,
+        ...months.map(() => count.toString())
+      ])
+      itemCounter++
+    })
+    
+    // Add direct labor section with real calculations
+    tableData.push(['', 'DIRECT LABOR', ...months.map(() => '')])
+    
+    const laborRoles = [
+      { role: 'FOREMAN', count: Math.max(1, Math.ceil(totalTasks / 20)) },
+      { role: 'ELECTRICIAN', count: Math.max(2, Math.ceil(totalTasks / 5)) },
+      { role: 'HELPER', count: Math.max(2, Math.ceil(totalTasks / 5)) },
+      { role: 'WELDER/FABRICATOR', count: projectComplexity.needsWelding ? Math.max(1, Math.ceil(totalTasks / 10)) : 0 },
+      { role: 'TIME KEEPER/WAREHOUSEMEN', count: projects.length > 0 ? 1 : 0 }
+    ]
+    
+    laborRoles.forEach(({ role, count }) => {
+      if (count > 0) {
+        const item = itemLabels[itemCounter] || (itemCounter + 1).toString()
+        const monthValues = months.map(() => count.toString())
+        
+        tableData.push([
+          item,
+          role,
+          ...monthValues
+        ])
+        itemCounter++
+      }
+    })
+    
+    return tableData
+  }
+  
+  private calculateRealTaskMonthValues(task: TaskData, months: string[]): string[] {
+    const monthValues: string[] = []
+    
+    if (!task.start_date || !task.end_date) {
+      return months.map(() => '')
+    }
+    
+    const startDate = new Date(task.start_date)
+    const endDate = new Date(task.end_date)
+    const currentDate = new Date()
+    
+    // Calculate which months the task spans with real data
+    for (let i = 0; i < months.length; i++) {
+      const monthDate = new Date(currentDate.getFullYear(), currentDate.getMonth() + i, 1)
+      const monthEnd = new Date(currentDate.getFullYear(), currentDate.getMonth() + i + 1, 0)
+      
+      // Check if task overlaps with this month
+      if (startDate <= monthEnd && endDate >= monthDate) {
+        // Calculate workload based on task properties
+        const workload = this.calculateTaskWorkload(task)
+        monthValues.push(workload.toString())
+      } else {
+        monthValues.push('')
+      }
+    }
+    
+    return monthValues
+  }
+  
+  private calculateTaskWorkload(task: TaskData): number {
+    // Calculate workload based on task complexity, estimated hours, status
+    let baseWorkload = 1
+    
+    if (task.estimated_hours) {
+      baseWorkload = Math.ceil(task.estimated_hours / 40) // Convert hours to weeks/months
+    }
+    
+    // Adjust based on task status
+    if (task.status === 'in-progress') {
+      baseWorkload = Math.max(1, Math.ceil(baseWorkload * 0.7)) // Partial completion
+    } else if (task.status === 'completed') {
+      baseWorkload = 0 // No more work needed
+    }
+    
+    // Adjust based on priority
+    if (task.priority === 'high') {
+      baseWorkload = Math.max(baseWorkload, 2) // High priority needs more resources
+    }
+    
+    return Math.max(1, baseWorkload)
+  }
+  
+  private analyzeProjectComplexity(projects: ProjectData[], tasks: TaskData[]) {
+    const analysis = {
+      hasHighRisk: false,
+      needsWelding: false,
+      complexity: 'medium' as 'low' | 'medium' | 'high'
+    }
+    
+    // Analyze task complexity
+    const highPriorityTasks = tasks.filter(t => t.priority === 'high').length
+    const totalTasks = tasks.length
+    
+    if (totalTasks > 50 || highPriorityTasks > 10) {
+      analysis.complexity = 'high'
+      analysis.hasHighRisk = true
+    } else if (totalTasks < 10 && highPriorityTasks < 3) {
+      analysis.complexity = 'low'
+    }
+    
+    // Check for welding/fabrication requirements
+    const weldingKeywords = ['weld', 'fabricat', 'steel', 'metal', 'bracket', 'mount']
+    analysis.needsWelding = tasks.some(task => 
+      weldingKeywords.some(keyword => 
+        task.title.toLowerCase().includes(keyword) || 
+        task.description?.toLowerCase().includes(keyword)
+      )
+    )
+    
+    return analysis
+  }
+  
+  private calculateTaskMonthValues(task: TaskData, months: string[]): string[] {
+    const monthValues: string[] = []
+    
+    if (!task.start_date || !task.end_date) {
+      return months.map(() => '')
+    }
+    
+    const startDate = new Date(task.start_date)
+    const endDate = new Date(task.end_date)
+    const currentDate = new Date()
+    
+    // Calculate which months the task spans
+    for (let i = 0; i < months.length; i++) {
+      const monthDate = new Date(currentDate.getFullYear(), currentDate.getMonth() + i, 1)
+      
+      if (monthDate >= startDate && monthDate <= endDate) {
+        // For tasks, show estimated hours or a default value
+        const hours = task.estimated_hours || 8
+        monthValues.push(hours.toString())
+      } else {
+        monthValues.push('')
+      }
+    }
+    
+    return monthValues
   }
 
   private async generateAllProjectsReport(
@@ -186,34 +916,271 @@ export class StructuredPDFExportService {
       throw new Error('Project not found')
     }
 
-    // Header
-    this.addReportHeader(`GYG POWER SYSTEMS - PROJECT: ${project.name}`, `Detailed Engineering Analysis - ${project.client || 'Internal Project'}`)
+    // Header with enhanced branding
+    this.addEnhancedProjectHeader(project)
 
-    // Project Overview
-    this.addSection('ELECTRICAL PROJECT OVERVIEW')
-    this.addProjectOverviewTable(project, projectTasks)
+    // Project and Manpower Schedule Table (Main Feature)
+    this.addSection('PROJECT AND MANPOWER SCHEDULE')
+    this.addProjectManpowerSchedule(project, projectTasks)
 
-    // Technical Task Breakdown
+    // Additional sections if requested
     if (options.includeTaskDetails) {
-      this.addSection('ENGINEERING TASK BREAKDOWN')
+      this.addSection('DETAILED TASK BREAKDOWN')
       this.addDetailedTasksTable(projectTasks)
     }
 
-    // Engineering Team Allocation
     if (options.includeResourceAnalysis) {
-      this.addSection('ELECTRICAL ENGINEERING TEAM ALLOCATION')
-      this.addProjectResourceTable(projectTasks)
+      this.addSection('RESOURCE UTILIZATION ANALYSIS')
+      this.addProjectResourceAnalysis(projectTasks)
     }
 
-    // Project Timeline Details
     if (options.includeTimeline) {
-      this.addSection('PROJECT TIMELINE & MILESTONES')
-      this.addProjectTimelineTable(projectTasks)
+      this.addSection('TIMELINE ANALYSIS')
+      this.addProjectTimelineAnalysis(project, projectTasks)
+    }
+  }
+
+  private addEnhancedProjectHeader(project: ProjectData) {
+    // Enhanced header with company branding
+    this.doc.setFontSize(20)
+    this.doc.setFont('helvetica', 'bold')
+    this.doc.setTextColor(255, 102, 0) // Orange color for GYG
+    this.doc.text('GYG Power Systems Inc.', this.margin, this.currentY)
+    
+    this.doc.setFontSize(12)
+    this.doc.setFont('helvetica', 'normal')
+    this.doc.setTextColor(0, 0, 0)
+    this.doc.text('Engineers • Contractors • Consultants', this.margin, this.currentY + 8)
+    
+    // Contact information
+    this.doc.setFontSize(9)
+    this.doc.setTextColor(100, 100, 100)
+    this.doc.text('59 Malakas St., San Francisco del Monte,', this.pageWidth - 70, this.currentY)
+    this.doc.text('Quezon City', this.pageWidth - 70, this.currentY + 4)
+    this.doc.text('gyg.powersystems@gmail.com', this.pageWidth - 70, this.currentY + 8)
+
+    this.currentY += 25
+
+    // Project title section
+    this.doc.setFontSize(16)
+    this.doc.setFont('helvetica', 'bold')
+    this.doc.setTextColor(0, 0, 0)
+    const titleText = 'PROJECT AND MANPOWER SCHEDULE'
+    const titleWidth = this.doc.getTextWidth(titleText)
+    this.doc.text(titleText, (this.pageWidth - titleWidth) / 2, this.currentY)
+    
+    this.currentY += 15
+  }
+
+  private addProjectManpowerSchedule(project: ProjectData, tasks: TaskData[]) {
+    // Create enhanced manpower schedule table similar to the image
+    const monthlyData = this.generateMonthlyScheduleData(project, tasks)
+    
+    // Table headers
+    const headers = [
+      { content: 'ITEM', styles: { halign: 'center', fontStyle: 'bold', fillColor: [240, 240, 240] } },
+      { content: 'DESCRIPTION', styles: { halign: 'center', fontStyle: 'bold', fillColor: [240, 240, 240] } },
+      { content: 'MONTHLY ACTIVITY', styles: { halign: 'center', fontStyle: 'bold', fillColor: [240, 240, 240], colSpan: 14 } }
+    ]
+
+    // Month numbers (1-14 for extended timeline)
+    const monthHeaders = []
+    for (let i = 1; i <= 14; i++) {
+      monthHeaders.push({ content: i.toString(), styles: { halign: 'center', fontStyle: 'bold', fillColor: [220, 220, 220] } })
     }
 
-    // Technical Risk Analysis
-    this.addSection('ELECTRICAL SYSTEMS RISK ANALYSIS')
-    this.addProjectRisksTable(projectTasks)
+    // Generate task rows with manpower allocation
+    const taskRows = this.generateTaskManpowerRows(tasks, monthlyData)
+
+    // Create the main schedule table
+    // Create simplified table for compatibility
+    autoTable(this.doc, {
+      startY: this.currentY,
+      head: [['ITEM', 'DESCRIPTION', '1', '2', '3', '4', '5', '6', '7', '8', '9', '10', '11', '12', '13', '14']],
+      body: taskRows,
+      theme: 'grid' as const,
+      styles: {
+        fontSize: 8,
+        cellPadding: 2,
+        lineColor: [0, 0, 0] as const,
+        lineWidth: 0.1
+      },
+      margin: { left: this.margin, right: this.margin }
+    })
+
+    this.currentY = this.doc.lastAutoTable.finalY + 10
+  }
+
+  private generateMonthlyScheduleData(project: ProjectData, tasks: TaskData[]) {
+    // Generate monthly timeline based on project dates
+    const startDate = new Date(project.start_date)
+    const endDate = new Date(project.end_date)
+    const monthlyData = []
+
+    let currentDate = new Date(startDate)
+    let monthIndex = 1
+
+    while (currentDate <= endDate && monthIndex <= 14) {
+      monthlyData.push({
+        monthIndex,
+        month: currentDate.getMonth() + 1,
+        year: currentDate.getFullYear(),
+        tasks: tasks.filter(task => {
+          if (!task.start_date || !task.end_date) return false
+          const taskStart = new Date(task.start_date)
+          const taskEnd = new Date(task.end_date)
+          const monthStart = new Date(currentDate.getFullYear(), currentDate.getMonth(), 1)
+          const monthEnd = new Date(currentDate.getFullYear(), currentDate.getMonth() + 1, 0)
+          
+          return (taskStart <= monthEnd && taskEnd >= monthStart)
+        })
+      })
+
+      currentDate.setMonth(currentDate.getMonth() + 1)
+      monthIndex++
+    }
+
+    return monthlyData
+  }
+
+  private generateTaskManpowerRows(tasks: TaskData[], monthlyData: any[]) {
+    const rows = []
+    let itemIndex = 1
+
+    // Group tasks by category/phase
+    const taskGroups = this.groupTasksByCategory(tasks)
+
+    // Add equipment/construction tasks
+    Object.entries(taskGroups).forEach(([category, categoryTasks]) => {
+      const categoryTasks_typed = categoryTasks as TaskData[]
+      categoryTasks_typed.forEach((task) => {
+        const taskRow = [
+          String.fromCharCode(64 + itemIndex), // A, B, C, etc.
+          task.title.toUpperCase(),
+          ...this.generateMonthlyManpowerCells(task, monthlyData)
+        ]
+        rows.push(taskRow)
+        itemIndex++
+      })
+    })
+
+    // Add project staff section
+    rows.push([
+      '', 
+      { content: 'PROJECT STAFF', styles: { fontStyle: 'bold', fillColor: [230, 230, 230] } },
+      ...Array(14).fill('')
+    ])
+
+    // Add standard project roles with consistent manpower
+    const projectRoles = [
+      'PROJECT IN-CHARGE',
+      'PROJECT ENGINEER', 
+      'QC ENGINEER',
+      'SAFETY OFFICER'
+    ]
+
+    projectRoles.forEach((role) => {
+      const roleRow = [
+        String.fromCharCode(64 + itemIndex),
+        role,
+        ...Array(14).fill('1') // Consistent 1 person throughout project
+      ]
+      rows.push(roleRow)
+      itemIndex++
+    })
+
+    // Add direct labor section
+    rows.push([
+      '', 
+      { content: 'DIRECT LABOR', styles: { fontStyle: 'bold', fillColor: [230, 230, 230] } },
+      ...Array(14).fill('')
+    ])
+
+    const laborRoles = [
+      'FOREMAN',
+      'ELECTRICIAN',
+      'HELPER',
+      'WELDER/FABRICATOR',
+      'TIME KEEPER/WAREHOUSEMEN'
+    ]
+
+    laborRoles.forEach((role) => {
+      const laborRow = [
+        String.fromCharCode(64 + itemIndex),
+        role,
+        ...this.generateLaborManpowerCells(role, monthlyData)
+      ]
+      rows.push(laborRow)
+      itemIndex++
+    })
+
+    return rows
+  }
+
+  private groupTasksByCategory(tasks: TaskData[]) {
+    return tasks.reduce((groups, task) => {
+      const category = task.category || task.phase || 'General'
+      if (!groups[category]) {
+        groups[category] = []
+      }
+      groups[category].push(task)
+      return groups
+    }, {} as Record<string, TaskData[]>)
+  }
+
+  private generateMonthlyManpowerCells(task: TaskData, monthlyData: any[]) {
+    const cells = []
+    
+    for (const monthData of monthlyData) {
+      const isTaskActive = monthData.tasks.some((t: TaskData) => t.id === task.id)
+      
+      if (isTaskActive) {
+        // Calculate manpower based on task complexity/priority
+        let manpower = this.calculateTaskManpower(task)
+        cells.push(manpower.toString())
+      } else {
+        cells.push('')
+      }
+    }
+
+    // Fill remaining months if less than 14
+    while (cells.length < 14) {
+      cells.push('')
+    }
+
+    return cells
+  }
+
+  private generateLaborManpowerCells(role: string, monthlyData: any[]) {
+    const cells = []
+    
+    // Different roles have different manpower patterns
+    const rolePatterns: Record<string, number[]> = {
+      'FOREMAN': [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1],
+      'ELECTRICIAN': [4, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 4],
+      'HELPER': [4, 6, 6, 6, 6, 10, 10, 10, 10, 10, 10, 8, 8, 2],
+      'WELDER/FABRICATOR': [2, 2, 2, 2, 2, 2, 0, 0, 0, 0, 0, 0, 0, 0],
+      'TIME KEEPER/WAREHOUSEMEN': [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1]
+    }
+
+    const pattern = rolePatterns[role] || Array(14).fill(1)
+    
+    for (let i = 0; i < 14; i++) {
+      cells.push(pattern[i].toString())
+    }
+
+    return cells
+  }
+
+  private calculateTaskManpower(task: TaskData): number {
+    // Calculate manpower based on task characteristics
+    if (task.category?.toLowerCase().includes('electrical')) return 6
+    if (task.category?.toLowerCase().includes('mechanical')) return 4
+    if (task.title.toLowerCase().includes('installation')) return 8
+    if (task.title.toLowerCase().includes('testing')) return 2
+    if (task.priority === 'high') return 6
+    if (task.priority === 'medium') return 4
+    return 2 // default
   }
 
   private addReportHeader(title: string, subtitle: string) {

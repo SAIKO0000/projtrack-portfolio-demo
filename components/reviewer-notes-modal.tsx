@@ -80,7 +80,7 @@ export function ReviewerNotesModal({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChangeAction}>
-      <DialogContent className="sm:max-w-[525px] z-[60]">
+      <DialogContent className="sm:max-w-[525px] z-[60] rounded-xl">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             {actionDetails.icon}
@@ -114,7 +114,7 @@ export function ReviewerNotesModal({
           </div>
         </div>
 
-        <DialogFooter className="gap-2">
+        <DialogFooter className="flex flex-row gap-2 justify-end">
           <Button 
             type="button" 
             variant="outline" 

@@ -1,0 +1,82 @@
+"use client"
+
+import { Button } from "@/components/ui/button"
+import { Badge } from "@/components/ui/badge"
+import { MenuItem } from './types'
+
+interface SidebarNavigationProps {
+  menuItems: MenuItem[]
+  activeTab: string
+  onTabChangeAction: (tab: string) => void
+  collapsed?: boolean
+  isMobile?: boolean
+}
+
+export function SidebarNavigation({ 
+  menuItems, 
+  activeTab, 
+  onTabChangeAction, 
+  collapsed = false,
+  isMobile = false
+}: SidebarNavigationProps) {
+  const handleTabChange = (tab: string) => {
+    onTabChangeAction(tab)
+  }
+
+  if (isMobile) {
+    return (
+      <nav className="px-4 space-y-1 py-4">
+        {menuItems.map((item) => (
+          <Button
+            key={item.id}
+            variant={activeTab === item.id ? "default" : "ghost"}
+            className={`w-full justify-start h-10 px-3 ${
+              activeTab === item.id
+                ? "bg-gradient-to-r from-orange-500 to-orange-600 text-white hover:from-orange-600 hover:to-orange-700"
+                : "text-gray-700 hover:bg-gray-100/80"
+            }`}
+            onClick={() => handleTabChange(item.id)}
+          >
+            <item.icon className="h-4 w-4 mr-3" />
+            <span className="flex-1 text-left">{item.label}</span>
+            {item.badge && (
+              <Badge variant="secondary" className="ml-auto bg-orange-100 text-orange-800">
+                {item.badge}
+              </Badge>
+            )}
+          </Button>
+        ))}
+      </nav>
+    )
+  }
+
+  return (
+    <nav className="px-4 space-y-2 pb-4 pt-6">
+      {menuItems.map((item) => (
+        <Button
+          key={item.id}
+          variant={activeTab === item.id ? "default" : "ghost"}
+          className={`w-full justify-center transition-all duration-500 group relative overflow-hidden ${
+            activeTab === item.id
+              ? "bg-gradient-to-r from-orange-500 to-orange-600 text-white hover:from-orange-600 hover:to-orange-700 shadow-lg shadow-orange-500/25 scale-105"
+              : "text-gray-700 hover:bg-gradient-to-r hover:from-orange-50 hover:to-orange-100 hover:text-orange-700 hover:shadow-md hover:border-orange-200 border border-transparent hover:scale-[1.02]"
+          } ${collapsed ? "px-2 h-8" : "px-1 h-10"}`}
+          onClick={() => onTabChangeAction(item.id)}
+          title={collapsed ? item.label : undefined}
+        >
+          <item.icon className={`transition-all duration-500 group-hover:scale-110 ${collapsed ? "h-6 w-6" : "h-5 w-5 mr-3"} ${activeTab === item.id ? "drop-shadow-sm" : ""}`} />
+          {!collapsed && (
+            <>
+              <span className="flex-1 text-left font-semibold text-base transition-all duration-300">{item.label}</span>
+              {item.badge && (
+                <Badge variant="secondary" className="ml-auto bg-orange-100 text-orange-800 shadow-sm border border-orange-200 transition-all duration-300 text-sm">
+                  {item.badge}
+                </Badge>
+              )}
+            </>
+          )}
+        </Button>
+      ))}
+    </nav>
+  )
+}

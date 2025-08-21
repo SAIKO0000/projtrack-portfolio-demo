@@ -197,259 +197,265 @@ export function EventFormModal({ onEventCreated, selectedDate, trigger, eventToE
           )}
         </DialogTrigger>
       )}
-      <DialogContent className="sm:max-w-[700px] max-w-[95vw] max-h-[90vh] overflow-y-auto bg-white/95 backdrop-blur-sm border border-gray-200/50 shadow-2xl mx-4">
-        <DialogHeader className="space-y-4 p-4 sm:p-6 border-b border-gray-100">
-          <DialogTitle className="text-xl sm:text-2xl font-bold text-gray-900 flex items-center">
-            <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-xl bg-gradient-to-br from-orange-500 to-orange-600 flex items-center justify-center mr-3 sm:mr-4 shadow-lg">
-              <CalendarPlus className="h-5 w-5 sm:h-6 sm:w-6 text-white" />
+      <DialogContent className="sm:max-w-[500px] max-w-[95vw] w-[95vw] sm:w-auto max-h-[85vh] sm:max-h-[80vh] overflow-y-auto bg-white/95 backdrop-blur-sm border border-gray-200/50 shadow-2xl rounded-xl">
+        <DialogHeader className="space-y-1 sm:space-y-2 p-2 sm:p-3 border-b border-gray-100">
+          <DialogTitle className="text-base sm:text-lg font-bold text-gray-900 flex flex-col sm:flex-row items-center sm:items-start">
+            <div className="w-6 h-6 sm:w-8 sm:h-8 rounded-lg bg-gradient-to-br from-orange-500 to-orange-600 flex items-center justify-center mb-2 sm:mb-0 sm:mr-3 shadow-lg">
+              <CalendarPlus className="h-3 w-3 sm:h-4 sm:w-4 text-white" />
             </div>
-            <div>
+            <div className="text-center sm:text-left">
               <span className="block">{isEditing ? 'Edit Event' : 'Create New Event'}</span>
-              <span className="text-xs sm:text-sm font-normal text-gray-600 block mt-1">
+              <span className="text-xs font-normal text-gray-600 block">
                 {isEditing ? 'Update the event details below' : 'Schedule a new event for your project timeline'}
               </span>
             </div>
           </DialogTitle>
         </DialogHeader>
 
-        <form onSubmit={handleSubmit(onSubmit)} className="space-y-4 sm:space-y-6 p-4 sm:p-6">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+        <form onSubmit={handleSubmit(onSubmit)} className="space-y-2 sm:space-y-3 p-2 sm:p-3">
+          <div className="grid grid-cols-1 gap-2 sm:gap-3">
             {/* Event Title */}
-            <div className="md:col-span-2 space-y-3">
-              <Label htmlFor="title" className="text-sm font-semibold text-gray-700 flex items-center">
-                <CalendarIcon className="h-4 w-4 mr-2 text-orange-500" />
+            <div className="space-y-1 sm:space-y-2">
+              <Label htmlFor="title" className="text-xs sm:text-sm font-semibold text-gray-700 flex items-center">
+                <CalendarIcon className="h-3 w-3 sm:h-4 sm:w-4 mr-1 sm:mr-2 text-orange-500" />
                 Event Title *
               </Label>
               <div className="relative">
-                <CalendarIcon className="absolute left-4 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
+                <CalendarIcon className="absolute left-2 sm:left-3 top-1/2 transform -translate-y-1/2 h-3 w-3 sm:h-4 sm:w-4 text-gray-400" />
                 <Input
                   id="title"
                   {...register("title")}
                   placeholder="e.g., Site Inspection - CSA Makati"
-                  className="w-full pl-12 h-12 bg-white/80 border-gray-200 focus:border-orange-500 focus:ring-orange-500/20 rounded-xl text-gray-900 placeholder:text-gray-500"
+                  className="w-full pl-7 sm:pl-10 h-8 sm:h-10 bg-white/80 border-gray-200 focus:border-orange-500 focus:ring-orange-500/20 rounded-lg text-gray-900 placeholder:text-gray-500 text-xs sm:text-sm"
                 />
               </div>
               {errors.title && (
-                <p className="text-sm text-red-600 flex items-center">
+                <p className="text-xs text-red-600 flex items-center">
                   <span className="w-1 h-1 bg-red-600 rounded-full mr-2"></span>
                   {errors.title.message}
                 </p>
               )}
             </div>
 
-            {/* Event Type */}
-            <div className="space-y-3">
-              <Label className="text-sm font-semibold text-gray-700 flex items-center">
-                <div className={cn("w-4 h-4 rounded-full mr-2", getEventTypeColor(eventType))}></div>
-                Event Type *
-              </Label>
-              <Select
-                defaultValue="meeting"
-                onValueChange={(value) => setValue("type", value as EventFormData["type"])}
-              >
-                <SelectTrigger className="h-12 bg-white/80 border-gray-200 focus:border-orange-500 focus:ring-orange-500/20 rounded-xl">
-                  <SelectValue placeholder="Select type" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="inspection">
-                    <div className="flex items-center">
-                      <div className="w-3 h-3 rounded-full bg-blue-500 mr-2"></div>
-                      Inspection
-                    </div>
-                  </SelectItem>
-                  <SelectItem value="delivery">
-                    <div className="flex items-center">
-                      <div className="w-3 h-3 rounded-full bg-green-500 mr-2"></div>
-                      Delivery
-                    </div>
-                  </SelectItem>
-                  <SelectItem value="meeting">
-                    <div className="flex items-center">
-                      <div className="w-3 h-3 rounded-full bg-orange-500 mr-2"></div>
-                      Meeting
-                    </div>
-                  </SelectItem>
-                  <SelectItem value="training">
-                    <div className="flex items-center">
-                      <div className="w-3 h-3 rounded-full bg-purple-500 mr-2"></div>
-                      Training
-                    </div>
-                  </SelectItem>
-                  <SelectItem value="review">
-                    <div className="flex items-center">
-                      <div className="w-3 h-3 rounded-full bg-yellow-500 mr-2"></div>
-                      Review
-                    </div>
-                  </SelectItem>
-                  <SelectItem value="task">
-                    <div className="flex items-center">
-                      <div className="w-3 h-3 rounded-full bg-indigo-500 mr-2"></div>
-                      Task
-                    </div>
-                  </SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-
-            {/* Project Selection */}
-            <div className="space-y-3">
-              <Label className="text-sm font-semibold text-gray-700 flex items-center">
-                <Briefcase className="h-4 w-4 mr-2 text-orange-500" />
-                Project (Optional)
-              </Label>
-              <Select onValueChange={(value) => setValue("project_id", value === "none" ? undefined : value)}>
-                <SelectTrigger className="h-12 bg-white/80 border-gray-200 focus:border-orange-500 focus:ring-orange-500/20 rounded-xl">
-                  <SelectValue placeholder="Select project" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="none">No specific project</SelectItem>
-                  {projects.map((project) => (
-                    <SelectItem key={project.id} value={project.id}>
+            {/* Event Type and Project in one row */}
+            <div className="grid grid-cols-2 gap-2 sm:gap-3">
+              {/* Event Type */}
+              <div className="space-y-1 sm:space-y-2">
+                <Label className="text-xs sm:text-sm font-semibold text-gray-700 flex items-center">
+                  <div className={cn("w-3 h-3 sm:w-4 sm:h-4 rounded-full mr-1 sm:mr-2", getEventTypeColor(eventType))}></div>
+                  Event Type *
+                </Label>
+                <Select
+                  defaultValue="meeting"
+                  onValueChange={(value) => setValue("type", value as EventFormData["type"])}
+                >
+                  <SelectTrigger className="h-8 sm:h-10 bg-white/80 border-gray-200 focus:border-orange-500 focus:ring-orange-500/20 rounded-lg text-xs sm:text-sm">
+                    <SelectValue placeholder="Select type" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="inspection">
                       <div className="flex items-center">
-                        <div className="w-2 h-2 rounded-full bg-orange-500 mr-2"></div>
-                        {project.name}
+                        <div className="w-2 h-2 sm:w-3 sm:h-3 rounded-full bg-blue-500 mr-2"></div>
+                        Inspection
                       </div>
                     </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-          </div>
-
-          {/* Date and Time */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            <div className="space-y-3">
-              <Label className="text-sm font-semibold text-gray-700 flex items-center">
-                <CalendarIcon className="h-4 w-4 mr-2 text-orange-500" />
-                Date *
-              </Label>
-              <Popover>
-                <PopoverTrigger asChild>
-                  <Button
-                    variant="outline"
-                    className={cn(
-                      "w-full h-12 justify-start text-left font-normal bg-white/80 border-gray-200 hover:border-orange-500 focus:border-orange-500 focus:ring-orange-500/20 rounded-xl",
-                      !eventDate && "text-gray-500"
-                    )}
-                  >
-                    <CalendarIcon className="mr-3 h-4 w-4 text-gray-400" />
-                    {eventDate ? format(eventDate, "PPP") : "Pick a date"}
-                  </Button>
-                </PopoverTrigger>
-                <PopoverContent className="w-auto p-0" align="start">
-                  <Calendar
-                    mode="single"
-                    selected={eventDate}
-                    onSelect={(date) => setValue("date", date!)}
-                  />
-                </PopoverContent>
-              </Popover>
-              {errors.date && (
-                <p className="text-sm text-red-600 flex items-center">
-                  <span className="w-1 h-1 bg-red-600 rounded-full mr-2"></span>
-                  {errors.date.message}
-                </p>
-              )}
-            </div>
-
-            <div className="space-y-3">
-              <Label htmlFor="time" className="text-sm font-semibold text-gray-700 flex items-center">
-                <Clock className="h-4 w-4 mr-2 text-orange-500" />
-                Time *
-              </Label>
-              <div className="relative">
-                <Clock className="absolute left-4 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
-                <Input
-                  id="time"
-                  type="time"
-                  {...register("time")}
-                  className="w-full pl-12 h-12 bg-white/80 border-gray-200 focus:border-orange-500 focus:ring-orange-500/20 rounded-xl text-gray-900"
-                />
+                    <SelectItem value="delivery">
+                      <div className="flex items-center">
+                        <div className="w-2 h-2 sm:w-3 sm:h-3 rounded-full bg-green-500 mr-2"></div>
+                        Delivery
+                      </div>
+                    </SelectItem>
+                    <SelectItem value="meeting">
+                      <div className="flex items-center">
+                        <div className="w-2 h-2 sm:w-3 sm:h-3 rounded-full bg-orange-500 mr-2"></div>
+                        Meeting
+                      </div>
+                    </SelectItem>
+                    <SelectItem value="training">
+                      <div className="flex items-center">
+                        <div className="w-2 h-2 sm:w-3 sm:h-3 rounded-full bg-purple-500 mr-2"></div>
+                        Training
+                      </div>
+                    </SelectItem>
+                    <SelectItem value="review">
+                      <div className="flex items-center">
+                        <div className="w-2 h-2 sm:w-3 sm:h-3 rounded-full bg-yellow-500 mr-2"></div>
+                        Review
+                      </div>
+                    </SelectItem>
+                    <SelectItem value="task">
+                      <div className="flex items-center">
+                        <div className="w-2 h-2 sm:w-3 sm:h-3 rounded-full bg-indigo-500 mr-2"></div>
+                        Task
+                      </div>
+                    </SelectItem>
+                  </SelectContent>
+                </Select>
               </div>
-              {errors.time && (
-                <p className="text-sm text-red-600 flex items-center">
-                  <span className="w-1 h-1 bg-red-600 rounded-full mr-2"></span>
-                  {errors.time.message}
-                </p>
-              )}
-            </div>
-          </div>
 
-          {/* Location */}
-          <div className="space-y-3">
-            <Label htmlFor="location" className="text-sm font-semibold text-gray-700 flex items-center">
-              <MapPin className="h-4 w-4 mr-2 text-orange-500" />
-              Location *
-            </Label>
-            <div className="relative">
-              <MapPin className="absolute left-4 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
-              <LocationAutocomplete
-                value={watch("location")}
-                onChangeAction={(location) => setValue("location", location)}
-                placeholder="Search for location (e.g., Makati City, Project Site)"
-                className="w-full pl-12 h-12 bg-white/80 border-gray-200 focus:border-orange-500 focus:ring-orange-500/20 rounded-xl text-gray-900 placeholder:text-gray-500"
-              />
+              {/* Project Selection */}
+              <div className="space-y-1 sm:space-y-2">
+                <Label className="text-xs sm:text-sm font-semibold text-gray-700 flex items-center">
+                  <Briefcase className="h-3 w-3 sm:h-4 sm:w-4 mr-1 sm:mr-2 text-orange-500" />
+                  Project (Optional)
+                </Label>
+                <Select onValueChange={(value) => setValue("project_id", value === "none" ? undefined : value)}>
+                  <SelectTrigger className="h-8 sm:h-10 bg-white/80 border-gray-200 focus:border-orange-500 focus:ring-orange-500/20 rounded-lg text-xs sm:text-sm">
+                    <SelectValue placeholder="Select project" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="none">No specific project</SelectItem>
+                    {projects.map((project) => (
+                      <SelectItem key={project.id} value={project.id}>
+                        <div className="flex items-center">
+                          <div className="w-2 h-2 rounded-full bg-orange-500 mr-2"></div>
+                          {project.name}
+                        </div>
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
             </div>
-            {errors.location && (
-              <p className="text-sm text-red-600 flex items-center">
-                <span className="w-1 h-1 bg-red-600 rounded-full mr-2"></span>
-                {errors.location.message}
-              </p>
-            )}
-          </div>
 
-          {/* Description */}
-          <div className="space-y-3">
-            <Label htmlFor="description" className="text-sm font-semibold text-gray-700 flex items-center">
-              <FileText className="h-4 w-4 mr-2 text-orange-500" />
-              Description
-            </Label>
-            <div className="relative">
-              <FileText className="absolute left-4 top-4 h-4 w-4 text-gray-400" />
-              <Textarea
-                id="description"
-                {...register("description")}
-                placeholder="Event details and additional notes..."
-                rows={4}
-                className="w-full pl-12 pt-4 bg-white/80 border-gray-200 focus:border-orange-500 focus:ring-orange-500/20 rounded-xl text-gray-900 placeholder:text-gray-500 resize-none"
-              />
+            {/* Date and Time in one row */}
+            <div className="grid grid-cols-2 gap-2 sm:gap-3">
+              <div className="space-y-1 sm:space-y-2">
+                <Label className="text-xs sm:text-sm font-semibold text-gray-700 flex items-center">
+                  <CalendarIcon className="h-3 w-3 sm:h-4 sm:w-4 mr-1 sm:mr-2 text-orange-500" />
+                  Date *
+                </Label>
+                <Popover>
+                  <PopoverTrigger asChild>
+                    <Button
+                      variant="outline"
+                      className={cn(
+                        "w-full h-8 sm:h-10 justify-start text-left font-normal bg-white/80 border-gray-200 hover:border-orange-500 focus:border-orange-500 focus:ring-orange-500/20 rounded-lg text-xs sm:text-sm",
+                        !eventDate && "text-gray-500"
+                      )}
+                    >
+                      <CalendarIcon className="mr-1 sm:mr-2 h-3 w-3 sm:h-4 sm:w-4 text-gray-400" />
+                      {eventDate ? format(eventDate, "PPP") : "Pick a date"}
+                    </Button>
+                  </PopoverTrigger>
+                  <PopoverContent className="w-auto p-0" align="start">
+                    <Calendar
+                      mode="single"
+                      selected={eventDate}
+                      onSelect={(date) => setValue("date", date!)}
+                    />
+                  </PopoverContent>
+                </Popover>
+                {errors.date && (
+                  <p className="text-xs text-red-600 flex items-center">
+                    <span className="w-1 h-1 bg-red-600 rounded-full mr-2"></span>
+                    {errors.date.message}
+                  </p>
+                )}
+              </div>
+
+              <div className="space-y-1 sm:space-y-2">
+                <Label htmlFor="time" className="text-xs sm:text-sm font-semibold text-gray-700 flex items-center">
+                  <Clock className="h-3 w-3 sm:h-4 sm:w-4 mr-1 sm:mr-2 text-orange-500" />
+                  Time *
+                </Label>
+                <div className="relative">
+                  <Clock className="absolute left-2 sm:left-3 top-1/2 transform -translate-y-1/2 h-3 w-3 sm:h-4 sm:w-4 text-gray-400" />
+                  <Input
+                    id="time"
+                    type="time"
+                    {...register("time")}
+                    className="w-full pl-7 sm:pl-10 h-8 sm:h-10 bg-white/80 border-gray-200 focus:border-orange-500 focus:ring-orange-500/20 rounded-lg text-gray-900 text-xs sm:text-sm"
+                  />
+                </div>
+                {errors.time && (
+                  <p className="text-xs text-red-600 flex items-center">
+                    <span className="w-1 h-1 bg-red-600 rounded-full mr-2"></span>
+                    {errors.time.message}
+                  </p>
+                )}
+              </div>
+            </div>
+
+            {/* Location and Description in one row */}
+            <div className="grid grid-cols-2 gap-2 sm:gap-3">
+              <div className="space-y-1 sm:space-y-2">
+                <Label htmlFor="location" className="text-xs sm:text-sm font-semibold text-gray-700 flex items-center">
+                  <MapPin className="h-3 w-3 sm:h-4 sm:w-4 mr-1 sm:mr-2 text-orange-500" />
+                  Location *
+                </Label>
+                <div className="relative">
+                  <MapPin className="absolute left-2 sm:left-3 top-1/2 transform -translate-y-1/2 h-3 w-3 sm:h-4 sm:w-4 text-gray-400" />
+                  <LocationAutocomplete
+                    value={watch("location")}
+                    onChangeAction={(location) => setValue("location", location)}
+                    placeholder="Search for location"
+                    className="w-full pl-7 sm:pl-10 h-8 sm:h-10 bg-white/80 border-gray-200 focus:border-orange-500 focus:ring-orange-500/20 rounded-lg text-gray-900 placeholder:text-gray-500 text-xs sm:text-sm"
+                  />
+                </div>
+                {errors.location && (
+                  <p className="text-xs text-red-600 flex items-center">
+                    <span className="w-1 h-1 bg-red-600 rounded-full mr-2"></span>
+                    {errors.location.message}
+                  </p>
+                )}
+              </div>
+
+              <div className="space-y-1 sm:space-y-2">
+                <Label htmlFor="description" className="text-xs sm:text-sm font-semibold text-gray-700 flex items-center">
+                  <FileText className="h-3 w-3 sm:h-4 sm:w-4 mr-1 sm:mr-2 text-orange-500" />
+                  Description
+                </Label>
+                <div className="relative">
+                  <FileText className="absolute left-2 sm:left-3 top-2 sm:top-3 h-3 w-3 sm:h-4 sm:w-4 text-gray-400" />
+                  <Textarea
+                    id="description"
+                    {...register("description")}
+                    placeholder="Brief description..."
+                    rows={2}
+                    className="w-full pl-7 sm:pl-10 pt-2 sm:pt-3 bg-white/80 border-gray-200 focus:border-orange-500 focus:ring-orange-500/20 rounded-lg text-gray-900 placeholder:text-gray-500 resize-none text-xs sm:text-sm"
+                  />
+                </div>
+              </div>
             </div>
           </div>
 
           {/* Attendees */}
-          <div className="space-y-3">
-            <Label className="text-sm font-semibold text-gray-700 flex items-center">
-              <Users className="h-4 w-4 mr-2 text-orange-500" />
+          <div className="space-y-1 sm:space-y-3">
+            <Label className="text-xs sm:text-sm font-semibold text-gray-700 flex items-center">
+              <Users className="h-3 w-3 sm:h-4 sm:w-4 mr-1 sm:mr-2 text-orange-500" />
               Attendees
             </Label>
             <div className="flex space-x-2">
               <div className="relative flex-1">
-                <Users className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
+                <Users className="absolute left-2 sm:left-3 top-1/2 transform -translate-y-1/2 h-3 w-3 sm:h-4 sm:w-4 text-gray-400" />
                 <Input
                   value={attendeeInput}
                   onChange={(e) => setAttendeeInput(e.target.value)}
                   placeholder="Add attendee name"
-                  className="pl-10"
+                  className="pl-7 sm:pl-10 h-8 sm:h-10 text-xs sm:text-sm"
                   onKeyPress={(e) => e.key === 'Enter' && (e.preventDefault(), addAttendee())}
                 />
-              </div>              <Button type="button" onClick={addAttendee} variant="outline" aria-label="Add attendee">
-                <Plus className="h-4 w-4" />
+              </div>
+              <Button type="button" onClick={addAttendee} variant="outline" aria-label="Add attendee" className="h-8 sm:h-10 px-2 sm:px-3">
+                <Plus className="h-3 w-3 sm:h-4 sm:w-4" />
               </Button>
             </div>
             {attendees.length > 0 && (
-              <div className="flex flex-wrap gap-2 mt-2">
+              <div className="flex flex-wrap gap-1 sm:gap-2 mt-2">
                 {attendees.map((attendee, index) => (
                   <div
                     key={index}
-                    className="flex items-center bg-orange-50 text-orange-700 px-3 py-1 rounded-full text-sm"
+                    className="flex items-center bg-orange-50 text-orange-700 px-2 sm:px-3 py-1 rounded-full text-xs sm:text-sm"
                   >
-                    <span>{attendee}</span>                    <button
+                    <span>{attendee}</span>
+                    <button
                       type="button"
                       onClick={() => removeAttendee(attendee)}
-                      className="ml-2 text-orange-500 hover:text-orange-700"
+                      className="ml-1 sm:ml-2 text-orange-500 hover:text-orange-700"
                       aria-label={`Remove ${attendee}`}
                     >
-                      <X className="h-3 w-3" />
+                      <X className="h-2 w-2 sm:h-3 sm:w-3" />
                     </button>
                   </div>
                 ))}
@@ -457,31 +463,31 @@ export function EventFormModal({ onEventCreated, selectedDate, trigger, eventToE
             )}
           </div>
 
-          {/* Form Actions */}
-          <div className="flex flex-col sm:flex-row justify-end gap-3 pt-6 border-t border-gray-100">
+          {/* Form Actions - Smaller on mobile */}
+          <div className="flex flex-row justify-end gap-2 pt-2 sm:pt-3 border-t border-gray-100">
             <Button
               type="button"
               variant="outline"
               onClick={() => setOpen(false)}
               disabled={isSubmitting}
-              className="h-12 px-6 border-gray-200 hover:border-gray-300 hover:bg-gray-50 rounded-xl font-medium transition-all duration-200"
+              className="h-8 sm:h-10 px-3 sm:px-4 border-gray-200 hover:border-gray-300 hover:bg-gray-50 rounded-lg font-medium transition-all duration-200 text-xs sm:text-sm"
             >
-              <X className="h-4 w-4 mr-2" />
+              <X className="h-3 w-3 sm:h-4 sm:w-4 mr-1" />
               Cancel
             </Button>
             <Button
               type="submit"
               disabled={isSubmitting}
-              className="h-12 px-8 bg-gradient-to-r from-orange-500 to-orange-600 hover:from-orange-600 hover:to-orange-700 text-white rounded-xl font-medium shadow-lg hover:shadow-xl transition-all duration-200"
+              className="h-8 sm:h-10 px-4 sm:px-6 bg-gradient-to-r from-orange-500 to-orange-600 hover:from-orange-600 hover:to-orange-700 text-white rounded-lg font-medium shadow-lg hover:shadow-xl transition-all duration-200 text-xs sm:text-sm"
             >
               {isSubmitting ? (
                 <>
-                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                  {isEditing ? 'Updating Event...' : 'Creating Event...'}
+                  <Loader2 className="mr-1 h-3 w-3 sm:h-4 sm:w-4 animate-spin" />
+                  {isEditing ? 'Updating...' : 'Creating...'}
                 </>
               ) : (
                 <>
-                  <Plus className="mr-2 h-4 w-4" />
+                  <Plus className="mr-1 h-3 w-3 sm:h-4 sm:w-4" />
                   {isEditing ? 'Update Event' : 'Create Event'}
                 </>
               )}

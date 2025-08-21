@@ -211,183 +211,186 @@ export function ProjectFormModal({ onProjectCreated }: ProjectFormModalProps) {
           New Project
         </Button>
       </DialogTrigger>      
-      <DialogContent className="sm:max-w-[700px] max-w-[95vw] max-h-[90vh] overflow-y-auto bg-white/95 backdrop-blur-sm border border-gray-200/50 shadow-2xl mx-4">
-        <DialogHeader className="space-y-4 p-4 sm:p-6 border-b border-gray-100">
-          <DialogTitle className="text-xl sm:text-2xl font-bold text-gray-900 flex items-center">
-            <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-xl bg-gradient-to-br from-orange-500 to-orange-600 flex items-center justify-center mr-3 sm:mr-4 shadow-lg">
-              <FolderPlus className="h-5 w-5 sm:h-6 sm:w-6 text-white" />
+      <DialogContent className="sm:max-w-[500px] max-w-[95vw] w-[95vw] sm:w-auto max-h-[85vh] sm:max-h-[80vh] overflow-y-auto bg-white/95 backdrop-blur-sm border border-gray-200/50 shadow-2xl rounded-xl">
+        <DialogHeader className="space-y-1 sm:space-y-2 p-2 sm:p-3 border-b border-gray-100">
+          <DialogTitle className="text-base sm:text-lg font-bold text-gray-900 flex flex-col sm:flex-row items-center sm:items-start">
+            <div className="w-6 h-6 sm:w-8 sm:h-8 rounded-lg bg-gradient-to-br from-orange-500 to-orange-600 flex items-center justify-center mb-2 sm:mb-0 sm:mr-3 shadow-lg">
+              <FolderPlus className="h-3 w-3 sm:h-4 sm:w-4 text-white" />
             </div>
-            <div>
+            <div className="text-center sm:text-left">
               <span className="block">Create New Project</span>
-              <span className="text-xs sm:text-sm font-normal text-gray-600 block mt-1">Add a new electrical engineering project to your portfolio</span>
+              <span className="text-xs font-normal text-gray-600 block">Add a new electrical engineering project</span>
             </div>
           </DialogTitle>
         </DialogHeader>
 
-        <form onSubmit={handleSubmit(onSubmit)} className="space-y-4 sm:space-y-6 p-4 sm:p-6">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+        <form onSubmit={handleSubmit(onSubmit)} className="space-y-2 sm:space-y-3 p-2 sm:p-3">
+          <div className="grid grid-cols-1 gap-2 sm:gap-3">
             {/* Project Name */}
-            <div className="md:col-span-2 space-y-3">
-              <Label htmlFor="name" className="text-sm font-semibold text-gray-700 flex items-center">
-                <Building2 className="h-4 w-4 mr-2 text-orange-500" />
+            <div className="space-y-1 sm:space-y-2">
+              <Label htmlFor="name" className="text-xs sm:text-sm font-semibold text-gray-700 flex items-center">
+                <Building2 className="h-3 w-3 sm:h-4 sm:w-4 mr-1 sm:mr-2 text-orange-500" />
                 Project Name *
               </Label>
               <div className="relative">
-                <Building2 className="absolute left-4 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
+                <Building2 className="absolute left-2 sm:left-3 top-1/2 transform -translate-y-1/2 h-3 w-3 sm:h-4 sm:w-4 text-gray-400" />
                 <Input
                   id="name"
                   {...register("name")}
                   placeholder="e.g., Assumption School Antipolo Sports Complex"
-                  className="w-full pl-12 h-12 bg-white/80 border-gray-200 focus:border-orange-500 focus:ring-orange-500/20 rounded-xl text-gray-900 placeholder:text-gray-500"
+                  className="w-full pl-7 sm:pl-10 h-8 sm:h-10 bg-white/80 border-gray-200 focus:border-orange-500 focus:ring-orange-500/20 rounded-lg text-gray-900 placeholder:text-gray-500 text-xs sm:text-sm"
                   maxLength={255}
                 />
               </div>
               {errors.name && (
-                <p className="text-sm text-red-600 flex items-center">
+                <p className="text-xs text-red-600 flex items-center">
                   <span className="w-1 h-1 bg-red-600 rounded-full mr-2"></span>
                   {errors.name.message}
                 </p>
               )}
             </div>
 
-            {/* Client */}
-            <div className="space-y-3">
-              <Label htmlFor="client" className="text-sm font-semibold text-gray-700 flex items-center">
-                <User className="h-4 w-4 mr-2 text-orange-500" />
-                Client *
-              </Label>
-              <div className="relative">
-                <User className="absolute left-4 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
-                <Input
-                  id="client"
-                  {...register("client")}
-                  placeholder="e.g., Assumption School Antipolo"
-                  className="w-full pl-12 h-12 bg-white/80 border-gray-200 focus:border-orange-500 focus:ring-orange-500/20 rounded-xl text-gray-900 placeholder:text-gray-500"
-                  maxLength={255}
-                />
-              </div>
-              {errors.client && (
-                <p className="text-sm text-red-600 flex items-center">
-                  <span className="w-1 h-1 bg-red-600 rounded-full mr-2"></span>
-                  {errors.client.message}
-                </p>
-              )}
-            </div>
-
-            {/* Location with Geoapify Integration */}
-            <div className="space-y-3 relative">
-              <Label htmlFor="location" className="text-sm font-semibold text-gray-700 flex items-center">
-                <MapPin className="h-4 w-4 mr-2 text-orange-500" />
-                Location *
-              </Label>
-              <div className="relative">
-                <MapPin className="absolute left-4 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
-                <Input
-                  id="location"
-                  value={watch("location") || ""}
-                  onChange={(e) => handleLocationChange(e.target.value)}
-                  placeholder="e.g., Antipolo City, Rizal"
-                  className="w-full pl-12 h-12 bg-white/80 border-gray-200 focus:border-orange-500 focus:ring-orange-500/20 rounded-xl text-gray-900 placeholder:text-gray-500"
-                  maxLength={255}
-                  autoComplete="off"
-                />
-                {isLoadingLocations && (
-                  <div className="absolute right-4 top-1/2 transform -translate-y-1/2">
-                    <Loader2 className="h-4 w-4 animate-spin text-gray-400" />
-                  </div>
+            {/* Client and Location in grid on desktop, stacked on mobile */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 sm:gap-3">
+              {/* Client */}
+              <div className="space-y-1 sm:space-y-2">
+                <Label htmlFor="client" className="text-xs sm:text-sm font-semibold text-gray-700 flex items-center">
+                  <User className="h-3 w-3 sm:h-4 sm:w-4 mr-1 sm:mr-2 text-orange-500" />
+                  Client *
+                </Label>
+                <div className="relative">
+                  <User className="absolute left-2 sm:left-3 top-1/2 transform -translate-y-1/2 h-3 w-3 sm:h-4 sm:w-4 text-gray-400" />
+                  <Input
+                    id="client"
+                    {...register("client")}
+                    placeholder="e.g., Assumption School Antipolo"
+                    className="w-full pl-7 sm:pl-10 h-8 sm:h-10 bg-white/80 border-gray-200 focus:border-orange-500 focus:ring-orange-500/20 rounded-lg text-gray-900 placeholder:text-gray-500 text-xs sm:text-sm"
+                    maxLength={255}
+                  />
+                </div>
+                {errors.client && (
+                  <p className="text-xs text-red-600 flex items-center">
+                    <span className="w-1 h-1 bg-red-600 rounded-full mr-2"></span>
+                    {errors.client.message}
+                  </p>
                 )}
               </div>
-              
-              {/* Location Suggestions Dropdown */}
-              {showLocationDropdown && locationSuggestions.length > 0 && (
-                <div className="absolute z-50 w-full mt-1 bg-white border border-gray-200 rounded-xl shadow-lg max-h-48 overflow-y-auto">
-                  {locationSuggestions.map((suggestion, index) => (
-                    <button
-                      key={index}
-                      type="button"
-                      className="w-full px-4 py-3 text-left hover:bg-gray-50 border-b border-gray-100 last:border-b-0 flex items-center"
-                      onClick={() => handleLocationSelect(suggestion)}
-                    >
-                      <MapPin className="h-4 w-4 text-gray-400 mr-3 flex-shrink-0" />
-                      <span className="text-sm text-gray-900 truncate">{suggestion.properties.formatted}</span>
-                    </button>
-                  ))}
+
+              {/* Location with Geoapify Integration */}
+              <div className="space-y-1 sm:space-y-2 relative">
+                <Label htmlFor="location" className="text-xs sm:text-sm font-semibold text-gray-700 flex items-center">
+                  <MapPin className="h-3 w-3 sm:h-4 sm:w-4 mr-1 sm:mr-2 text-orange-500" />
+                  Location *
+                </Label>
+                <div className="relative">
+                  <MapPin className="absolute left-2 sm:left-3 top-1/2 transform -translate-y-1/2 h-3 w-3 sm:h-4 sm:w-4 text-gray-400" />
+                  <Input
+                    id="location"
+                    value={watch("location") || ""}
+                    onChange={(e) => handleLocationChange(e.target.value)}
+                    placeholder="e.g., Antipolo City, Rizal"
+                    className="w-full pl-7 sm:pl-10 h-8 sm:h-10 bg-white/80 border-gray-200 focus:border-orange-500 focus:ring-orange-500/20 rounded-lg text-gray-900 placeholder:text-gray-500 text-xs sm:text-sm"
+                    maxLength={255}
+                    autoComplete="off"
+                  />
+                  {isLoadingLocations && (
+                    <div className="absolute right-2 sm:right-3 top-1/2 transform -translate-y-1/2">
+                      <Loader2 className="h-3 w-3 sm:h-4 sm:w-4 animate-spin text-gray-400" />
+                    </div>
+                  )}
                 </div>
-              )}
-              
-              {errors.location && (
-                <p className="text-sm text-red-600 flex items-center">
-                  <span className="w-1 h-1 bg-red-600 rounded-full mr-2"></span>
-                  {errors.location.message}
-                </p>
-              )}
+                
+                {/* Location Suggestions Dropdown */}
+                {showLocationDropdown && locationSuggestions.length > 0 && (
+                  <div className="absolute z-50 w-full mt-1 bg-white border border-gray-200 rounded-lg shadow-lg max-h-32 overflow-y-auto">
+                    {locationSuggestions.map((suggestion, index) => (
+                      <button
+                        key={index}
+                        type="button"
+                        className="w-full px-2 sm:px-3 py-1.5 sm:py-2 text-left hover:bg-gray-50 border-b border-gray-100 last:border-b-0 flex items-center"
+                        onClick={() => handleLocationSelect(suggestion)}
+                      >
+                        <MapPin className="h-3 w-3 sm:h-4 sm:w-4 text-gray-400 mr-1 sm:mr-2 flex-shrink-0" />
+                        <span className="text-xs text-gray-900 truncate">{suggestion.properties.formatted}</span>
+                      </button>
+                    ))}
+                  </div>
+                )}
+                
+                {errors.location && (
+                  <p className="text-xs text-red-600 flex items-center">
+                    <span className="w-1 h-1 bg-red-600 rounded-full mr-2"></span>
+                    {errors.location.message}
+                  </p>
+                )}
+              </div>
             </div>
           </div>
 
-          {/* Description */}
-          <div className="space-y-3">
-            <Label htmlFor="description" className="text-sm font-semibold text-gray-700 flex items-center">
-              <FileText className="h-4 w-4 mr-2 text-orange-500" />
+          {/* Description - Smaller on mobile */}
+          <div className="space-y-1 sm:space-y-2">
+            <Label htmlFor="description" className="text-xs sm:text-sm font-semibold text-gray-700 flex items-center">
+              <FileText className="h-3 w-3 sm:h-4 sm:w-4 mr-1 sm:mr-2 text-orange-500" />
               Description
             </Label>
             <div className="relative">
-              <FileText className="absolute left-4 top-4 h-4 w-4 text-gray-400" />
+              <FileText className="absolute left-2 sm:left-3 top-2 sm:top-3 h-3 w-3 sm:h-4 sm:w-4 text-gray-400" />
               <Textarea
                 id="description"
                 {...register("description")}
                 placeholder="Brief description of the electrical engineering project..."
-                rows={4}
+                rows={2}
                 maxLength={500}
-                className="w-full pl-12 pt-4 bg-white/80 border-gray-200 focus:border-orange-500 focus:ring-orange-500/20 rounded-xl text-gray-900 placeholder:text-gray-500 resize-none"
+                className="w-full pl-7 sm:pl-10 pt-2 sm:pt-3 bg-white/80 border-gray-200 focus:border-orange-500 focus:ring-orange-500/20 rounded-lg text-gray-900 placeholder:text-gray-500 resize-none text-xs sm:text-sm"
               />
-              <div className="absolute bottom-3 right-4 text-xs text-gray-500">
+              <div className="absolute bottom-1 right-2 text-xs text-gray-500">
                 {watch("description")?.length || 0}/500
               </div>
             </div>
             {errors.description && (
-              <p className="text-sm text-red-600 flex items-center">
+              <p className="text-xs text-red-600 flex items-center">
                 <span className="w-1 h-1 bg-red-600 rounded-full mr-2"></span>
                 {errors.description.message}
               </p>
             )}
           </div>
 
-          {/* Status and Team Size Row */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            <div className="space-y-3">
-              <Label className="text-sm font-semibold text-gray-700 flex items-center">
-                <Activity className="h-4 w-4 mr-2 text-orange-500" />
+          {/* Status and Team Size Row - Always in one row */}
+          <div className="grid grid-cols-2 gap-2 sm:gap-3">
+            <div className="space-y-1 sm:space-y-2">
+              <Label className="text-xs sm:text-sm font-semibold text-gray-700 flex items-center">
+                <Activity className="h-3 w-3 sm:h-4 sm:w-4 mr-1 sm:mr-2 text-orange-500" />
                 Status
               </Label>
               <Select
                 defaultValue="planning"
                 onValueChange={(value) => setValue("status", value as "planning" | "in-progress" | "on-hold" | "completed")}
               >
-                <SelectTrigger className="h-12 bg-white/80 border-gray-200 focus:border-orange-500 focus:ring-orange-500/20 rounded-xl">
+                <SelectTrigger className="h-8 sm:h-10 bg-white/80 border-gray-200 focus:border-orange-500 focus:ring-orange-500/20 rounded-lg text-xs sm:text-sm">
                   <SelectValue placeholder="Select status" />
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="planning">
                     <div className="flex items-center">
-                      <div className="w-3 h-3 rounded-full bg-blue-500 mr-2"></div>
+                      <div className="w-2 h-2 sm:w-3 sm:h-3 rounded-full bg-blue-500 mr-2"></div>
                       Planning
                     </div>
                   </SelectItem>
                   <SelectItem value="in-progress">
                     <div className="flex items-center">
-                      <div className="w-3 h-3 rounded-full bg-orange-500 mr-2"></div>
+                      <div className="w-2 h-2 sm:w-3 sm:h-3 rounded-full bg-orange-500 mr-2"></div>
                       In-Progress
                     </div>
                   </SelectItem>
                   <SelectItem value="on-hold">
                     <div className="flex items-center">
-                      <div className="w-3 h-3 rounded-full bg-yellow-500 mr-2"></div>
+                      <div className="w-2 h-2 sm:w-3 sm:h-3 rounded-full bg-yellow-500 mr-2"></div>
                       On-Hold
                     </div>
                   </SelectItem>
                   <SelectItem value="completed">
                     <div className="flex items-center">
-                      <div className="w-3 h-3 rounded-full bg-green-500 mr-2"></div>
+                      <div className="w-2 h-2 sm:w-3 sm:h-3 rounded-full bg-green-500 mr-2"></div>
                       Completed
                     </div>
                   </SelectItem>
@@ -396,13 +399,13 @@ export function ProjectFormModal({ onProjectCreated }: ProjectFormModalProps) {
             </div>
 
             {/* Team Size */}
-            <div className="space-y-3">
-              <Label htmlFor="team_size" className="text-sm font-semibold text-gray-700 flex items-center">
-                <Users className="h-4 w-4 mr-2 text-orange-500" />
+            <div className="space-y-1 sm:space-y-2">
+              <Label htmlFor="team_size" className="text-xs sm:text-sm font-semibold text-gray-700 flex items-center">
+                <Users className="h-3 w-3 sm:h-4 sm:w-4 mr-1 sm:mr-2 text-orange-500" />
                 Team Size
               </Label>
               <div className="relative">
-                <Users className="absolute left-4 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
+                <Users className="absolute left-2 sm:left-3 top-1/2 transform -translate-y-1/2 h-3 w-3 sm:h-4 sm:w-4 text-gray-400" />
                 <Input
                   id="team_size"
                   type="number"
@@ -410,11 +413,11 @@ export function ProjectFormModal({ onProjectCreated }: ProjectFormModalProps) {
                   max="100"
                   {...register("team_size", { valueAsNumber: true })}
                   placeholder="e.g., 5"
-                  className="w-full pl-12 h-12 bg-white/80 border-gray-200 focus:border-orange-500 focus:ring-orange-500/20 rounded-xl text-gray-900 placeholder:text-gray-500"
+                  className="w-full pl-7 sm:pl-10 h-8 sm:h-10 bg-white/80 border-gray-200 focus:border-orange-500 focus:ring-orange-500/20 rounded-lg text-gray-900 placeholder:text-gray-500 text-xs sm:text-sm"
                 />
               </div>
               {errors.team_size && (
-                <p className="text-sm text-red-600 flex items-center">
+                <p className="text-xs text-red-600 flex items-center">
                   <span className="w-1 h-1 bg-red-600 rounded-full mr-2"></span>
                   {errors.team_size.message}
                 </p>
@@ -422,11 +425,11 @@ export function ProjectFormModal({ onProjectCreated }: ProjectFormModalProps) {
             </div>
           </div>
 
-          {/* Date Range */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            <div className="space-y-3">
-              <Label className="text-sm font-semibold text-gray-700 flex items-center">
-                <CalendarIcon className="h-4 w-4 mr-2 text-orange-500" />
+          {/* Date Range - Always in one row */}
+          <div className="grid grid-cols-2 gap-2 sm:gap-3">
+            <div className="space-y-1 sm:space-y-2">
+              <Label className="text-xs sm:text-sm font-semibold text-gray-700 flex items-center">
+                <CalendarIcon className="h-3 w-3 sm:h-4 sm:w-4 mr-1 sm:mr-2 text-orange-500" />
                 Start Date
               </Label>
               <Popover>
@@ -434,11 +437,11 @@ export function ProjectFormModal({ onProjectCreated }: ProjectFormModalProps) {
                   <Button
                     variant="outline"
                     className={cn(
-                      "w-full h-12 justify-start text-left font-normal bg-white/80 border-gray-200 hover:border-orange-500 focus:border-orange-500 focus:ring-orange-500/20 rounded-xl",
+                      "w-full h-8 sm:h-10 justify-start text-left font-normal bg-white/80 border-gray-200 hover:border-orange-500 focus:border-orange-500 focus:ring-orange-500/20 rounded-lg text-xs sm:text-sm",
                       !startDate && "text-gray-500"
                     )}
                   >
-                    <CalendarIcon className="mr-3 h-4 w-4 text-gray-400" />
+                    <CalendarIcon className="mr-1 sm:mr-2 h-3 w-3 sm:h-4 sm:w-4 text-gray-400" />
                     {startDate ? format(startDate, "PPP") : "Pick a date"}
                   </Button>
                 </PopoverTrigger>
@@ -452,9 +455,9 @@ export function ProjectFormModal({ onProjectCreated }: ProjectFormModalProps) {
               </Popover>
             </div>
 
-            <div className="space-y-3">
-              <Label className="text-sm font-semibold text-gray-700 flex items-center">
-                <CalendarIcon className="h-4 w-4 mr-2 text-orange-500" />
+            <div className="space-y-1 sm:space-y-2">
+              <Label className="text-xs sm:text-sm font-semibold text-gray-700 flex items-center">
+                <CalendarIcon className="h-3 w-3 sm:h-4 sm:w-4 mr-1 sm:mr-2 text-orange-500" />
                 End Date
               </Label>
               <Popover>
@@ -462,11 +465,11 @@ export function ProjectFormModal({ onProjectCreated }: ProjectFormModalProps) {
                   <Button
                     variant="outline"
                     className={cn(
-                      "w-full h-12 justify-start text-left font-normal bg-white/80 border-gray-200 hover:border-orange-500 focus:border-orange-500 focus:ring-orange-500/20 rounded-xl",
+                      "w-full h-8 sm:h-10 justify-start text-left font-normal bg-white/80 border-gray-200 hover:border-orange-500 focus:border-orange-500 focus:ring-orange-500/20 rounded-lg text-xs sm:text-sm",
                       !endDate && "text-gray-500"
                     )}
                   >
-                    <CalendarIcon className="mr-3 h-4 w-4 text-gray-400" />
+                    <CalendarIcon className="mr-1 sm:mr-2 h-3 w-3 sm:h-4 sm:w-4 text-gray-400" />
                     {endDate ? format(endDate, "PPP") : "Pick a date"}
                   </Button>
                 </PopoverTrigger>
@@ -482,31 +485,31 @@ export function ProjectFormModal({ onProjectCreated }: ProjectFormModalProps) {
             </div>
           </div>
 
-          {/* Form Actions */}
-          <div className="flex flex-col sm:flex-row justify-end gap-3 pt-6 border-t border-gray-100">
+          {/* Form Actions - Smaller on mobile */}
+          <div className="flex flex-row justify-end gap-2 pt-2 sm:pt-3 border-t border-gray-100">
             <Button
               type="button"
               variant="outline"
               onClick={() => setOpen(false)}
               disabled={isSubmitting}
-              className="h-12 px-6 border-gray-200 hover:border-gray-300 hover:bg-gray-50 rounded-xl font-medium transition-all duration-200"
+              className="h-8 sm:h-10 px-3 sm:px-4 border-gray-200 hover:border-gray-300 hover:bg-gray-50 rounded-lg font-medium transition-all duration-200 text-xs sm:text-sm"
             >
-              <X className="h-4 w-4 mr-2" />
+              <X className="h-3 w-3 sm:h-4 sm:w-4 mr-1" />
               Cancel
             </Button>
             <Button
               type="submit"
               disabled={isSubmitting}
-              className="h-12 px-8 bg-gradient-to-r from-orange-500 to-orange-600 hover:from-orange-600 hover:to-orange-700 text-white rounded-xl font-medium shadow-lg hover:shadow-xl transition-all duration-200"
+              className="h-8 sm:h-10 px-4 sm:px-6 bg-gradient-to-r from-orange-500 to-orange-600 hover:from-orange-600 hover:to-orange-700 text-white rounded-lg font-medium shadow-lg hover:shadow-xl transition-all duration-200 text-xs sm:text-sm"
             >
               {isSubmitting ? (
                 <>
-                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                  Creating Project...
+                  <Loader2 className="mr-1 h-3 w-3 sm:h-4 sm:w-4 animate-spin" />
+                  Creating...
                 </>
               ) : (
                 <>
-                  <Plus className="mr-2 h-4 w-4" />
+                  <Plus className="mr-1 h-3 w-3 sm:h-4 sm:w-4" />
                   Create Project
                 </>
               )}

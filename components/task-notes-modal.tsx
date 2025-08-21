@@ -15,21 +15,21 @@ interface EnhancedTask {
   notes?: string | null
   project_name?: string
   status?: string | null
-  alphabetical_id?: string
+  task_key?: string | null
 }
 
 interface TaskNotesModalProps {
   open: boolean
-  onOpenChange: (open: boolean) => void
+  onOpenChangeAction: (open: boolean) => void
   task: EnhancedTask | null
-  onNotesSubmit: (taskId: string, notes: string) => Promise<void>
+  onNotesSubmitAction: (taskId: string, notes: string) => Promise<void>
 }
 
 export function TaskNotesModal({
   open,
-  onOpenChange,
+  onOpenChangeAction,
   task,
-  onNotesSubmit
+  onNotesSubmitAction
 }: TaskNotesModalProps) {
   const [notes, setNotes] = useState('')
   const [isSubmitting, setIsSubmitting] = useState(false)
@@ -46,9 +46,9 @@ export function TaskNotesModal({
     
     setIsSubmitting(true)
     try {
-      await onNotesSubmit(task.id, notes)
+      await onNotesSubmitAction(task.id, notes)
       toast.success('Notes saved successfully')
-      onOpenChange(false)
+      onOpenChangeAction(false)
     } catch (error) {
       console.error('Error saving notes:', error)
       toast.error('Failed to save notes. Please try again.')
@@ -58,7 +58,7 @@ export function TaskNotesModal({
   }
 
   const handleClose = () => {
-    onOpenChange(false)
+    onOpenChangeAction(false)
     if (task) {
       setNotes(task.notes || '')
     }
@@ -80,9 +80,9 @@ export function TaskNotesModal({
           {/* Task Info Header */}
           <div className="bg-gray-50 dark:bg-gray-800 rounded-lg p-4 space-y-2">
             <div className="flex items-center gap-2 flex-wrap">
-              {task.alphabetical_id && (
+              {task.task_key && (
                 <Badge variant="outline" className="text-xs px-2 py-1 bg-gray-100 text-gray-700 border-gray-300">
-                  {task.alphabetical_id}
+                  {task.task_key}
                 </Badge>
               )}
               <h3 className="font-semibold text-gray-900 dark:text-white">{task.title}</h3>

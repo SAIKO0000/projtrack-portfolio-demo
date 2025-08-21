@@ -79,29 +79,30 @@ export function DeleteEventDialog({
           </div>
         </DialogTrigger>
       )}
-      <DialogContent className="sm:max-w-[425px]">
-        <DialogHeader>
+      <DialogContent className="sm:max-w-[420px] max-w-[95vw] w-[95vw] sm:w-auto rounded-2xl shadow-2xl border-0">
+        <DialogHeader className="space-y-3">
           <DialogTitle className="flex items-center text-red-600">
-            <div className="w-10 h-10 rounded-lg bg-red-50 flex items-center justify-center mr-3">
-              <AlertTriangle className="h-5 w-5 text-red-500" />
+            <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-xl bg-red-50 flex items-center justify-center mr-2 sm:mr-3 shadow-sm">
+              <AlertTriangle className="h-4 w-4 sm:h-5 sm:w-5 text-red-500" />
             </div>
-            Delete Event
+            <span className="text-lg sm:text-xl font-bold">Delete Event</span>
           </DialogTitle>
-          <DialogDescription className="ml-13">
+          <DialogDescription className="ml-10 sm:ml-13 text-sm sm:text-base text-gray-600">
             Are you sure you want to delete this event? This action cannot be undone.
           </DialogDescription>
         </DialogHeader>
 
-        <div className="bg-gray-50 p-4 rounded-lg mb-4">
-          <h4 className="font-medium text-gray-900 mb-1">Event to be deleted:</h4>
-          <p className="text-sm text-gray-600">"{eventTitle}"</p>
+        <div className="bg-gray-50 p-3 sm:p-4 rounded-xl mb-4 border border-gray-200">
+          <h4 className="font-medium text-gray-900 mb-1 text-sm sm:text-base">Event to be deleted:</h4>
+          <p className="text-xs sm:text-sm text-gray-600 break-words">&ldquo;{eventTitle}&rdquo;</p>
         </div>
 
-        <div className="flex justify-end space-x-3">
+        <div className="flex flex-col sm:flex-row justify-end space-y-2 sm:space-y-0 sm:space-x-3">
           <Button
             variant="outline"
             onClick={() => setOpen(false)}
             disabled={isDeleting}
+            className="w-full sm:w-auto h-9 sm:h-10 text-xs sm:text-sm rounded-lg border-gray-300 hover:bg-gray-50"
           >
             Cancel
           </Button>
@@ -109,7 +110,7 @@ export function DeleteEventDialog({
             variant="destructive"
             onClick={handleDelete}
             disabled={isDeleting}
-            className="bg-red-600 hover:bg-red-700"
+            className="w-full sm:w-auto h-9 sm:h-10 text-xs sm:text-sm bg-red-600 hover:bg-red-700 rounded-lg shadow-lg hover:shadow-xl transition-all duration-200"
           >
             {isDeleting ? (
               <>

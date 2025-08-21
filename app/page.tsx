@@ -2,14 +2,14 @@
 
 import { useState, useEffect } from "react"
 import { useRouter } from "next/navigation"
-import { Sidebar } from "@/components/sidebar"
-import { Dashboard } from "@/components/dashboard"
-import { Projects } from "@/components/projects"
-import { GanttChartEnhanced } from "@/components/gantt-chart-enhanced-supabase"
+import { SidebarRefactored } from "@/components/sidebar/SidebarRefactored"
+import { Dashboard } from "@/components/dashboard/dashboard-main"
+import { Projects } from "@/components/projects/projects"
+import { GanttChartEnhancedRefactored } from "@/components/gantt"
 import { Calendar } from "@/components/calendar"
-import { Team } from "@/components/team"
-import { Reports } from "@/components/reports"
-import { Notifications } from "@/components/notifications"
+import { TeamRefactored } from "@/components/team"
+import { ReportsRefactored } from "@/components/reports/ReportsRefactored"
+import { NotificationsRefactored } from "@/components/notifications/NotificationsRefactored"
 import { DeadlineNotificationPopup } from "@/components/deadline-notification-popup"
 import { useAuth } from "@/lib/auth"
 import { useAutoNotifications } from "@/lib/hooks/useAutoNotifications"
@@ -79,15 +79,15 @@ export default function Home() {
       case "projects":
         return <Projects onProjectSelect={handleProjectSelect} />
       case "gantt":
-        return <GanttChartEnhanced selectedProjectId={selectedProjectId} />
+        return <GanttChartEnhancedRefactored selectedProjectId={selectedProjectId} />
       case "calendar":
         return <Calendar />
       case "team":
-        return <Team />
+        return <TeamRefactored />
       case "notifications":
-        return <Notifications onTabChangeAction={handleTabChange} />
+        return <NotificationsRefactored onTabChangeAction={handleTabChange} />
       case "reports":
-        return <Reports onTabChangeAction={handleTabChange} />
+        return <ReportsRefactored onTabChangeAction={handleTabChange} />
       default:
         return <Dashboard />
     }
@@ -112,7 +112,7 @@ export default function Home() {
 
   return (
     <div className="flex h-screen bg-gray-50">
-      <Sidebar activeTab={activeTab} onTabChangeAction={handleTabChange} />
+      <SidebarRefactored activeTab={activeTab} onTabChangeAction={handleTabChange} />
       <main className="flex-1 overflow-hidden">
         <div className="h-full overflow-y-auto pt-20 lg:pt-0">
           {renderContent()}
@@ -123,9 +123,9 @@ export default function Home() {
       <DeadlineNotificationPopup
         tasks={upcomingTasks}
         isVisible={showPopup}
-        onCloseAction={dismissPopup}
-        onTaskClickAction={handleTaskClick}
-        onViewAllClickAction={() => {
+        onClose={dismissPopup}
+        onTaskClick={handleTaskClick}
+        onViewAllClick={() => {
           dismissPopup();
           setActiveTab("gantt");
         }}

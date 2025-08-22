@@ -1263,3 +1263,10 @@
 .gantt-syncfusion-timeline-content {
   min-width: 100%;
 }
+
+/* Modal Mobile Header Hide Utility */
+@media (max-width: 1023px) {
+  .modal-mobile-open .sidebar-mobile-header {
+    display: none !important;
+  }
+}

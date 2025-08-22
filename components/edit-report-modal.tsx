@@ -15,6 +15,7 @@ import { usePersonnel } from "@/lib/hooks/usePersonnel"
 import { useAuth } from "@/lib/auth"
 import { toast } from "react-hot-toast"
 import type { Report } from "@/lib/supabase"
+import { useModalMobileHide } from "@/lib/modal-mobile-utils"
 
 type EnhancedReport = Report & {
   projectName: string
@@ -29,6 +30,9 @@ interface EditReportModalProps {
 }
 
 export function EditReportModal({ report, open, onOpenChangeAction, onReportUpdatedAction }: EditReportModalProps) {
+  // Hide mobile header when modal is open
+  useModalMobileHide(open)
+  
   const [fileName, setFileName] = useState("")
   const [projectId, setProjectId] = useState("")
   const [category, setCategory] = useState("")

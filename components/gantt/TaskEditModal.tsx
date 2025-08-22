@@ -27,6 +27,7 @@ import {
 import { format } from "date-fns"
 import { cn } from "@/lib/utils"
 import { toast } from "react-hot-toast"
+import { useModalMobileHide } from "@/lib/modal-mobile-utils"
 
 // Predefined roles based on your project structure
 // PROJECT STAFF and DIRECT LABOR are categories, not assignable roles
@@ -78,6 +79,9 @@ interface TaskEditModalProps {
 }
 
 export function TaskEditModalOptimized({ task, open, onOpenChangeAction, onTaskUpdated }: TaskEditModalProps) {
+  // Hide mobile header when modal is open
+  useModalMobileHide(open)
+  
   const { projects } = useProjects()
   const { updateTask } = useGanttTasks()
   const [loading, setLoading] = useState(false)

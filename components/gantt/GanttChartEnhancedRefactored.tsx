@@ -204,7 +204,7 @@ export function GanttChartEnhancedRefactored({ selectedProjectId }: GanttChartPr
       const philippinesTime = new Date(now.getTime() + (localOffset + philippinesOffset) * 60000)
       
       await updateTaskStatus(taskId, status)
-      refetchTasks() // Refresh to get updated data with completion timestamp
+      // Optimistic update is handled in the hook, no need to refetch
       
       if (status === 'completed') {
         const completedTime = philippinesTime.toLocaleDateString("en-PH", {
@@ -223,18 +223,18 @@ export function GanttChartEnhancedRefactored({ selectedProjectId }: GanttChartPr
       console.error("Failed to update task status:", error)
       toast.error("Failed to update task status. Please try again.")
     }
-  }, [updateTaskStatus, refetchTasks])
+  }, [updateTaskStatus])
 
   const handleNotesUpdate = useCallback(async (taskId: string, notes: string) => {
     try {
       await updateTask(taskId, { notes })
-      refetchTasks() // Refresh to get updated data
+      // Optimistic update is handled in the hook, no need to refetch
       toast.success("Task notes updated successfully!")
     } catch (error) {
       console.error("Failed to update task notes:", error)
       toast.error("Failed to update task notes. Please try again.")
     }
-  }, [updateTask, refetchTasks])
+  }, [updateTask])
 
   const handleNavigatePeriod = useCallback((direction: "prev" | "next") => {
     setCurrentPeriod(navigatePeriod(direction, viewMode, currentPeriod))

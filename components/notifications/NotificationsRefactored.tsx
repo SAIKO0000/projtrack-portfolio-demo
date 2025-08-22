@@ -2,6 +2,7 @@
 
 import { useState, useMemo, useEffect, useCallback, useRef } from "react"
 import { useNotificationsQuery } from "@/lib/hooks/useNotificationsOptimized"
+import { useSupabaseQuery } from "@/lib/hooks/useSupabaseQuery"
 import { useDeadlineNotifications } from "@/lib/hooks/useDeadlineNotifications"
 import { toast } from "@/lib/toast-manager"
 import { createThrottledFunction, filterNotifications, calculateNotificationStats } from './utils'
@@ -30,6 +31,12 @@ export function NotificationsRefactored({ onTabChangeAction }: NotificationsProp
     refetch,
     error 
   } = useNotificationsQuery()
+
+  // Get projects data for forecast tracking
+  const supabaseQuery = useSupabaseQuery()
+  const { 
+    data: projects = []
+  } = supabaseQuery.useProjectsQuery()
 
   // Throttled refresh function
   const throttledRefresh = useMemo(() => 
@@ -93,6 +100,13 @@ export function NotificationsRefactored({ onTabChangeAction }: NotificationsProp
     setIsSelectionMode(false)
   }
 
+  const deleteNotification = (_notificationId: string) => {
+    // Here you would typically call an API to delete the specific notification
+    // For now, we'll just show a toast
+    toast.success('Notification deleted')
+    // You could also remove it from local state if you maintain notifications locally
+  }
+
   // Handle notification click to redirect to specific items
   const handleNotificationClick = (notification: NotificationItem) => {
     if (isSelectionMode) return // Don't navigate when in selection mode
@@ -140,10 +154,29 @@ export function NotificationsRefactored({ onTabChangeAction }: NotificationsProp
     return filterNotifications(notifications, searchTerm, typeFilter, timeFilter)
   }, [notifications, searchTerm, typeFilter, timeFilter])
 
-  // Memoized stats calculations
+  // Memoized stats calculations with In Progress projects forecast
   const stats = useMemo(() => {
-    return calculateNotificationStats(notifications)
-  }, [notifications])
+    const notificationStats = calculateNotificationStats(notifications)
+    
+    // Count projects with status 'in-progress' for forecast (correct status value)
+    // Debug logging to check project data
+    console.log('📊 Debug - Projects for forecast:', projects)
+    console.log('📊 Debug - Projects count:', Array.isArray(projects) ? projects.length : 'Not array')
+    
+    const inProgressProjects = Array.isArray(projects) 
+      ? projects.filter(p => {
+          console.log('📊 Debug - Project status:', p?.status)
+          return p && typeof p === 'object' && 'status' in p && p.status === 'in-progress'
+        }).length
+      : 0
+      
+    console.log('📊 Debug - In Progress count:', inProgressProjects)
+      
+    return {
+      ...notificationStats,
+      inProgressProjects
+    }
+  }, [notifications, projects])
 
   // Create state objects for components
   const selectionState: SelectionState = {
@@ -215,6 +248,7 @@ export function NotificationsRefactored({ onTabChangeAction }: NotificationsProp
             selectionState={selectionState}
             onNotificationClickAction={handleNotificationClick}
             onToggleSelectionAction={toggleNotificationSelection}
+            onDeleteNotificationAction={deleteNotification}
           />
         </>
       )}

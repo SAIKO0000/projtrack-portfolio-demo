@@ -6,6 +6,7 @@ import { EditProjectModal } from "@/components/edit-project-modal"
 import { ContentSkeleton } from "@/components/ui/content-skeleton"
 import { toast } from "react-hot-toast"
 import { useSupabaseQuery } from "@/lib/hooks/useSupabaseQuery"
+import { usePersonnel } from "@/lib/hooks/usePersonnel"
 
 // Import refactored components
 import { DashboardHeader } from "./dashboard-header"
@@ -30,11 +31,11 @@ export function Dashboard() {
     refetch: refetchProjects 
   } = supabaseQuery.useProjectsQuery()
   
+  // Use regular personnel hook instead of optimized query
   const { 
-    data: personnel = [], 
-    isLoading: personnelLoading,
-    refetch: refetchPersonnel 
-  } = supabaseQuery.usePersonnelQuery()
+    personnel = [], 
+    loading: personnelLoading
+  } = usePersonnel()
   
   const { 
     data: tasks = [], 
@@ -47,6 +48,14 @@ export function Dashboard() {
 
   // Use refactored analytics hook
   const { stats, projectAnalytics, getProjectTaskProgress, getProjectTaskCounts } = useDashboardAnalytics(projects, tasks, personnel)
+
+  // Debug personnel data - check if data is loading properly
+  console.log('🔍 Dashboard Debug - Personnel data:', {
+    personnelCount: personnel?.length || 0,
+    personnelLoading,
+    statsPersonnel: stats?.totalPersonnel || 0,
+    firstPersonnel: personnel?.[0] || null
+  })
 
   // Use refactored chart data hook
   const { projectProgressData, statusData } = useChartData(projects, getProjectTaskProgress)
@@ -70,7 +79,6 @@ export function Dashboard() {
       try {
         await Promise.all([
           refetchProjects(),
-          refetchPersonnel(),
           refetchTasks()
         ])
         lastRefreshRef.current = now
@@ -80,7 +88,7 @@ export function Dashboard() {
         toast.error("Failed to refresh dashboard")
       }
     }, 3000), // 3 second throttle
-    [refetchProjects, refetchPersonnel, refetchTasks]
+    [refetchProjects, refetchTasks]
   )
 
   const handleRefresh = useCallback(() => {
@@ -111,9 +119,11 @@ export function Dashboard() {
   }, [refetchProjects])
 
   const handleEditProject = useCallback((projectId: string) => {
-    const project = projects.find(p => p.id === projectId)
-    if (project) {
-      setEditingProject(project)
+    if (Array.isArray(projects)) {
+      const project = projects.find((p: Project) => p?.id === projectId)
+      if (project) {
+        setEditingProject(project)
+      }
     }
   }, [projects])
 

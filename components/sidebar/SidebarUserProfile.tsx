@@ -55,7 +55,7 @@ export function SidebarUserProfile({
             side="top"
             alignOffset={-10}
             sideOffset={16}
-            className="w-80 p-2 shadow-lg border-gray-200"
+            className="w-80 p-2 shadow-lg border-gray-200 z-[120]"
           >
             <div className="flex items-center space-x-3 p-3 mb-2 bg-gradient-to-r from-gray-50 to-gray-100 rounded-lg border border-gray-200">
               <UserAvatar 
@@ -128,7 +128,7 @@ export function SidebarUserProfile({
           side="right"
           alignOffset={-10}
           sideOffset={16}
-          className="w-80 p-2 shadow-xl border-gray-200 bg-white/95 backdrop-blur-sm"
+          className="w-80 p-2 shadow-xl border-gray-200 bg-white/95 backdrop-blur-sm z-[120]"
           style={{ transform: 'translateY(-20px)' }}
         >
           <div className="flex items-center space-x-3 p-4 mb-2 bg-gradient-to-r from-gray-50 to-gray-100 rounded-lg border border-gray-200">

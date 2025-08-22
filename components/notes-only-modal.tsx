@@ -9,6 +9,7 @@ import { Badge } from "./ui/badge"
 import { FileText, Save } from "lucide-react"
 import { toast } from "react-hot-toast"
 import { cn } from "@/lib/utils"
+import { useModalMobileHide } from "@/lib/modal-mobile-utils"
 
 interface Report {
   id: string
@@ -31,6 +32,9 @@ export function NotesOnlyModal({
   report,
   onNotesSubmitAction
 }: NotesOnlyModalProps) {
+  // Hide mobile header when modal is open
+  useModalMobileHide(open)
+  
   const [notes, setNotes] = useState('')
   const [isSubmitting, setIsSubmitting] = useState(false)
 

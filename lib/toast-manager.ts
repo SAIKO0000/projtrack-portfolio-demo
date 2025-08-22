@@ -46,7 +46,7 @@ class ToastManager {
     
     const toastOptions = {
       position: 'top-right' as const,
-      duration: 4000,
+      duration: 1000,
       style: {
         background: type === 'success' ? '#10B981' : type === 'error' ? '#EF4444' : '#6B7280',
         color: '#fff',

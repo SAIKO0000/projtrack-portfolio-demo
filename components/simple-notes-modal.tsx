@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button"
 import { Textarea } from "@/components/ui/textarea"
 import { Label } from "@/components/ui/label"
 import { FileText } from "lucide-react"
+import { useModalMobileHide } from "@/lib/modal-mobile-utils"
 
 interface SimpleNotesModalProps {
   open: boolean
@@ -22,6 +23,9 @@ export function SimpleNotesModal({
   reportName,
   existingNotes = ""
 }: SimpleNotesModalProps) {
+  // Hide mobile header when modal is open
+  useModalMobileHide(open)
+  
   const [notes, setNotes] = useState("")
 
   // Update notes when modal opens or existing notes change

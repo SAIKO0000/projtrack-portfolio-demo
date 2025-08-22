@@ -10,6 +10,7 @@ import {
 } from "@/components/ui/dialog"
 import { Button } from "@/components/ui/button"
 import { AlertTriangle, Trash2 } from "lucide-react"
+import { useModalMobileHide } from "@/lib/modal-mobile-utils"
 
 interface DeleteConfirmationDialogProps {
   isOpen: boolean
@@ -30,6 +31,8 @@ export function DeleteConfirmationDialog({
   itemName,
   isLoading = false
 }: DeleteConfirmationDialogProps) {
+  // Hide mobile header when modal is open
+  useModalMobileHide(isOpen)
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
       <DialogContent className="sm:max-w-[450px] max-w-[95vw] w-[95vw] sm:w-auto p-0 overflow-hidden rounded-2xl shadow-2xl border-0">

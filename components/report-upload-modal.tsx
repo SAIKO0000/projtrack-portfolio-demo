@@ -1,7 +1,7 @@
 "use client"
 
 import { useState, useEffect } from "react"
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -14,6 +14,7 @@ import { useProjects } from "@/lib/hooks/useProjects"
 import { usePersonnel } from "@/lib/hooks/usePersonnel"
 import { useAuth } from "@/lib/auth"
 import { toast } from "react-hot-toast"
+import { useModalMobileHide } from "@/lib/modal-mobile-utils"
 
 interface ReportUploadModalProps {
   readonly children?: React.ReactNode
@@ -24,6 +25,10 @@ interface ReportUploadModalProps {
 
 export function ReportUploadModal({ children, onUploadComplete, preselectedProjectId, replacingReportId }: ReportUploadModalProps) {
   const [open, setOpen] = useState(false)
+  
+  // Hide mobile header when modal is open
+  useModalMobileHide(open)
+  
   const [selectedFile, setSelectedFile] = useState<File | null>(null)
   const [title, setTitle] = useState("")
   const [projectId, setProjectId] = useState(preselectedProjectId || "")
@@ -122,7 +127,7 @@ export function ReportUploadModal({ children, onUploadComplete, preselectedProje
       } else {
         // Upload new report with single reviewer
         await uploadReport(selectedFile, projectId, category, status, description, assignedReviewer, title)
-        toast.success("Report uploaded successfully!")
+        // Success toast is handled by the hook
       }
       
       // Reset form

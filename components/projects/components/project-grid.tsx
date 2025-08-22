@@ -12,8 +12,10 @@ interface ProjectGridProps {
   onEditProject: (projectId: string) => void
   onDeleteProject: (projectId: string, projectName: string) => void
   onViewReports: (projectId: string, projectName: string) => void
+  onReportUploaded?: () => void
   ReportUploadModal: React.ComponentType<{ 
     preselectedProjectId: string
+    onUploadComplete?: () => void
     children: React.ReactNode 
   }>
 }
@@ -29,6 +31,7 @@ export function ProjectGrid({
   onEditProject,
   onDeleteProject,
   onViewReports,
+  onReportUploaded,
   ReportUploadModal
 }: ProjectGridProps) {
   return (
@@ -46,6 +49,7 @@ export function ProjectGrid({
           onEditProject={onEditProject}
           onDeleteProject={onDeleteProject}
           onViewReports={onViewReports}
+          onReportUploaded={onReportUploaded}
           ReportUploadModal={ReportUploadModal}
         />
       ))}

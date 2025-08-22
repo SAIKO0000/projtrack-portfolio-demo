@@ -20,8 +20,8 @@ export function NotificationFiltersBar({
 }: NotificationFiltersBarProps) {
   return (
     <div className="bg-white/95 backdrop-blur-sm p-4 sm:p-5 rounded-xl shadow-lg border border-gray-200/50">
-      <div className="flex flex-col sm:flex-row gap-4">
-        <div className="relative flex-1">
+      <div className="flex flex-col gap-4">
+        <div className="relative">
           <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
           <Input
             placeholder="Search activities..."
@@ -30,9 +30,10 @@ export function NotificationFiltersBar({
             className="pl-10 h-10"
           />
         </div>
-        <div className="flex flex-col sm:flex-row gap-3 sm:gap-4">
+        {/* Mobile: Dropdowns in one row, Desktop: Keep as flex-row */}
+        <div className="flex flex-row gap-3 sm:gap-4">
           <Select value={filters.typeFilter} onValueChange={onTypeFilterChangeAction}>
-            <SelectTrigger className="w-full sm:w-36 h-10">
+            <SelectTrigger className="flex-1 sm:w-36 h-10">
               <SelectValue placeholder="All Types" />
             </SelectTrigger>
             <SelectContent>
@@ -45,7 +46,7 @@ export function NotificationFiltersBar({
             </SelectContent>
           </Select>
           <Select value={filters.timeFilter} onValueChange={onTimeFilterChangeAction}>
-            <SelectTrigger className="w-full sm:w-32 h-10">
+            <SelectTrigger className="flex-1 sm:w-32 h-10">
               <SelectValue placeholder="All Time" />
             </SelectTrigger>
             <SelectContent>

@@ -20,6 +20,7 @@ export interface NotificationStats {
   taskCount: number
   recentCount: number
   projectCount: number
+  inProgressProjects?: number
 }
 
 export interface NotificationFilters {

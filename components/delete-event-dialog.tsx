@@ -13,6 +13,7 @@ import { Button } from "@/components/ui/button"
 import { Trash2, Loader2, AlertTriangle } from "lucide-react"
 import { useEvents } from "@/lib/hooks/useEvents"
 import { toast } from "react-hot-toast"
+import { useModalMobileHide } from "@/lib/modal-mobile-utils"
 
 interface DeleteEventDialogProps {
   readonly eventId: string
@@ -32,11 +33,16 @@ export function DeleteEventDialog({
   onOpenChange: externalOnOpenChange
 }: DeleteEventDialogProps) {
   const [internalOpen, setInternalOpen] = useState(false)
-  const [isDeleting, setIsDeleting] = useState(false)
-  const { deleteEvent } = useEvents()
+  
   // Use external open state if provided, otherwise use internal state
   const open = externalOpen ?? internalOpen
   const setOpen = externalOnOpenChange || setInternalOpen
+  
+  // Hide mobile header when modal is open
+  useModalMobileHide(open)
+  
+  const [isDeleting, setIsDeleting] = useState(false)
+  const { deleteEvent } = useEvents()
 
   const handleDelete = async () => {
     try {

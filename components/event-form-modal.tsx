@@ -46,6 +46,8 @@ import { useEvents } from "@/lib/hooks/useEvents"
 import { useProjects } from "@/lib/hooks/useProjects"
 import { toast } from "react-hot-toast"
 import { LocationAutocomplete } from "@/components/location-autocomplete"
+import { useModalMobileHide } from "@/lib/modal-mobile-utils"
+
 
 const eventSchema = z.object({
   title: z.string().min(1, "Event title is required").max(255, "Title too long"),
@@ -74,6 +76,10 @@ interface EventFormModalProps {
 
 export function EventFormModal({ onEventCreated, selectedDate, trigger, eventToEdit, onEventUpdated }: EventFormModalProps) {
   const [open, setOpen] = useState(!!eventToEdit) // Auto-open if editing
+  
+  // Hide mobile header when modal is open
+  useModalMobileHide(open)
+  
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [attendeeInput, setAttendeeInput] = useState("")
   const { createEvent, updateEvent } = useEvents()

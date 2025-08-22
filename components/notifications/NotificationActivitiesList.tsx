@@ -10,13 +10,15 @@ interface NotificationActivitiesListProps {
   selectionState: SelectionState
   onNotificationClickAction: (notification: NotificationItem) => void
   onToggleSelectionAction: (notificationId: string) => void
+  onDeleteNotificationAction?: (notificationId: string) => void
 }
 
 export function NotificationActivitiesList({ 
   filteredNotifications, 
   selectionState, 
   onNotificationClickAction, 
-  onToggleSelectionAction 
+  onToggleSelectionAction,
+  onDeleteNotificationAction
 }: NotificationActivitiesListProps) {
   return (
     <Card className="bg-white/95 backdrop-blur-sm shadow-lg border border-gray-200/50">
@@ -40,6 +42,7 @@ export function NotificationActivitiesList({
               selectionState={selectionState}
               onNotificationClickAction={onNotificationClickAction}
               onToggleSelectionAction={onToggleSelectionAction}
+              onDeleteNotificationAction={onDeleteNotificationAction}
             />
           ))}
         </div>

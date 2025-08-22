@@ -68,16 +68,40 @@ export function useProjects() {
         return data
       }, undefined)
     },
+    onMutate: async ({ id, updates }) => {
+      // Cancel any outgoing refetches
+      await queryClient.cancelQueries({ queryKey: queryKeys.projects() })
+
+      // Snapshot the previous value
+      const previousProjects = queryClient.getQueryData(queryKeys.projects())
+
+      // Optimistically update to the new value
+      queryClient.setQueryData(queryKeys.projects(), (old: Project[] | undefined) => {
+        if (!old) return []
+        return old.map(p => p.id === id ? { ...p, ...updates } : p)
+      })
+
+      // Return a context object with the snapshotted value
+      return { previousProjects }
+    },
+    onError: (err, variables, context) => {
+      // If the mutation fails, use the context returned from onMutate to roll back
+      if (context?.previousProjects) {
+        queryClient.setQueryData(queryKeys.projects(), context.previousProjects)
+      }
+      console.error('Update project error:', err)
+      toast.error('Failed to update project')
+    },
     onSuccess: (updatedProject) => {
-      // Update cache with the updated project
+      // Update cache with the server response
       queryClient.setQueryData(queryKeys.projects(), (old: Project[] | undefined) =>
         old ? old.map(p => p.id === updatedProject?.id ? updatedProject : p) : [updatedProject]
       )
       toast.success('Project updated successfully!')
     },
-    onError: (error) => {
-      console.error('Update project error:', error)
-      toast.error('Failed to update project')
+    onSettled: () => {
+      // Always refetch after error or success to ensure we have the latest data
+      queryClient.invalidateQueries({ queryKey: queryKeys.projects() })
     }
   })
 

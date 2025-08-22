@@ -28,10 +28,10 @@ export function useReportsLogic() {
   })
   const lastRefreshRef = useRef<number>(0)
 
-  // Debug: Log modal state changes
-  useEffect(() => {
-    console.log('reviewerNotesModal state changed:', reviewerNotesModal)
-  }, [reviewerNotesModal])
+  // Remove debug logging
+  // useEffect(() => {
+  //   console.log('reviewerNotesModal state changed:', reviewerNotesModal)
+  // }, [reviewerNotesModal])
 
   const { reports, loading, fetchReports, downloadReport, deleteReport, updateReport, getReportUrl } = useReports()
   
@@ -82,15 +82,8 @@ export function useReportsLogic() {
   // Helper function to check if current user is the assigned reviewer for a report
   const isAssignedReviewer = useCallback((report: EnhancedReport) => {
     const reportWithReviewer = report as typeof report & { assigned_reviewer?: string }
-    const isReviewer = reportWithReviewer.assigned_reviewer === currentUserPersonnel?.id
-    console.log('isAssignedReviewer check:', {
-      currentUserEmail: user?.email,
-      currentUserPersonnel,
-      reportAssignedReviewer: reportWithReviewer.assigned_reviewer,
-      isReviewer
-    })
-    return isReviewer
-  }, [currentUserPersonnel, user?.email])
+    return reportWithReviewer.assigned_reviewer === currentUserPersonnel?.id
+  }, [currentUserPersonnel])
 
   // Helper function to format report display name as "Title (File Name)" or just file name if no title
   const getReportDisplayName = useCallback((report: EnhancedReport): ReportDisplayName => {
@@ -125,15 +118,13 @@ export function useReportsLogic() {
   }, [fetchReports])
 
   const handleUploadComplete = useCallback(() => {
-    fetchReports()
-  }, [fetchReports])
+    // Optimistic update is handled in the hook, no manual refresh needed
+  }, [])
 
   // Handle report status updates with validation
   const handleReportStatusUpdate = async (reportId: string, status: string) => {
-    console.log('handleReportStatusUpdate called:', { reportId, status })
     try {
       const report = reports.find(r => r.id === reportId) as EnhancedReport | undefined
-      console.log('Found report:', report)
       
       // Prevent self-approval
       if (report && report.uploaded_by === user?.id && (status === 'approved' || status === 'revision' || status === 'rejected')) {
@@ -149,7 +140,6 @@ export function useReportsLogic() {
 
       // Open the reviewer notes modal for actions that need notes
       if (status === 'approved' || status === 'revision' || status === 'rejected') {
-        console.log('Opening reviewer notes modal')
         setReviewerNotesModal({
           open: true,
           action: status as 'approved' | 'revision' | 'rejected',
@@ -162,7 +152,7 @@ export function useReportsLogic() {
       // For other status updates (like pending), update directly
       await updateReport(reportId, { status })
       toast.success(`Report ${status} successfully`)
-      fetchReports()
+      // Optimistic update is handled in the hook
     } catch (error) {
       console.error("Status update error:", error)
       toast.error("Failed to update report status")
@@ -177,7 +167,7 @@ export function useReportsLogic() {
         reviewer_notes: notes 
       })
       toast.success(`Report ${action} successfully`)
-      fetchReports()
+      // Optimistic update is handled in the hook
       setReviewerNotesModal({
         open: false,
         action: null,

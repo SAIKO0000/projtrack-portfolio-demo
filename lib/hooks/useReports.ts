@@ -222,13 +222,6 @@ export function useReports() {
         ? new File([file], file.name, { type: normalizedMimeType })
         : file
 
-      console.log('Upload debug:', {
-        originalFileName: file.name,
-        originalMimeType: file.type,
-        normalizedMimeType: normalizedMimeType,
-        extension: file.name.split('.').pop()?.toLowerCase()
-      })
-
       // Upload file to Supabase Storage
       const { error: uploadError } = await supabase.storage
         .from('project-reports')
@@ -258,30 +251,23 @@ export function useReports() {
       let uploaderName = 'Unknown User'
       let uploaderPosition = 'Unknown Position'
       if (currentUser && currentUser.email) {
-        console.log('Looking up user in personnel:', currentUser.email)
-        
         // Try to find user in personnel by email
-        const { data: personnelData, error: personnelError } = await supabase
+        const { data: personnelData } = await supabase
           .from('personnel')
           .select('name, position')
           .eq('email', currentUser.email)
           .single()
         
-        console.log('Personnel lookup result:', { personnelData, personnelError })
-        
         if (personnelData) {
           uploaderName = personnelData.name
           uploaderPosition = personnelData.position || 'Team Member' // Better default
         } else {
-          console.log('User not found in personnel table, using metadata')
           // Use name and position from user metadata or email
           uploaderName = currentUser.user_metadata?.name || 
                         currentUser.email.split('@')[0] || 
                         'Current User'
           uploaderPosition = currentUser.user_metadata?.position || 'Team Member'
         }
-        
-        console.log('Final uploader info:', { uploaderName, uploaderPosition })
       }
       
       // Save report metadata to database
@@ -320,9 +306,20 @@ export function useReports() {
 
       setUploadProgress(100)
 
-      // Instantly invalidate and refetch reports data for instant updates
+      // IMMEDIATE UPDATE: Add to local state immediately for instant UI feedback
+      const newReport: ReportWithUploader = {
+        ...report,
+        uploader_name: uploaderName,
+        uploader_position: uploaderPosition,
+      }
+      setReports(prev => [newReport, ...prev])
+
+      // Invalidate React Query caches for other components  
       queryClient.invalidateQueries({ queryKey: ['reports'] })
-      await fetchReports()
+      queryClient.invalidateQueries({ queryKey: ['reports', projectId] })
+      queryClient.invalidateQueries({ queryKey: ['projects'] })
+      queryClient.invalidateQueries({ queryKey: ['dashboard'] })
+      
       toast.success('Report uploaded successfully!')
       return report
     } catch (error) {
@@ -375,6 +372,15 @@ export function useReports() {
 
       if (fetchError) throw fetchError
 
+      // IMMEDIATE OPTIMISTIC UPDATE: Remove from local state FIRST for instant UI feedback
+      setReports(prev => prev.filter(r => r.id !== reportId))
+
+      // Invalidate React Query caches immediately to force re-renders
+      queryClient.invalidateQueries({ queryKey: ['reports'] })
+      queryClient.invalidateQueries({ queryKey: ['reports', report.project_id] })
+      queryClient.invalidateQueries({ queryKey: ['projects'] })
+      queryClient.invalidateQueries({ queryKey: ['dashboard'] })
+
       // Delete from storage
       const { error: storageError } = await supabase.storage
         .from('project-reports')
@@ -390,11 +396,12 @@ export function useReports() {
         .delete()
         .eq('id', reportId)
 
-      if (dbError) throw dbError
-
-      // Instantly invalidate and refetch reports data for instant updates
-      queryClient.invalidateQueries({ queryKey: ['reports'] })
-      await fetchReports()
+      if (dbError) {
+        // Rollback optimistic update on error
+        await fetchReports()
+        throw dbError
+      }
+      
       toast.success('Report deleted successfully!')
     } catch (error) {
       console.error('Error deleting report:', error)
@@ -411,6 +418,16 @@ export function useReports() {
     try {
       setLoading(true)
       
+      // IMMEDIATE OPTIMISTIC UPDATE: Update local state FIRST for instant UI feedback
+      setReports(prev => prev.map(r => 
+        r.id === reportId ? { ...r, ...updates } : r
+      ))
+
+      // Invalidate React Query caches immediately to force re-renders
+      queryClient.invalidateQueries({ queryKey: ['reports'] })
+      queryClient.invalidateQueries({ queryKey: ['projects'] })
+      queryClient.invalidateQueries({ queryKey: ['dashboard'] })
+      
       const { data, error } = await supabase
         .from('reports')
         .update(updates)
@@ -418,12 +435,13 @@ export function useReports() {
         .select()
         .single()
 
-      if (error) throw error
+      if (error) {
+        // Rollback optimistic update on error
+        await fetchReports()
+        throw error
+      }
 
-      // Instantly invalidate and refetch reports data for instant updates
-      queryClient.invalidateQueries({ queryKey: ['reports'] })
-      
-      // Update local state
+      // Update local state with actual data from database
       setReports(prev => prev.map(r => 
         r.id === reportId ? { ...r, ...data } : r
       ))
@@ -433,6 +451,7 @@ export function useReports() {
       
     } catch (error) {
       console.error('Error updating report:', error)
+      toast.error('Failed to update report')
       throw error
     } finally {
       setLoading(false)
@@ -519,30 +538,23 @@ export function useReports() {
       let uploaderName = 'Unknown User'
       let uploaderPosition = 'Unknown Position'
       if (currentUser && currentUser.email) {
-        console.log('Looking up user in personnel (replace):', currentUser.email)
-        
         // Try to find user in personnel by email
-        const { data: personnelData, error: personnelError } = await supabase
+        const { data: personnelData } = await supabase
           .from('personnel')
           .select('name, position')
           .eq('email', currentUser.email)
           .single()
         
-        console.log('Personnel lookup result (replace):', { personnelData, personnelError })
-        
         if (personnelData) {
           uploaderName = personnelData.name
           uploaderPosition = personnelData.position || 'Team Member' // Better default
         } else {
-          console.log('User not found in personnel table, using metadata (replace)')
           // Use name and position from user metadata or email
           uploaderName = currentUser.user_metadata?.name || 
                         currentUser.email.split('@')[0] || 
                         'Current User'
           uploaderPosition = currentUser.user_metadata?.position || 'Team Member'
         }
-        
-        console.log('Final uploader info (replace):', { uploaderName, uploaderPosition })
       }
 
       // Update report metadata in database

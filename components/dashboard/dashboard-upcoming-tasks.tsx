@@ -9,6 +9,8 @@ interface DashboardUpcomingTasksProps {
   upcomingTasks: Array<Task & { 
     project_name?: string
     project_client?: string
+    assignee_name?: string
+    assignee_position?: string
     isOverdue?: boolean
     isToday?: boolean
     isTomorrow?: boolean
@@ -60,10 +62,18 @@ export function DashboardUpcomingTasks({
                   )}
                   
                   <div className="space-y-2">
-                    <p className="text-sm text-gray-700 mb-2 font-medium">
-                      <span className="text-gray-500">Project:</span> {task.project_name}
-                      {task.project_client && <span className="text-gray-500"> • Client: {task.project_client}</span>}
-                    </p>
+                    <div className="flex flex-col sm:flex-row sm:items-center gap-2">
+                      <p className="text-sm text-gray-700 font-medium">
+                        <span className="text-gray-500">Project:</span> {task.project_name}
+                        {task.project_client && <span className="text-gray-500"> • Client: {task.project_client}</span>}
+                      </p>
+                      {task.assignee_name && (
+                        <p className="text-sm text-blue-700 font-medium">
+                          <span className="text-gray-500">Assigned to:</span> {task.assignee_name}
+                          {task.assignee_position && <span className="text-gray-500"> ({task.assignee_position})</span>}
+                        </p>
+                      )}
+                    </div>
                     
                     {task.priority && (
                       <div className="flex items-center space-x-4 text-sm">

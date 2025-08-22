@@ -15,7 +15,7 @@ export function SidebarDesktopHeader({ collapsed, onToggleCollapsedAction }: Sid
       {!collapsed ? (
         <div className="flex items-center justify-between">
           <div className="flex items-center space-x-4">
-            <div className="w-16 h-12 flex items-center justify-center rounded-xl shadow-sm">
+            <div className="w-16 h-9 flex items-center justify-center rounded-xl shadow-sm">
               <Image 
                 src="/logo.svg" 
                 alt="GYG Power Systems" 
@@ -26,7 +26,7 @@ export function SidebarDesktopHeader({ collapsed, onToggleCollapsedAction }: Sid
               />
             </div>
             <div>
-              <h1 className="text-xl font-bold text-gray-900 tracking-tight">GYG POWER SYS. </h1>
+              <h1 className="text-lg font-bold text-gray-900 tracking-tight">GYG POWER SYSTEMS </h1>
               
             </div>
           </div>

@@ -32,6 +32,18 @@ export interface ProjectModalState {
     reportId: string
     reportName: string
   }
+  reviewerNotesViewerModal: {
+    open: boolean
+    reportName: string
+    reviewerNotes: string
+    reportDetails?: {
+      uploader?: string
+      uploadDate?: string
+      category?: string
+      status?: string
+      description?: string
+    }
+  }
   simpleNotesModal: {
     open: boolean
     reportId: string
@@ -45,6 +57,11 @@ export interface ProjectModalState {
   deleteProjectDialog: {
     open: boolean
     project: Project | null
+    isDeleting: boolean
+  }
+  deleteReportDialog: {
+    open: boolean
+    report: ReportWithUploader | null
     isDeleting: boolean
   }
 }

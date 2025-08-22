@@ -43,8 +43,8 @@ import {
 import { format } from "date-fns"
 import { cn } from "@/lib/utils"
 import { useProjects } from "@/lib/hooks/useProjects"
-import { toast } from "react-hot-toast"
 import type { Project } from "@/lib/supabase"
+import { useModalMobileHide } from "@/lib/modal-mobile-utils"
 
 const editProjectSchema = z.object({
   name: z.string().min(1, "Project name is required").max(255, "Name too long"),
@@ -76,6 +76,9 @@ interface EditProjectModalProps {
 }
 
 export function EditProjectModal({ project, open, onOpenChangeAction, onProjectUpdatedAction }: EditProjectModalProps) {
+  // Hide mobile header when modal is open
+  useModalMobileHide(open)
+  
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [locationSuggestions, setLocationSuggestions] = useState<LocationSuggestion[]>([])
   const [isLoadingLocations, setIsLoadingLocations] = useState(false)
@@ -195,12 +198,12 @@ export function EditProjectModal({ project, open, onOpenChangeAction, onProjectU
 
       await updateProject(project.id, projectData)
       
-      toast.success("Project updated successfully!")
+      // Toast is handled in the hook
       onOpenChangeAction(false)
       onProjectUpdatedAction()
     } catch (error) {
       console.error("Error updating project:", error)
-      toast.error("Failed to update project. Please try again.")
+      // Don't call toast.error here - updateProject already shows error toast
     } finally {
       setIsSubmitting(false)
     }

@@ -10,13 +10,15 @@ interface NotificationItemCardProps {
   selectionState: SelectionState
   onNotificationClickAction: (notification: NotificationItem) => void
   onToggleSelectionAction: (notificationId: string) => void
+  onDeleteNotificationAction?: (notificationId: string) => void
 }
 
 export function NotificationItemCard({ 
   notification, 
   selectionState, 
   onNotificationClickAction, 
-  onToggleSelectionAction 
+  onToggleSelectionAction,
+  onDeleteNotificationAction
 }: NotificationItemCardProps) {
   const { isSelectionMode, selectedNotifications } = selectionState
 
@@ -42,6 +44,8 @@ export function NotificationItemCard({
           </button>
         </div>
       )}
+
+      {/* Remove X button - only use selection mode for deletion */}
       
       <div className={`flex h-full ${isSelectionMode ? 'pl-6 sm:pl-8' : ''}`}>
         {/* Icon column - Hide on mobile to save space */}
@@ -93,7 +97,7 @@ export function NotificationItemCard({
               {notification.metadata?.user_name && (
                 <span className="flex items-center text-gray-600 bg-orange-50 px-2 py-1 sm:px-2 sm:py-1 rounded-lg border border-orange-200 text-xs sm:text-sm max-w-full sm:max-w-none">
                   <Users className="h-3 w-3 sm:h-4 sm:w-4 mr-1 sm:mr-1.5 text-orange-500 flex-shrink-0" />
-                  <span className="truncate">{notification.metadata.user_name ? String(notification.metadata.user_name) : 'Unknown User'}</span>
+                  <span className="truncate">{String(notification.metadata.user_name)}</span>
                 </span>
               )}
             </div>

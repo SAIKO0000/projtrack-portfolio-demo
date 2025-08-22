@@ -174,7 +174,7 @@ export const useAutoNotifications = () => {
                 const urgencyIcon = task.daysRemaining === 0 ? '🚨' : 
                                   task.daysRemaining <= 1 ? '⚠️' : '⏰';
                 toast.error(`${urgencyIcon} ${task.project_name}: ${task.title} - ${task.daysRemaining === 0 ? 'Due today!' : task.daysRemaining === 1 ? 'Due tomorrow!' : task.daysRemaining + ' days left'}`, {
-                  duration: 6000,
+                  duration: 1000,
                 });
               }, index * 2000); // Stagger notifications by 2 seconds
             });
@@ -184,7 +184,7 @@ export const useAutoNotifications = () => {
             // No deadlines - show friendly welcome
             console.log('✅ No upcoming deadlines found - showing welcome message');
             toast.success(`👋 Welcome back! All tasks are on track.`, {
-              duration: 4000,
+              duration: 1000,
             });
           }
         } catch (error) {

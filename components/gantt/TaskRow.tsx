@@ -721,7 +721,28 @@ export function TaskRow({
                       </Badge>
                     ))}
                     {assigneeDisplay.total > 2 && (
-                      <span className="text-gray-400">+{assigneeDisplay.total - 2} more</span>
+                      <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                          <Button 
+                            variant="ghost" 
+                            size="sm" 
+                            className="h-5 px-1 text-xs text-blue-600 hover:text-blue-800"
+                          >
+                            +{assigneeDisplay.total - 2} more
+                          </Button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent>
+                          {task.assignee.split(', ').slice(2).map((assignee, index) => {
+                            const role = assignee.trim()
+                            const count = task.assignee_headcounts?.[role] || 1
+                            return (
+                              <DropdownMenuItem key={index} className="text-xs">
+                                {role} ({count})
+                              </DropdownMenuItem>
+                            )
+                          })}
+                        </DropdownMenuContent>
+                      </DropdownMenu>
                     )}
                   </div>
                 </div>

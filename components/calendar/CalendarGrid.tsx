@@ -34,12 +34,12 @@ export const CalendarGrid: React.FC<CalendarGridProps> = ({
                 variant="outline"
                 size="sm"
                 onClick={() => onNavigateMonth("prev")}
-                className="h-8 sm:h-10 w-8 sm:w-10 p-0"
+                className="h-8 w-8 sm:h-10 sm:w-10 p-0 rounded-md sm:rounded-lg"
               >
-                <ChevronLeft className="h-4 w-4" />
+                <ChevronLeft className="h-3 w-3 sm:h-4 sm:w-4" />
               </Button>
               <Select value={selectedDate.getMonth().toString()} onValueChange={onMonthChange}>
-                <SelectTrigger className="w-[110px] sm:w-[130px] h-8 sm:h-10">
+                <SelectTrigger className="w-[100px] sm:w-[130px] h-8 sm:h-10 text-xs sm:text-sm rounded-md sm:rounded-lg">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
@@ -51,7 +51,7 @@ export const CalendarGrid: React.FC<CalendarGridProps> = ({
                 </SelectContent>
               </Select>
               <Select value={selectedDate.getFullYear().toString()} onValueChange={onYearChange}>
-                <SelectTrigger className="w-[80px] sm:w-[100px] h-8 sm:h-10">
+                <SelectTrigger className="w-[70px] sm:w-[100px] h-8 sm:h-10 text-xs sm:text-sm rounded-md sm:rounded-lg">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
@@ -66,16 +66,16 @@ export const CalendarGrid: React.FC<CalendarGridProps> = ({
                 variant="outline"
                 size="sm"
                 onClick={() => onNavigateMonth("next")}
-                className="h-8 sm:h-10 w-8 sm:w-10 p-0"
+                className="h-8 w-8 sm:h-10 sm:w-10 p-0 rounded-md sm:rounded-lg"
               >
-                <ChevronRight className="h-4 w-4" />
+                <ChevronRight className="h-3 w-3 sm:h-4 sm:w-4" />
               </Button>
             </div>
             <Button
               variant="outline"
               size="default"
               onClick={onGoToToday}
-              className="text-orange-600 border-orange-200 hover:bg-orange-50 h-8 sm:h-12 px-3 sm:px-6 text-xs sm:text-sm"
+              className="text-orange-600 border-orange-200 hover:bg-orange-50 h-8 w-16 sm:h-10 sm:w-20 md:h-12 md:w-auto px-2 sm:px-4 md:px-6 text-xs sm:text-sm rounded-md sm:rounded-lg"
             >
               Today
             </Button>
@@ -84,7 +84,7 @@ export const CalendarGrid: React.FC<CalendarGridProps> = ({
       </CardHeader>
       <CardContent>
         {/* Mobile-responsive day headers */}
-        <div className="grid grid-cols-7 gap-0.5 sm:gap-1 mb-2 sm:mb-4">
+        <div className="grid grid-cols-7 gap-1 sm:gap-1 mb-2 sm:mb-4">
           {["S", "M", "T", "W", "T", "F", "S"].map((day, index) => (
             <div key={`day-header-${index}`} className="p-1 sm:p-2 text-center text-sm sm:text-sm font-medium text-gray-500 min-h-[32px] sm:min-h-[40px] flex items-center justify-center">
               <span className="sm:hidden text-xs font-semibold">{day}</span>
@@ -107,8 +107,8 @@ export const CalendarGrid: React.FC<CalendarGridProps> = ({
                 <div
                   key={day ? day.toISOString() : `empty-${index}`}
                   className={`
-                    min-h-[60px] sm:min-h-[120px] aspect-square sm:aspect-auto w-full p-1 sm:p-2 border border-gray-200 rounded-md sm:rounded-lg cursor-pointer transition-all duration-200
-                    hover:shadow-lg hover:-translate-y-1 hover:border-gray-300 touch-manipulation
+                    aspect-square min-h-[70px] h-[70px] max-h-[70px] sm:min-h-[90px] sm:h-[90px] sm:max-h-[90px] md:min-h-[120px] md:h-auto md:max-h-none w-full p-1 sm:p-1.5 md:p-2 border border-gray-200 rounded-md sm:rounded-lg cursor-pointer transition-all duration-200
+                    hover:shadow-lg hover:-translate-y-1 hover:border-gray-300 touch-manipulation flex flex-col
                     ${isToday ? 'bg-orange-50 ring-1 sm:ring-2 ring-orange-200 shadow-md' : 'bg-white hover:bg-gray-50'}
                     ${!isCurrentMonth ? 'bg-gray-50 text-gray-400 hover:bg-gray-100' : ''}
                   `}
@@ -116,29 +116,29 @@ export const CalendarGrid: React.FC<CalendarGridProps> = ({
                 >
                   {day && (
                     <>
-                      <div className="flex justify-between items-start mb-1">
-                        <div className={`text-sm sm:text-sm md:text-base font-semibold sm:font-medium ${isToday ? 'text-orange-600' : ''}`}>
+                      <div className="flex justify-between items-start mb-0.5 sm:mb-1 flex-shrink-0">
+                        <div className={`text-xs sm:text-sm md:text-base font-bold sm:font-medium ${isToday ? 'text-orange-600' : ''}`}>
                           {day.getDate()}
                         </div>
                         <PhotoCountBadge date={day} photoCounts={photoCounts} />
                       </div>
                       
                       {/* Mobile-optimized event display */}
-                      <div className="space-y-0.5 sm:space-y-1 h-full flex flex-col justify-start">
+                      <div className="space-y-0.5 sm:space-y-1 flex-1 flex flex-col justify-start overflow-hidden">
                         {/* On mobile: Show dots for events, on desktop: Show event titles */}
                         <div className="sm:hidden">
                           {dayEvents.length > 0 && (
                             <div className="flex flex-wrap gap-0.5 justify-start">
-                              {dayEvents.slice(0, 3).map((event) => (
+                              {dayEvents.slice(0, 4).map((event) => (
                                 <div
                                   key={`dot-${event.id}`}
                                   className={`w-1.5 h-1.5 rounded-full ${getEventTypeDotColor(event.type)}`}
                                   title={event.title}
                                 />
                               ))}
-                              {dayEvents.length > 3 && (
-                                <div className="text-[9px] text-gray-500 ml-1 leading-none">
-                                  +{dayEvents.length - 3}
+                              {dayEvents.length > 4 && (
+                                <div className="text-[8px] text-gray-500 ml-0.5 leading-none">
+                                  +{dayEvents.length - 4}
                                 </div>
                               )}
                             </div>

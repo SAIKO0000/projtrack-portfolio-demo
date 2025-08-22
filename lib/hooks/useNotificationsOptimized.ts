@@ -12,7 +12,15 @@ export function useNotificationsQuery() {
     queryFn: async () => {
       try {
         // Fetch all notification data in parallel using Promise.all
-        const [photosResult, reportsResult, tasksResult, eventsResult] = await Promise.all([
+        const [
+          photosResult, 
+          reportsResult, 
+          tasksResult, 
+          eventsResult, 
+          projectsResult,
+          personnelResult,
+          recentUpdatesResult
+        ] = await Promise.all([
           // Recent photos - handle case where project relation might not exist
           supabase
             .from('photos')
@@ -177,6 +185,67 @@ export function useNotificationsQuery() {
                 return eventsResult
               }
               return result
+            }),
+
+          // Recent project updates 
+          supabase
+            .from('projects')
+            .select('id, name, status, created_at, updated_at')
+            .order('updated_at', { ascending: false })
+            .limit(15),
+
+          // Personnel activities
+          supabase
+            .from('personnel')
+            .select('id, name, position, created_at, updated_at')
+            .order('updated_at', { ascending: false })
+            .limit(10),
+
+          // Enhanced activity tracking - report status changes
+          supabase
+            .from('reports')
+            .select(`
+              id, file_name, status, uploaded_at, updated_at, 
+              reviewer_notes, project_id, uploaded_by,
+              project:projects(id, name),
+              uploader:personnel!reports_uploaded_by_fkey(name)
+            `)
+            .not('status', 'eq', 'pending')
+            .order('updated_at', { ascending: false })
+            .limit(15)
+            .then(async (result) => {
+              if (result.error && result.error.code === 'PGRST116') {
+                const reportsResult = await supabase
+                  .from('reports')
+                  .select('id, file_name, status, uploaded_at, updated_at, reviewer_notes, project_id, uploaded_by')
+                  .not('status', 'eq', 'pending')
+                  .order('updated_at', { ascending: false })
+                  .limit(15)
+                
+                // Fetch related data separately
+                if (reportsResult.data && reportsResult.data.length > 0) {
+                  const [projectIds, uploaderIds] = [
+                    [...new Set(reportsResult.data.map(r => r.project_id).filter(Boolean))],
+                    [...new Set(reportsResult.data.map(r => r.uploaded_by).filter(Boolean))]
+                  ]
+                  
+                  const [projectsResult, uploadersResult] = await Promise.all([
+                    projectIds.length > 0 ? supabase.from('projects').select('id, name').in('id', projectIds) : { data: [] },
+                    uploaderIds.length > 0 ? supabase.from('personnel').select('id, name').in('id', uploaderIds) : { data: [] }
+                  ])
+                  
+                  const projectsMap = Object.fromEntries((projectsResult.data || []).map(p => [p.id, p]))
+                  const uploadersMap = Object.fromEntries((uploadersResult.data || []).map(u => [u.id, u]))
+                  
+                  reportsResult.data = reportsResult.data.map(report => ({
+                    ...report,
+                    project: report.project_id ? projectsMap[report.project_id] : null,
+                    uploader: report.uploaded_by ? uploadersMap[report.uploaded_by] : null
+                  }))
+                }
+                return reportsResult
+              }
+              return result
             })
         ])
 
@@ -193,12 +262,24 @@ export function useNotificationsQuery() {
         if (eventsResult.error) {
           console.warn('Events query error:', eventsResult.error)
         }
+        if (projectsResult.error) {
+          console.warn('Projects query error:', projectsResult.error)
+        }
+        if (personnelResult.error) {
+          console.warn('Personnel query error:', personnelResult.error)
+        }
+        if (recentUpdatesResult.error) {
+          console.warn('Recent updates query error:', recentUpdatesResult.error)
+        }
 
         return {
           photos: photosResult.data || [],
           reports: reportsResult.data || [],
           tasks: tasksResult.data || [],
-          events: eventsResult.data || []
+          events: eventsResult.data || [],
+          projects: projectsResult.data || [],
+          personnel: personnelResult.data || [],
+          recentUpdates: recentUpdatesResult.data || []
         }
       } catch (error) {
         console.error('Error fetching notifications data:', error)
@@ -207,7 +288,10 @@ export function useNotificationsQuery() {
           photos: [],
           reports: [],
           tasks: [],
-          events: []
+          events: [],
+          projects: [],
+          personnel: [],
+          recentUpdates: []
         }
       }
     },
@@ -273,6 +357,32 @@ export function useNotificationsQuery() {
           queryClient.invalidateQueries({ queryKey: queryKeys.events() })
         }
       )
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'projects'
+        },
+        (payload) => {
+          console.log('Project activity:', payload)
+          queryClient.invalidateQueries({ queryKey: queryKeys.notifications() })
+          queryClient.invalidateQueries({ queryKey: queryKeys.projects() })
+        }
+      )
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'reports'
+        },
+        (payload) => {
+          console.log('Report status change:', payload)
+          queryClient.invalidateQueries({ queryKey: queryKeys.notifications() })
+          queryClient.invalidateQueries({ queryKey: queryKeys.reports() })
+        }
+      )
       .subscribe()
 
     return () => {
@@ -284,10 +394,10 @@ export function useNotificationsQuery() {
   const processedNotifications = useMemo(() => {
     if (!query.data) return []
 
-    const { photos, reports, tasks, events } = query.data
+    const { photos, reports, tasks, events, projects, personnel, recentUpdates } = query.data
     const notifications: Array<{
       id: string
-      type: 'photo' | 'report' | 'task' | 'event'
+      type: 'photo' | 'report' | 'task' | 'event' | 'project' | 'personnel' | 'report_update'
       title: string
       project: string
       projectId: string
@@ -384,6 +494,97 @@ export function useNotificationsQuery() {
         timestamp: event.created_at || new Date().toISOString(),
         description: `${event.type || 'Event'} scheduled for ${new Date(event.date).toLocaleDateString()}`,
         status: event.type || undefined
+      })
+    })
+
+    // Process project updates
+    projects.forEach(project => {
+      const isNewProject = new Date(project.created_at).getTime() > (Date.now() - 7 * 24 * 60 * 60 * 1000) // Last 7 days
+      const isUpdatedProject = new Date(project.updated_at).getTime() > new Date(project.created_at).getTime()
+      
+      if (isNewProject) {
+        notifications.push({
+          id: `project_new_${project.id}`,
+          type: 'project',
+          title: `New Project: ${project.name}`,
+          project: project.name,
+          projectId: project.id,
+          timestamp: project.created_at || new Date().toISOString(),
+          description: `Project created with status: ${project.status}`,
+          status: project.status
+        })
+      } else if (isUpdatedProject) {
+        notifications.push({
+          id: `project_update_${project.id}`,
+          type: 'project',
+          title: `Project Updated: ${project.name}`,
+          project: project.name,
+          projectId: project.id,
+          timestamp: project.updated_at || new Date().toISOString(),
+          description: `Project status updated to: ${project.status}`,
+          status: project.status
+        })
+      }
+    })
+
+    // Process personnel updates
+    personnel.forEach(person => {
+      const isNewPersonnel = new Date(person.created_at).getTime() > (Date.now() - 7 * 24 * 60 * 60 * 1000) // Last 7 days
+      
+      if (isNewPersonnel) {
+        notifications.push({
+          id: `personnel_new_${person.id}`,
+          type: 'personnel',
+          title: `New Team Member: ${person.name}`,
+          project: 'Team Management',
+          projectId: 'personnel',
+          timestamp: person.created_at || new Date().toISOString(),
+          description: `${person.name} joined as ${person.position}`,
+          status: 'active'
+        })
+      }
+    })
+
+    // Process recent report updates (status changes, approvals, etc.)
+    recentUpdates.forEach(report => {
+      const reportWithRels = report as typeof report & { 
+        project?: { id: string; name: string }
+        uploader?: { name: string }
+      }
+      const projectName = reportWithRels.project?.name || 'Unknown Project'
+      const projectId = reportWithRels.project?.id || report.project_id || 'unknown'
+      const uploaderName = reportWithRels.uploader?.name || 'Unknown User'
+      
+      let activityTitle = ''
+      let activityDescription = ''
+      
+      switch (report.status) {
+        case 'approved':
+          activityTitle = `Report Approved: ${report.file_name}`
+          activityDescription = `${uploaderName}'s report has been approved for ${projectName}`
+          break
+        case 'rejected':
+          activityTitle = `Report Rejected: ${report.file_name}`
+          activityDescription = `${uploaderName}'s report has been rejected for ${projectName}`
+          break
+        case 'revision':
+          activityTitle = `Report Needs Revision: ${report.file_name}`
+          activityDescription = `${uploaderName}'s report requires revision for ${projectName}`
+          break
+        default:
+          activityTitle = `Report Status Updated: ${report.file_name}`
+          activityDescription = `Status changed to ${report.status} for ${projectName}`
+      }
+      
+      notifications.push({
+        id: `report_update_${report.id}`,
+        type: 'report_update',
+        title: activityTitle,
+        project: projectName,
+        projectId: projectId,
+        timestamp: report.updated_at || new Date().toISOString(),
+        description: activityDescription,
+        status: report.status
       })
     })
 

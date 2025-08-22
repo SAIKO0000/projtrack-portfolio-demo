@@ -19,8 +19,6 @@ export const useProjectPermissions = () => {
     [personnel, user?.email]
   )
 
-  console.log('User admin check:', { userPosition, isAdmin, email: user?.email })
-
   return {
     user,
     userPosition,
@@ -31,7 +29,7 @@ export const useProjectPermissions = () => {
 
 export const useProjectReports = (projects: Project[]) => {
   const { reports } = useReports()
-  const { currentUserPersonnel, user } = useProjectPermissions()
+  const { currentUserPersonnel } = useProjectPermissions()
 
   // Memoize expensive computations to reduce re-renders
   const projectReportsMap = useMemo(() => {
@@ -52,17 +50,8 @@ export const useProjectReports = (projects: Project[]) => {
     if (!currentUserPersonnel) return false
     
     const reportWithReviewer = report as typeof report & { assigned_reviewer?: string }
-    const isReviewer = reportWithReviewer.assigned_reviewer === currentUserPersonnel.id
-    
-    console.log('Assigned reviewer check:', { 
-      reportId: report.id,
-      currentUserEmail: user?.email,
-      currentUserPersonnelId: currentUserPersonnel?.id,
-      assignedReviewer: reportWithReviewer.assigned_reviewer,
-      isAssigned: isReviewer
-    })
-    return isReviewer
-  }, [currentUserPersonnel, user?.email])
+    return reportWithReviewer.assigned_reviewer === currentUserPersonnel.id
+  }, [currentUserPersonnel])
 
   // Memoize assigned reports to prevent recalculation
   const assignedReportsForCurrentUser = useMemo(() => {

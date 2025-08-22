@@ -6,9 +6,10 @@ import { Button } from "./ui/button"
 import { Textarea } from "./ui/textarea"
 import { Label } from "./ui/label"
 import { Badge } from "./ui/badge"
-import { FileText, Download, Save } from "lucide-react"
+import { FileText, Download, Save, Maximize2, Minimize2, X } from "lucide-react"
 import { toast } from "react-hot-toast"
 import { supabase } from "@/lib/supabase"
+import { useModalMobileHide } from "@/lib/modal-mobile-utils"
 
 interface Report {
   id: string
@@ -46,11 +47,15 @@ export function DocumentViewerWithNotesModal({
   onStatusChangeAction,
   userRole
 }: DocumentViewerWithNotesModalProps) {
+  // Hide mobile header when modal is open
+  useModalMobileHide(open)
+  
   const [notes, setNotes] = useState('')
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [previewUrl, setPreviewUrl] = useState<string | null>(null)
   const [loadingPreview, setLoadingPreview] = useState(false)
   const [documentOrientation, setDocumentOrientation] = useState<'portrait' | 'landscape' | 'unknown'>('unknown')
+  const [isFullscreen, setIsFullscreen] = useState(false)
 
   const detectDocumentOrientation = useCallback((url: string) => {
     const fileExtension = report?.file_name.toLowerCase().split('.').pop()
@@ -123,9 +128,9 @@ export function DocumentViewerWithNotesModal({
     setIsSubmitting(true)
     try {
       await onNotesSubmitAction(report.id, notes)
-      toast.success('Notes saved successfully')
+      // Don't call toast.success here - onNotesSubmitAction already shows toast
     } catch {
-      toast.error('Failed to save notes')
+      // Don't call toast.error here - onNotesSubmitAction already shows toast
     } finally {
       setIsSubmitting(false)
     }
@@ -143,10 +148,10 @@ export function DocumentViewerWithNotesModal({
     setIsSubmitting(true)
     try {
       await onStatusChangeAction(report.id, action, notes)
-      toast.success(`Report ${action} successfully`)
+      // Don't call toast.success here - onStatusChangeAction already shows toast
       onOpenChangeAction(false)
     } catch {
-      toast.error(`Failed to ${action} report`)
+      // Don't call toast.error here - onStatusChangeAction already shows toast
     } finally {
       setIsSubmitting(false)
     }
@@ -276,7 +281,122 @@ export function DocumentViewerWithNotesModal({
   if (!report) return null
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChangeAction}>
+    <>
+      {/* Fullscreen Viewer */}
+      {isFullscreen && (
+        <div className="fixed inset-0 z-[9999] bg-black bg-opacity-95 backdrop-blur-sm">
+          {/* Floating Controls */}
+          <div className="absolute top-4 right-4 z-10 flex gap-2">
+            <Button
+              variant="secondary"
+              size="sm"
+              onClick={handleDownload}
+              className="bg-white bg-opacity-90 hover:bg-opacity-100 text-gray-900"
+            >
+              <Download className="h-4 w-4 mr-2" />
+              Download
+            </Button>
+            <Button
+              variant="secondary"
+              size="sm"
+              onClick={() => setIsFullscreen(false)}
+              className="bg-white bg-opacity-90 hover:bg-opacity-100 text-gray-900"
+            >
+              <Minimize2 className="h-4 w-4 mr-2" />
+              Exit Fullscreen
+            </Button>
+          </div>
+
+          {/* Floating Notes Panel - Using separate state to prevent re-renders */}
+          <div className="absolute bottom-4 right-4 w-80 bg-white rounded-lg shadow-xl p-4 z-10">
+            <div className="flex items-center justify-between mb-3">
+              <h4 className="font-medium text-gray-900">Reviewer Notes</h4>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => setIsFullscreen(false)}
+                className="h-6 w-6 p-0"
+              >
+                <X className="h-4 w-4" />
+              </Button>
+            </div>
+            
+            <Textarea
+              placeholder={userRole === 'viewer' ? "View only" : "Add notes..."}
+              value={notes}
+              onChange={(e) => setNotes(e.target.value)}
+              className="min-h-20 resize-none text-sm mb-3"
+              disabled={userRole === 'viewer'}
+              readOnly={userRole === 'viewer'}
+            />
+            
+            {userRole === 'reviewer' && (
+              <div className="space-y-2">
+                <Button
+                  onClick={handleSaveNotes}
+                  disabled={isSubmitting}
+                  className="w-full"
+                  size="sm"
+                >
+                  <Save className="h-4 w-4 mr-2" />
+                  Save Notes
+                </Button>
+                
+                <div className="grid grid-cols-3 gap-1">
+                  <Button
+                    onClick={() => handleStatusAction('approved')}
+                    disabled={isSubmitting}
+                    className="bg-green-600 hover:bg-green-700 text-white text-xs"
+                    size="sm"
+                  >
+                    Approve
+                  </Button>
+                  <Button
+                    onClick={() => handleStatusAction('revision')}
+                    disabled={isSubmitting}
+                    className="bg-yellow-600 hover:bg-yellow-700 text-white text-xs"
+                    size="sm"
+                  >
+                    Revision
+                  </Button>
+                  <Button
+                    onClick={() => handleStatusAction('rejected')}
+                    disabled={isSubmitting}
+                    className="bg-red-600 hover:bg-red-700 text-white text-xs"
+                    size="sm"
+                  >
+                    Reject
+                  </Button>
+                </div>
+              </div>
+            )}
+          </div>
+
+          {/* Document Preview - Full Screen */}
+          <div className="w-full h-full p-4 pt-16 pb-4 pr-4 pl-4">
+            <div className="w-full h-full">
+              {previewUrl ? (
+                <iframe
+                  src={previewUrl}
+                  className="w-full h-full border border-gray-600 rounded-lg bg-white"
+                  title={`Fullscreen Preview of ${report.file_name}`}
+                />
+              ) : (
+                <div className="w-full h-full border border-gray-600 rounded-lg bg-gray-100 flex flex-col items-center justify-center">
+                  <FileText className="h-16 w-16 text-gray-400 mb-4" />
+                  <p className="text-gray-600 mb-4 text-center">Preview not available</p>
+                  <Button onClick={handleDownload} variant="outline">
+                    <Download className="h-4 w-4 mr-2" />
+                    Download to View
+                  </Button>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+      
+      <Dialog open={open} onOpenChange={onOpenChangeAction}>
       <DialogContent className="max-w-[95vw] sm:max-w-4xl lg:max-w-6xl xl:max-w-7xl h-[95vh] sm:h-[90vh] flex flex-col p-0 relative fixed top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2">
         <DialogHeader className="p-4 sm:p-6 border-b pr-12">
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
@@ -311,6 +431,15 @@ export function DocumentViewerWithNotesModal({
             >
               <Download className="h-4 w-4" />
               <span>Download</span>
+            </Button>
+            <Button
+              variant="outline"
+              onClick={() => setIsFullscreen(true)}
+              className="hidden lg:flex items-center gap-2 flex-shrink-0"
+              size="sm"
+            >
+              <Maximize2 className="h-4 w-4" />
+              <span>Fullscreen</span>
             </Button>
           </div>
         </DialogHeader>
@@ -431,21 +560,21 @@ export function DocumentViewerWithNotesModal({
             </div>
           </div>
 
-          {/* Desktop: Side-by-side Layout */}
-          <div className="hidden lg:grid lg:grid-cols-2 gap-6 h-full min-h-0">
-            {/* Document Preview */}
-            <div className="flex flex-col min-h-0">
-              <h3 className="text-lg font-medium mb-3">Document Preview</h3>
-              <div className="flex-1 min-h-0">
+          {/* Desktop: Responsive Layout with Proper Spacing */}
+          <div className="hidden lg:flex lg:flex-col gap-3 h-full min-h-0 overflow-hidden">
+            {/* Document Preview - Takes more priority space */}
+            <div className="flex flex-col min-h-0 flex-1 overflow-hidden">
+              <h3 className="text-lg font-medium mb-2 flex-shrink-0">Document Preview</h3>
+              <div className="flex-1 min-h-0 overflow-hidden">
                 {renderFilePreview()}
               </div>
             </div>
 
-            {/* Notes Section */}
-            <div className="flex flex-col min-h-0">
-              <h3 className="text-lg font-medium mb-3">Reviewer Notes</h3>
-              <div className="flex-1 flex flex-col min-h-0">
-                <Label htmlFor="notes-desktop" className="mb-2">
+            {/* Notes Section - Reduced height for better document view */}
+            <div className="flex flex-col min-h-0 h-56 flex-shrink-0 border-t pt-3">
+              <h3 className="text-lg font-medium mb-2 flex-shrink-0">Reviewer Notes</h3>
+              <div className="flex-1 flex flex-col min-h-0 overflow-hidden">
+                <Label htmlFor="notes-desktop" className="mb-2 flex-shrink-0 text-sm">
                   Notes and Comments
                 </Label>
                 <Textarea
@@ -453,19 +582,19 @@ export function DocumentViewerWithNotesModal({
                   placeholder={userRole === 'viewer' ? "View only - You are not assigned to review this report" : "Add your notes, comments, or feedback here..."}
                   value={notes}
                   onChange={(e) => setNotes(e.target.value)}
-                  className="flex-1 min-h-32 resize-none"
+                  className="flex-1 min-h-12 max-h-20 resize-none overflow-y-auto text-sm"
                   disabled={userRole === 'viewer'}
                   readOnly={userRole === 'viewer'}
                 />
 
                 {report.description && (
-                  <div className="mt-4 p-3 bg-gray-50 rounded-lg">
-                    <Label className="text-sm font-medium text-gray-700">Report Description:</Label>
-                    <p className="text-sm text-gray-600 mt-1">{report.description}</p>
+                  <div className="mt-2 p-2 bg-gray-50 rounded-md flex-shrink-0">
+                    <Label className="text-xs font-medium text-gray-700">Report Description:</Label>
+                    <p className="text-xs text-gray-600 mt-1">{report.description}</p>
                   </div>
                 )}
 
-                <div className="mt-6 space-y-3">
+                <div className="mt-3 space-y-2 flex-shrink-0">
                   {/* Save Notes Button - Only show for reviewers */}
                   {userRole === 'reviewer' && (
                     <Button
@@ -473,6 +602,7 @@ export function DocumentViewerWithNotesModal({
                       disabled={isSubmitting}
                       className="w-full flex items-center gap-2"
                       variant="outline"
+                      size="sm"
                     >
                       <Save className="h-4 w-4" />
                       Save Notes
@@ -518,5 +648,6 @@ export function DocumentViewerWithNotesModal({
         </div>
       </DialogContent>
     </Dialog>
+    </>
   )
 }

@@ -53,12 +53,13 @@ export function SidebarMobileMenu({
             />
             <div>
               <h1 className="text-base font-semibold text-gray-900">GYG Power Systems</h1>
+
             </div>
           </div>
         </div>
 
         {/* Mobile Navigation */}
-        <div className="flex-1 overflow-y-auto shadow-lg">
+        <div className="flex-1 overflow-y-auto">
           <SidebarNavigation 
             menuItems={menuItems}
             activeTab={activeTab}

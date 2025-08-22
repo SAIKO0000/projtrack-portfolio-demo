@@ -26,6 +26,7 @@ import {
 import { format } from "date-fns"
 import { cn } from "@/lib/utils"
 import { toast } from "react-hot-toast"
+import { useModalMobileHide } from "@/lib/modal-mobile-utils"
 
 // Predefined roles based on your project structure
 // PROJECT STAFF and DIRECT LABOR are categories, not assignable roles
@@ -65,6 +66,10 @@ export function TaskFormModal({ onTaskCreated, defaultProjectId }: TaskFormModal
   const { projects } = useProjects()
   const { createTask } = useGanttTasks()
   const [open, setOpen] = useState(false)
+  
+  // Hide mobile header when modal is open
+  useModalMobileHide(open)
+  
   const [loading, setLoading] = useState(false)
   const [selectedRole, setSelectedRole] = useState<string>("")
   const [formData, setFormData] = useState<TaskFormData>({

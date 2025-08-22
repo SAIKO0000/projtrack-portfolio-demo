@@ -8,6 +8,7 @@ import { Label } from "./ui/label"
 import { Badge } from "./ui/badge"
 import { FileText, Save, StickyNote } from "lucide-react"
 import { toast } from "react-hot-toast"
+import { useModalMobileHide } from "@/lib/modal-mobile-utils"
 
 interface EnhancedTask {
   id: string
@@ -31,6 +32,9 @@ export function TaskNotesModal({
   task,
   onNotesSubmitAction
 }: TaskNotesModalProps) {
+  // Hide mobile header when modal is open
+  useModalMobileHide(open)
+  
   const [notes, setNotes] = useState('')
   const [isSubmitting, setIsSubmitting] = useState(false)
 

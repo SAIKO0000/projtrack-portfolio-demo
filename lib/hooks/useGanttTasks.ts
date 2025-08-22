@@ -163,7 +163,22 @@ export function useGanttTasks(projectId?: string) {
   };
 
   const updateTaskStatus = async (id: string, status: string) => {
-    return updateTask(id, { status });
+    // Prepare update data
+    const updateData: { status: string; completed_at?: string | null } = { status }
+    
+    // If status is completed, add completion timestamp in Philippines timezone
+    if (status === 'completed') {
+      const now = new Date()
+      const philippinesOffset = 8 * 60 // Philippines is UTC+8
+      const localOffset = now.getTimezoneOffset()
+      const philippinesTime = new Date(now.getTime() + (localOffset + philippinesOffset) * 60000)
+      updateData.completed_at = philippinesTime.toISOString()
+    } else {
+      // If status is not completed, clear completion timestamp
+      updateData.completed_at = null
+    }
+    
+    return updateTask(id, updateData);
   };
   useEffect(() => {
     fetchTasks();

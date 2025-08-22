@@ -1,5 +1,9 @@
 import { useQuery, useQueryClient } from '@tanstack/react-query'
-import { supabase, queryKeys } from '@/lib/supabase-query'
+import { supabase, queryKeys as legacyQueryKeys } from '@/lib/supabase-query'
+import { supabase as optimizedSupabase } from '@/lib/supabase-optimized'
+import { queryKeys as optimizedQueryKeys } from '@/lib/query-keys-optimized'
+import { getOptimizedSelect } from '@/lib/queries/optimized-selects'
+import { runtimeConfig } from '@/lib/optimization-flags'
 import { toast } from 'react-hot-toast'
 import { queryOptimizations } from './useOptimizedQueryClient'
 import { useBatchedQueries } from './useBatchedQueries'
@@ -8,18 +12,28 @@ import { useBatchedQueries } from './useBatchedQueries'
 export function useSupabaseQuery() {
   const queryClient = useQueryClient()
   const { getCachedData, smartPrefetch } = useBatchedQueries()
+  
+  // Smart client selection based on feature flags
+  const activeSupabase = runtimeConfig.shouldUseOptimizedSupabase() ? optimizedSupabase : supabase
+  const activeQueryKeys = runtimeConfig.isOptimizationEnabled('USE_UNIFIED_QUERY_KEYS') ? optimizedQueryKeys : legacyQueryKeys
 
   // Projects with optimized caching
   const useProjectsQuery = () => {
     // Check cache first - avoid query if fresh data exists
-    const cachedData = getCachedData(queryKeys.projects())
+    const cachedData = getCachedData([...activeQueryKeys.projects()])
     
     return useQuery({
-      queryKey: queryKeys.projects(),
+      queryKey: activeQueryKeys.projects(),
       queryFn: async () => {
-        const { data, error } = await supabase
+        const selectColumns = runtimeConfig.shouldUseOptimizedSelects() 
+          ? getOptimizedSelect('projects')
+          : '*'
+          
+        runtimeConfig.logMetric('Projects Query', 1, 'DB call')
+        
+        const { data, error } = await activeSupabase
           .from('projects')
-          .select('*')
+          .select(selectColumns)
           .order('created_at', { ascending: false })
         
         if (error) throw error
@@ -28,36 +42,42 @@ export function useSupabaseQuery() {
       ...queryOptimizations.projects,
       
       // Only fetch if we don't have recent data
-      enabled: !cachedData || (queryClient.getQueryState(queryKeys.projects())?.dataUpdatedAt ?? 0) < Date.now() - queryOptimizations.projects.staleTime,
+      enabled: !cachedData || (queryClient.getQueryState(activeQueryKeys.projects())?.dataUpdatedAt ?? 0) < Date.now() - queryOptimizations.projects.staleTime,
     })
   }
 
   // Personnel with extended cache time
   const usePersonnelQuery = () => {
-    const cachedData = getCachedData(queryKeys.personnel())
+    const cachedData = getCachedData([...activeQueryKeys.personnel()])
     
     return useQuery({
-      queryKey: queryKeys.personnel(),
+      queryKey: activeQueryKeys.personnel(),
       queryFn: async () => {
-        const { data, error } = await supabase
+        const selectColumns = runtimeConfig.shouldUseOptimizedSelects() 
+          ? getOptimizedSelect('personnel')
+          : '*'
+          
+        runtimeConfig.logMetric('Personnel Query', 1, 'DB call')
+        
+        const { data, error } = await activeSupabase
           .from('personnel')
-          .select('*')
+          .select(selectColumns)
           .order('name', { ascending: true })
         
         if (error) throw error
         return data || []
       },
       ...queryOptimizations.personnel,
-      enabled: !cachedData || (queryClient.getQueryState(queryKeys.personnel())?.dataUpdatedAt ?? 0) < Date.now() - queryOptimizations.personnel.staleTime,
+      enabled: !cachedData || (queryClient.getQueryState(activeQueryKeys.personnel())?.dataUpdatedAt ?? 0) < Date.now() - queryOptimizations.personnel.staleTime,
     })
   }
 
   // Tasks with moderate caching
   const useTasksQuery = () => {
-    const cachedData = getCachedData(queryKeys.tasks())
+    const cachedData = getCachedData([...activeQueryKeys.tasks()])
     
     return useQuery({
-      queryKey: queryKeys.tasks(),
+      queryKey: activeQueryKeys.tasks(),
       queryFn: async () => {
         const { data, error } = await supabase
           .from('tasks')
@@ -73,16 +93,16 @@ export function useSupabaseQuery() {
         return data || []
       },
       ...queryOptimizations.tasks,
-      enabled: !cachedData || (queryClient.getQueryState(queryKeys.tasks())?.dataUpdatedAt ?? 0) < Date.now() - queryOptimizations.tasks.staleTime,
+      enabled: !cachedData || (queryClient.getQueryState(activeQueryKeys.tasks())?.dataUpdatedAt ?? 0) < Date.now() - queryOptimizations.tasks.staleTime,
     })
   }
 
   // Events with date-based caching
   const useEventsQuery = () => {
-    const cachedData = getCachedData(queryKeys.events())
+    const cachedData = getCachedData([...activeQueryKeys.events()])
     
     return useQuery({
-      queryKey: queryKeys.events(),
+      queryKey: activeQueryKeys.events(),
       queryFn: async () => {
         const { data, error } = await supabase
           .from('events')
@@ -96,16 +116,16 @@ export function useSupabaseQuery() {
         return data || []
       },
       ...queryOptimizations.events,
-      enabled: !cachedData || (queryClient.getQueryState(queryKeys.events())?.dataUpdatedAt ?? 0) < Date.now() - queryOptimizations.events.staleTime,
+      enabled: !cachedData || (queryClient.getQueryState(activeQueryKeys.events())?.dataUpdatedAt ?? 0) < Date.now() - queryOptimizations.events.staleTime,
     })
   }
 
   // Reports with file-based caching
   const useReportsQuery = () => {
-    const cachedData = getCachedData(queryKeys.reports())
+    const cachedData = getCachedData([...activeQueryKeys.reports()])
     
     return useQuery({
-      queryKey: queryKeys.reports(),
+      queryKey: activeQueryKeys.reports(),
       queryFn: async () => {
         const { data, error } = await supabase
           .from('reports')
@@ -121,16 +141,16 @@ export function useSupabaseQuery() {
         return data || []
       },
       ...queryOptimizations.reports,
-      enabled: !cachedData || (queryClient.getQueryState(queryKeys.reports())?.dataUpdatedAt ?? 0) < Date.now() - queryOptimizations.reports.staleTime,
+      enabled: !cachedData || (queryClient.getQueryState(activeQueryKeys.reports())?.dataUpdatedAt ?? 0) < Date.now() - queryOptimizations.reports.staleTime,
     })
   }
 
   // Photos with aggressive caching since they're static
   const usePhotosQuery = () => {
-    const cachedData = getCachedData(queryKeys.photos())
+    const cachedData = getCachedData([...activeQueryKeys.photos()])
     
     return useQuery({
-      queryKey: queryKeys.photos(),
+      queryKey: activeQueryKeys.photos(),
       queryFn: async () => {
         const { data, error } = await supabase
           .from('photos')
@@ -146,7 +166,7 @@ export function useSupabaseQuery() {
         return data || []
       },
       ...queryOptimizations.photos,
-      enabled: !cachedData || (queryClient.getQueryState(queryKeys.photos())?.dataUpdatedAt ?? 0) < Date.now() - queryOptimizations.photos.staleTime,
+      enabled: !cachedData || (queryClient.getQueryState(activeQueryKeys.photos())?.dataUpdatedAt ?? 0) < Date.now() - queryOptimizations.photos.staleTime,
     })
   }
 

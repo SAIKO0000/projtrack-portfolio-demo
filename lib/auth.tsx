@@ -134,7 +134,7 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
 
       if (event === 'SIGNED_OUT') {
         toast.success('Successfully signed out. See you next time!', {
-          duration: 3000,
+          duration: 1000,
           style: {
             background: 'linear-gradient(to right, #f97316, #ea580c)',
             color: 'white',
@@ -172,7 +172,7 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
       }
 
       toast.success('Welcome back! Successfully signed in.', {
-        duration: 2000, // Reduced duration
+        duration: 1000, // Reduced duration
         style: {
           background: 'linear-gradient(to right, #f97316, #ea580c)',
           color: 'white',
@@ -242,7 +242,7 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
       }
 
       toast.success('Account created successfully! Please check your email to verify your account.', {
-        duration: 5000,
+        duration: 1000,
         style: {
           background: 'linear-gradient(to right, #f97316, #ea580c)',
           color: 'white',

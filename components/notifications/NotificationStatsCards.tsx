@@ -1,7 +1,7 @@
 "use client"
 
 import { Card, CardContent } from "@/components/ui/card"
-import { Activity, Clock, AlertTriangle, Users } from "lucide-react"
+import { Activity, Clock, AlertTriangle, TrendingUp } from "lucide-react"
 import { NotificationStats } from './types'
 
 interface NotificationStatsCardsProps {
@@ -56,16 +56,16 @@ export function NotificationStatsCards({ stats }: NotificationStatsCardsProps) {
         </CardContent>
       </Card>
 
-      <Card className="border-l-4 border-l-purple-500 bg-white/95 backdrop-blur-sm shadow-lg hover:shadow-xl transition-all duration-300 border border-gray-200/50">
+      <Card className="border-l-4 border-l-orange-500 bg-white/95 backdrop-blur-sm shadow-lg hover:shadow-xl transition-all duration-300 border border-gray-200/50">
         <CardContent className="p-4 sm:p-5">
           <div className="flex items-center justify-between">
             <div className="space-y-1">
-              <p className="text-sm font-semibold text-gray-700 uppercase tracking-wide">Projects Active</p>
-              <p className="text-2xl sm:text-3xl font-bold text-gray-900">{stats.projectCount}</p>
-              <p className="text-sm text-gray-600">With notifications</p>
+              <p className="text-sm font-semibold text-gray-700 uppercase tracking-wide">Projects Forecast</p>
+              <p className="text-2xl sm:text-3xl font-bold text-gray-900">{stats.inProgressProjects || 0}</p>
+              <p className="text-sm text-gray-600">In Progress projects</p>
             </div>
-            <div className="h-12 w-12 rounded-lg bg-purple-500/10 flex items-center justify-center">
-              <Users className="h-6 w-6 text-purple-600" />
+            <div className="h-12 w-12 rounded-lg bg-orange-500/10 flex items-center justify-center">
+              <TrendingUp className="h-6 w-6 text-orange-600" />
             </div>
           </div>
         </CardContent>

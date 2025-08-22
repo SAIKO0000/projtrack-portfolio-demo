@@ -30,8 +30,10 @@ interface ProjectCardProps {
   onEditProject: (projectId: string) => void
   onDeleteProject: (projectId: string, projectName: string) => void
   onViewReports: (projectId: string, projectName: string) => void
+  onReportUploaded?: () => void
   ReportUploadModal: React.ComponentType<{ 
     preselectedProjectId: string
+    onUploadComplete?: () => void
     children: React.ReactNode 
   }>
 }
@@ -47,6 +49,7 @@ export function ProjectCard({
   onEditProject,
   onDeleteProject,
   onViewReports,
+  onReportUploaded,
   ReportUploadModal
 }: ProjectCardProps) {
   const capitalizeWords = useCapitalizeWords()
@@ -214,7 +217,10 @@ export function ProjectCard({
             >
               View Schedule
             </Button>
-            <ReportUploadModal preselectedProjectId={project.id}>
+            <ReportUploadModal 
+              preselectedProjectId={project.id}
+              onUploadComplete={onReportUploaded}
+            >
               <Button variant="outline" size="default" className="h-8 sm:h-10 px-3 sm:px-5 text-xs sm:text-sm flex-1">
                 <FileText className="h-3 w-3 sm:h-4 sm:w-4 mr-1 sm:mr-2" />
                 Attach Report

@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useMemo, useCallback } from "react"
+import { useState, useMemo, useCallback, useEffect } from "react"
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
@@ -11,11 +11,12 @@ import { ProjectFormModal } from "@/components/project-form-modal"
 import { ReportUploadModal } from "@/components/report-upload-modal"
 import { EditProjectModal } from "@/components/edit-project-modal"
 import { ReviewerNotesModal } from "@/components/reviewer-notes-modal"
+import { ReviewerNotesViewerModal } from "@/components/reviewer-notes-viewer-modal"
 import { SimpleNotesModal } from "@/components/simple-notes-modal"
 import { DocumentViewerWithNotesModal } from "@/components/document-viewer-with-notes-modal"
 import { DeleteConfirmationDialog } from "@/components/delete-confirmation-dialog"
 import { toast } from "react-hot-toast"
-import { supabase } from "@/lib/supabase"
+import { supabase, type Project } from "@/lib/supabase"
 import { FileText } from "lucide-react"
 
 // Import our organized components
@@ -51,16 +52,53 @@ export function Projects({ onProjectSelect }: ProjectsProps) {
   // Use centralized TanStack Query hooks
   const supabaseQuery = useSupabaseQuery()
   const { 
-    data: projects = [], 
+    data: projectsData = [], 
     isLoading: loading,
     refetch: refetchProjects 
   } = supabaseQuery.useProjectsQuery()
   const { data: tasks = [], isLoading: tasksLoading } = supabaseQuery.useTasksQuery()
   
+  // Type guard to ensure projects is an array of Project objects with memoization
+  const projects = useMemo(() => {
+    return Array.isArray(projectsData) && projectsData.every(p => typeof p === 'object' && p && 'id' in p) 
+      ? projectsData as Project[]
+      : []
+  }, [projectsData])
+  
   // Get mutations from useProjects hook
   const { deleteProject, updateProject } = useProjects()
   
-  const { loading: reportsLoading, updateReport, fetchReports } = useReports()
+  // Get reports and operations with manual refresh for immediate UI updates
+  const { reports, loading: reportsLoading, updateReport, deleteReport, fetchReports } = useReports()
+  
+  // Force re-render state for immediate UI updates
+  const [forceRender, setForceRender] = useState(0)
+  const [modalForceRender, setModalForceRender] = useState(0)
+  
+  const forceUIUpdate = useCallback(() => {
+    console.log('🔄 FORCING UI UPDATE - Fetching latest data...')
+    setForceRender(prev => prev + 1)
+    setModalForceRender(prev => prev + 1) // Force modal data update
+    
+    // Refresh both reports and projects data
+    fetchReports() // Immediate reports refresh
+    refetchProjects() // Immediate projects refresh
+    
+    // Additional force update after a short delay to ensure data propagation
+    setTimeout(() => {
+      setForceRender(prev => prev + 1)
+      console.log('🔄 Secondary UI update completed')
+    }, 500)
+  }, [fetchReports, refetchProjects])
+  
+  // Force re-render when reports change to ensure UI updates
+  const reportsCount = useMemo(() => reports.length, [reports])
+  console.log(`Projects component: ${reportsCount} reports loaded, force render: ${forceRender}, last update: ${Date.now()}`)
+  
+  // Add effect to debug reports changes
+  useEffect(() => {
+    console.log('Reports changed in projects component:', reports.length, 'reports')
+  }, [reports])
   
   // Custom hooks
   const { user, isAdmin } = useProjectPermissions()
@@ -75,6 +113,21 @@ export function Projects({ onProjectSelect }: ProjectsProps) {
     getReviewerStatus, 
     getReportDisplayName 
   } = useReportHelpers()
+  
+  // Create a type-safe wrapper for getReportDisplayName
+  const safeGetReportDisplayName = useCallback((report: { id: string; file_name: string; title?: string }) => {
+    // Convert the simple report type to ReportWithUploader for the function
+    const fullReport = reports.find(r => r.id === report.id)
+    if (fullReport) {
+      return getReportDisplayName(fullReport)
+    }
+    // Fallback if report not found in full list
+    return {
+      title: report.title || report.file_name,
+      fileName: report.file_name,
+      hasTitle: Boolean(report.title)
+    }
+  }, [reports, getReportDisplayName])
   const { 
     getProjectTaskProgress, 
     getProjectTaskCounts, 
@@ -113,9 +166,20 @@ export function Projects({ onProjectSelect }: ProjectsProps) {
       open: false,
       report: null
     },
+    reviewerNotesViewerModal: {
+      open: false,
+      reportName: '',
+      reviewerNotes: '',
+      reportDetails: undefined
+    },
     deleteProjectDialog: {
       open: false,
       project: null,
+      isDeleting: false
+    },
+    deleteReportDialog: {
+      open: false,
+      report: null,
       isDeleting: false
     }
   })
@@ -131,10 +195,9 @@ export function Projects({ onProjectSelect }: ProjectsProps) {
           return
         }
 
-        await Promise.all([
-          refetchProjects(),
-          fetchReports()
-        ])
+        await refetchProjects()
+        // IMMEDIATE UI UPDATE - Force refresh after manual refresh
+        forceUIUpdate()
         window.lastRefreshTime = Date.now()
         toast.success("Projects refreshed successfully")
       } catch (error) {
@@ -142,20 +205,23 @@ export function Projects({ onProjectSelect }: ProjectsProps) {
         toast.error("Failed to refresh projects")
       }
     }, 2000), // 2 second throttle
-    [refetchProjects, fetchReports]
+    [refetchProjects, forceUIUpdate]
   )
 
   // Event handlers
   const handleProjectCreated = useCallback(() => {
-    // Only refresh if necessary
-    setTimeout(() => refetchProjects(), 100) // Small delay to prevent race conditions
-  }, [refetchProjects])
+    // IMMEDIATE UI UPDATE - Force refresh after project creation
+    setTimeout(() => {
+      refetchProjects()
+      forceUIUpdate()
+    }, 100) // Small delay to prevent race conditions
+  }, [refetchProjects, forceUIUpdate])
 
   const handleRefresh = useCallback(() => {
     throttledRefresh()
   }, [throttledRefresh])
 
-  const handleDeleteProject = useCallback(async (projectId: string, _projectName: string) => {
+  const handleDeleteProject = useCallback(async (projectId: string) => {
     const project = projects.find(p => p.id === projectId)
     if (project) {
       setModalState(prev => ({ 
@@ -176,20 +242,63 @@ export function Projects({ onProjectSelect }: ProjectsProps) {
     
     try {
       await deleteProject(project.id)
-      toast.success("Project deleted successfully")
+      
+      // IMMEDIATE UI UPDATE - Force refresh after project deletion
+      forceUIUpdate()
+      
+      // Don't call toast.success here - deleteProject already shows success toast
       setModalState(prev => ({ 
         ...prev, 
         deleteProjectDialog: { open: false, project: null, isDeleting: false } 
       }))
     } catch (error) {
       console.error("Delete error:", error)
-      toast.error("Failed to delete project")
+      // Don't call toast.error here - deleteProject already shows error toast
       setModalState(prev => ({ 
         ...prev, 
         deleteProjectDialog: { ...prev.deleteProjectDialog, isDeleting: false } 
       }))
     }
-  }, [deleteProject, modalState.deleteProjectDialog])
+  }, [deleteProject, modalState.deleteProjectDialog, forceUIUpdate])
+
+  const confirmDeleteReport = useCallback(async () => {
+    const { report } = modalState.deleteReportDialog
+    if (!report) return
+
+    setModalState(prev => ({ 
+      ...prev, 
+      deleteReportDialog: { ...prev.deleteReportDialog, isDeleting: true } 
+    }))
+    
+    try {
+      await deleteReport(report.id)
+      
+      // IMMEDIATE UI UPDATE - Force refresh after deletion
+      forceUIUpdate()
+      
+      // Close the modal immediately
+      setModalState(prev => ({ 
+        ...prev, 
+        deleteReportDialog: { open: false, report: null, isDeleting: false },
+        // Close the viewing reports modal if the deleted report was being viewed
+        viewingReports: prev.viewingReports?.projectId === report.project_id 
+          ? { ...prev.viewingReports, highlightReportId: undefined }
+          : prev.viewingReports
+      }))
+      
+      // Force re-render by updating a timestamp
+      const reportDeleteTimestamp = Date.now()
+      console.log(`Report deleted at ${reportDeleteTimestamp}, UI should update immediately`)
+      
+    } catch (error) {
+      console.error("Delete error:", error)
+      toast.error("Failed to delete report")
+      setModalState(prev => ({ 
+        ...prev, 
+        deleteReportDialog: { ...prev.deleteReportDialog, isDeleting: false } 
+      }))
+    }
+  }, [deleteReport, modalState.deleteReportDialog, forceUIUpdate])
 
   const handleEditProject = useCallback((projectId: string) => {
     const project = projects.find(p => p.id === projectId)
@@ -200,32 +309,40 @@ export function Projects({ onProjectSelect }: ProjectsProps) {
 
   const handleProjectUpdated = useCallback(() => {
     setModalState(prev => ({ ...prev, editingProject: null }))
-    // Don't call fetchProjects here as the hook should handle the update
-  }, [])
+    // IMMEDIATE UI UPDATE - Force refresh after project update
+    setTimeout(() => {
+      refetchProjects()
+      forceUIUpdate()
+    }, 100)
+  }, [refetchProjects, forceUIUpdate])
 
   // Handle project status update
   const handleStatusUpdate = useCallback(async (projectId: string, newStatus: string) => {
     try {
       await updateProject(projectId, { status: newStatus })
-      toast.success("Project status updated successfully")
+      
+      // IMMEDIATE UI UPDATE - Force refresh after status change
+      forceUIUpdate()
+      
+      // Toast is handled in the hook
     } catch (error) {
       console.error("Status update error:", error)
-      toast.error("Failed to update project status")
+      // Don't call toast.error here - updateProject already shows error toast
     }
-  }, [updateProject])
+  }, [updateProject, forceUIUpdate])
 
   // Handle reviewer notes submission
   const handleReviewerNotesSubmit = useCallback(async (action: 'approved' | 'revision' | 'rejected', notes: string) => {
     try {
-      console.log('Submitting reviewer notes:', { reportId: modalState.reviewerNotesModal.reportId, action, notes })
-      
       await updateReport(modalState.reviewerNotesModal.reportId, { 
         status: action,
         reviewer_notes: notes 
       })
       
-      console.log('Report updated successfully')
-      toast.success(`Report ${action} successfully`)
+      // IMMEDIATE UI UPDATE - Force refresh after action
+      forceUIUpdate()
+      
+      // Don't call toast.success here - updateReport already shows success toast
       // Don't call fetchReports here as the hook should handle the update
       setModalState(prev => ({
         ...prev,
@@ -238,9 +355,9 @@ export function Projects({ onProjectSelect }: ProjectsProps) {
       }))
     } catch (error) {
       console.error("Status update error:", error)
-      toast.error("Failed to update report status")
+      // Don't call toast.error here - updateReport already shows error toast
     }
-  }, [updateReport, modalState.reviewerNotesModal.reportId])
+  }, [updateReport, modalState.reviewerNotesModal.reportId, forceUIUpdate])
 
   // Handle simple notes submission (without status change)
   const handleSimpleNotesSubmit = useCallback(async (notes: string) => {
@@ -249,7 +366,10 @@ export function Projects({ onProjectSelect }: ProjectsProps) {
         reviewer_notes: notes 
       })
       
-      toast.success('Notes saved successfully')
+      // IMMEDIATE UI UPDATE - Force refresh after action
+      forceUIUpdate()
+      
+      // Don't call toast.success here - updateReport already shows success toast
       // Don't call fetchReports here as the hook should handle the update
       setModalState(prev => ({
         ...prev,
@@ -262,26 +382,51 @@ export function Projects({ onProjectSelect }: ProjectsProps) {
       }))
     } catch (error) {
       console.error("Notes update error:", error)
-      toast.error("Failed to save notes")
+      // Don't call toast.error here - updateReport already shows error toast
     }
-  }, [updateReport, modalState.simpleNotesModal.reportId])
+  }, [updateReport, modalState.simpleNotesModal.reportId, forceUIUpdate])
 
   // Handler for document viewer with notes (both save notes and status changes)
   const handleDocumentViewerNotesSubmit = useCallback(async (reportId: string, notes: string) => {
     try {
       await updateReport(reportId, { reviewer_notes: notes })
+      
+      // IMMEDIATE UI UPDATE - Force refresh after action
+      forceUIUpdate()
     } catch {
       throw new Error('Failed to save notes')
     }
-  }, [updateReport])
+  }, [updateReport, forceUIUpdate])
 
   const handleDocumentViewerStatusChange = useCallback(async (reportId: string, status: 'approved' | 'rejected' | 'revision', notes: string) => {
     try {
       await updateReport(reportId, { status, reviewer_notes: notes })
+      
+      // IMMEDIATE UI UPDATE - Force refresh after action
+      forceUIUpdate()
     } catch {
       throw new Error(`Failed to ${status} report`)
     }
-  }, [updateReport])
+  }, [updateReport, forceUIUpdate])
+
+  // Handler for viewing reviewer notes
+  const handleViewReviewerNotes = useCallback((reportName: string, reviewerNotes: string, reportDetails?: {
+    uploader?: string
+    uploadDate?: string
+    category?: string
+    status?: string
+    description?: string
+  }) => {
+    setModalState(prev => ({
+      ...prev,
+      reviewerNotesViewerModal: {
+        open: true,
+        reportName,
+        reviewerNotes,
+        reportDetails
+      }
+    }))
+  }, [])
 
   const handleViewReports = useCallback((projectId: string, projectName: string, highlightReportId?: string) => {
     setModalState(prev => ({
@@ -353,7 +498,7 @@ export function Projects({ onProjectSelect }: ProjectsProps) {
         assignedReports={assignedReports}
         projects={projects}
         onReportClick={handleReportClick}
-        getReportDisplayName={getReportDisplayName}
+        getReportDisplayName={safeGetReportDisplayName}
         formatDate={formatDate}
       />
       
@@ -370,6 +515,7 @@ export function Projects({ onProjectSelect }: ProjectsProps) {
           onEditProject={handleEditProject}
           onDeleteProject={handleDeleteProject}
           onViewReports={handleViewReports}
+          onReportUploaded={forceUIUpdate}
           ReportUploadModal={ReportUploadModal}
         />
       ) : (
@@ -401,9 +547,11 @@ export function Projects({ onProjectSelect }: ProjectsProps) {
             </DialogDescription>
           </DialogHeader>
           
-          <div className="flex-1 overflow-y-auto space-y-3">
-            {modalState.viewingReports && getProjectReports(modalState.viewingReports.projectId).map((report) => {
-              const isHighlighted = modalState.viewingReports?.highlightReportId === report.id
+          <div className="flex-1 overflow-y-auto space-y-3" key={`modal-content-${modalForceRender}`}>
+            {modalState.viewingReports && 
+              // Get fresh reports directly from state instead of memoized function
+              reports.filter(r => r.project_id === modalState.viewingReports!.projectId).map((report) => {
+                const isHighlighted = modalState.viewingReports?.highlightReportId === report.id
               const isAssigned = isAssignedReviewer(report)
               
               return (
@@ -579,7 +727,8 @@ export function Projects({ onProjectSelect }: ProjectsProps) {
                       preselectedProjectId={modalState.viewingReports!.projectId}
                       replacingReportId={report.id}
                       onUploadComplete={() => {
-                        refetchProjects()
+                        // IMMEDIATE UI UPDATE - Force refresh after upload
+                        forceUIUpdate()
                         setModalState(prev => ({ ...prev, viewingReports: null }))
                       }}
                     >
@@ -592,17 +741,51 @@ export function Projects({ onProjectSelect }: ProjectsProps) {
                       </Button>
                     </ReportUploadModal>
                   )}
+
+                  {/* Delete Button for report uploader only */}
+                  {report.uploaded_by === user?.id && (
+                    <Button 
+                      size="default" 
+                      variant="outline" 
+                      className="h-8 sm:h-10 px-3 sm:px-5 text-xs sm:text-sm text-red-600 hover:bg-red-50 border-red-200"
+                      onClick={() => {
+                        setModalState(prev => ({
+                          ...prev,
+                          deleteReportDialog: {
+                            open: true,
+                            report,
+                            isDeleting: false
+                          }
+                        }))
+                      }}
+                    >
+                      Delete
+                    </Button>
+                  )}
                 </div>
 
                 {/* Show reviewer notes if available */}
                 {(() => {
-                  const reportWithNotes = report as typeof report & { reviewer_notes?: string }
+                  const reportWithNotes = report as typeof report & { reviewer_notes?: string, upload_date?: string }
                   return reportWithNotes.reviewer_notes && (
-                    <div className="mt-2 p-2 bg-blue-50 rounded border border-blue-200">
+                    <div 
+                      className="mt-2 p-2 bg-blue-50 rounded border border-blue-200 cursor-pointer hover:bg-blue-100 transition-colors"
+                      onClick={() => handleViewReviewerNotes(
+                        getReportDisplayName(report).title,
+                        reportWithNotes.reviewer_notes!,
+                        {
+                          uploader: getUploaderInfo(report).name,
+                          uploadDate: reportWithNotes.upload_date ? formatDate(reportWithNotes.upload_date) : undefined,
+                          category: 'category' in report ? report.category as string : undefined,
+                          status: report.status || undefined,
+                          description: 'description' in report ? report.description as string : undefined
+                        }
+                      )}
+                    >
                       <p className="text-xs font-medium text-blue-800 mb-1">
-                        Reviewer Notes:
+                        Reviewer Notes: <span className="text-blue-600">(Click to view full)</span>
                       </p>
-                      <p className="text-xs text-blue-700">{reportWithNotes.reviewer_notes}</p>
+                      <p className="text-xs text-blue-700 line-clamp-2">{reportWithNotes.reviewer_notes}</p>
                     </div>
                   )
                 })()}
@@ -650,7 +833,8 @@ export function Projects({ onProjectSelect }: ProjectsProps) {
               )
             })}
             
-            {modalState.viewingReports && getProjectReports(modalState.viewingReports.projectId).length === 0 && (
+            {modalState.viewingReports && 
+              reports.filter(r => r.project_id === modalState.viewingReports!.projectId).length === 0 && (
               <div className="text-center py-12">
                 <FileText className="h-16 w-16 text-gray-400 mx-auto mb-4" />
                 <h3 className="text-lg font-medium text-gray-900 mb-2">No reports found</h3>
@@ -677,6 +861,14 @@ export function Projects({ onProjectSelect }: ProjectsProps) {
         existingNotes={modalState.simpleNotesModal.existingNotes}
       />
 
+      <ReviewerNotesViewerModal
+        open={modalState.reviewerNotesViewerModal.open}
+        onOpenChangeAction={(open: boolean) => setModalState(prev => ({ ...prev, reviewerNotesViewerModal: { ...prev.reviewerNotesViewerModal, open } }))}
+        reportName={modalState.reviewerNotesViewerModal.reportName}
+        reviewerNotes={modalState.reviewerNotesViewerModal.reviewerNotes}
+        reportDetails={modalState.reviewerNotesViewerModal.reportDetails}
+      />
+
       <DocumentViewerWithNotesModal
         open={modalState.documentViewerModal.open}
         onOpenChangeAction={(open) => setModalState(prev => ({ ...prev, documentViewerModal: { ...prev.documentViewerModal, open } }))}
@@ -697,6 +889,19 @@ export function Projects({ onProjectSelect }: ProjectsProps) {
         description="Are you sure you want to delete this project? This action cannot be undone and will permanently remove all project data, tasks, and associated files."
         itemName={modalState.deleteProjectDialog.project?.name}
         isLoading={modalState.deleteProjectDialog.isDeleting}
+      />
+
+      <DeleteConfirmationDialog
+        isOpen={modalState.deleteReportDialog.open}
+        onClose={() => setModalState(prev => ({ 
+          ...prev, 
+          deleteReportDialog: { open: false, report: null, isDeleting: false } 
+        }))}
+        onConfirm={confirmDeleteReport}
+        title="Delete Report"
+        description="Are you sure you want to delete this report? This action cannot be undone and will permanently remove the report file."
+        itemName={modalState.deleteReportDialog.report?.file_name}
+        isLoading={modalState.deleteReportDialog.isDeleting}
       />
     </div>
   )

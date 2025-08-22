@@ -140,7 +140,7 @@ export function useStructuredExport({ projects, tasks }: UseStructuredExportProp
       toast.success(
         `${exportTypeLabel} exported successfully! (${projectName})`,
         {
-          duration: 4000,
+          duration: 1000,
           icon: '📄'
         }
       )
@@ -154,7 +154,7 @@ export function useStructuredExport({ projects, tasks }: UseStructuredExportProp
       }
 
       toast.error(errorMessage, {
-        duration: 6000,
+        duration: 1000,
         icon: '❌'
       })
 

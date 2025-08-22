@@ -46,6 +46,7 @@ import { format } from "date-fns"
 import { cn } from "@/lib/utils"
 import { useCreateProject } from "@/lib/hooks/useProjectsOptimized"
 import { toast } from "react-hot-toast"
+import { useModalMobileHide } from "@/lib/modal-mobile-utils"
 
 const projectSchema = z.object({
   name: z.string().min(1, "Project name is required").max(255, "Name too long"),
@@ -76,6 +77,10 @@ interface ProjectFormModalProps {
 
 export function ProjectFormModal({ onProjectCreated }: ProjectFormModalProps) {
   const [open, setOpen] = useState(false)
+  
+  // Hide mobile header when modal is open
+  useModalMobileHide(open)
+  
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [locationSuggestions, setLocationSuggestions] = useState<LocationSuggestion[]>([])
   const [isLoadingLocations, setIsLoadingLocations] = useState(false)

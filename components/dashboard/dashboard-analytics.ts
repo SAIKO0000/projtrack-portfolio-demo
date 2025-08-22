@@ -1,7 +1,7 @@
 import { useMemo } from "react"
-import { type Project, type Task } from "@/lib/supabase"
+import { type Project, type Task, type Personnel } from "@/lib/supabase"
 
-export const useDashboardAnalytics = (projects: Project[], tasks: Task[], personnel: unknown[]) => {
+export const useDashboardAnalytics = (projects: Project[], tasks: Task[], personnel: Personnel[]) => {
   // Calculate task-based progress for a project
   const getProjectTaskProgress = useMemo(() => 
     (projectId: string) => {

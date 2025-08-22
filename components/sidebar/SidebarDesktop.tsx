@@ -27,7 +27,7 @@ export function SidebarDesktop({
   onLogoutAction
 }: SidebarDesktopProps) {
   return (
-    <div className={`hidden lg:flex bg-gradient-to-b from-white via-gray-50/40 to-white border-r border-gray-200/60 backdrop-blur-md transition-all duration-500 ease-in-out flex-col h-full shadow-lg ${collapsed ? "w-20" : "w-80"}`}>
+    <div className={`hidden lg:flex bg-gradient-to-b from-white via-gray-50/30 to-white border-r border-gray-200/50 backdrop-blur-sm transition-all duration-300 ease-in-out flex-col h-full shadow-sm ${collapsed ? "w-20" : "w-72"}`}>
       {/* Header */}
       <SidebarDesktopHeader 
         collapsed={collapsed}
@@ -35,7 +35,7 @@ export function SidebarDesktop({
       />
 
       {/* Navigation - Scrollable content area */}
-      <div className="flex-1 overflow-y-auto bg-gradient-to-b from-transparent to-gray-50/30 px-2">
+      <div className="flex-1 overflow-y-auto bg-gradient-to-b from-transparent to-gray-50/20 px-3">
         <SidebarNavigation 
           menuItems={menuItems}
           activeTab={activeTab}

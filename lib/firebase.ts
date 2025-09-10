@@ -1,15 +1,14 @@
 import { initializeApp } from 'firebase/app';
 import { getMessaging, getToken, onMessage, MessagePayload, Messaging } from 'firebase/messaging';
 
-// Firebase configuration
+// Firebase configuration for portfolio demo
 const firebaseConfig = {
-  apiKey: "AIzaSyCzdmdMRA4ddw0S_vCU-cDvpABgn_jmcoI",
-  authDomain: "proj-tracker-b37a8.firebaseapp.com",
-  projectId: "proj-tracker-b37a8",
-  storageBucket: "proj-tracker-b37a8.firebasestorage.app",
-  messagingSenderId: "492289034896",
-  appId: "1:492289034896:web:a3718e0c52e102bf87e615",
-  measurementId: "G-5EJL3HRXDC"
+  apiKey: "AIzaSyDQuH68r81F1gwmK3VJs2BODKXdmRG-Zbs",
+  authDomain: "proj-tracker-demo.firebaseapp.com",
+  projectId: "proj-tracker-demo",
+  storageBucket: "proj-tracker-demo.firebasestorage.app",
+  messagingSenderId: "422442704375",
+  appId: "1:422442704375:web:cf181ddb53547acc3aa2f2"
 };
 
 // Initialize Firebase app

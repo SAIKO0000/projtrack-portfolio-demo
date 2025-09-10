@@ -30,11 +30,11 @@ export async function uploadProfilePicture(
     // Create unique filename
     const fileExt = file.name.split('.').pop()
     const fileName = `${userId}-${Date.now()}.${fileExt}`
-    const filePath = `profile-pictures/${fileName}`
+    const filePath = `${fileName}` // Store directly in the bucket root
 
     // Upload to Supabase Storage
     const { error: uploadError } = await supabase.storage
-      .from('profile-pictures')
+      .from('avatars')
       .upload(filePath, file, {
         cacheControl: '3600',
         upsert: false
@@ -47,7 +47,7 @@ export async function uploadProfilePicture(
 
     // Get public URL
     const { data: urlData } = supabase.storage
-      .from('profile-pictures')
+      .from('avatars')
       .getPublicUrl(filePath)
 
     if (!urlData.publicUrl) {
@@ -69,17 +69,18 @@ export async function deleteProfilePicture(avatarUrl: string): Promise<void> {
     // Extract file path from URL
     const url = new URL(avatarUrl)
     const pathSegments = url.pathname.split('/')
-    const bucketIndex = pathSegments.findIndex(segment => segment === 'profile-pictures')
+    const bucketIndex = pathSegments.findIndex(segment => segment === 'avatars')
     
     if (bucketIndex === -1) {
       console.warn('Invalid avatar URL format:', avatarUrl)
       return
     }
 
-    const filePath = pathSegments.slice(bucketIndex).join('/')
+    // Get the filename (should be directly in the bucket root now)
+    const filePath = pathSegments[pathSegments.length - 1]
     
     const { error } = await supabase.storage
-      .from('profile-pictures')
+      .from('avatars')
       .remove([filePath])
 
     if (error) {

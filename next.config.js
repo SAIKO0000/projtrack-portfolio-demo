@@ -3,12 +3,12 @@ const nextConfig = {
   // Configure allowed image domains
   images: {
     domains: [
-      'qvoockauodrptvyqqqbe.supabase.co', // Supabase storage domain
+      'qdagzcivuddbztsybxfk.supabase.co', // Portfolio Supabase storage domain
     ],
     remotePatterns: [
       {
         protocol: 'https',
-        hostname: 'qvoockauodrptvyqqqbe.supabase.co',
+        hostname: 'qdagzcivuddbztsybxfk.supabase.co',
         pathname: '/storage/v1/object/public/**',
       },
     ],

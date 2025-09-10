@@ -40,4 +40,30 @@ yarn-error.log*
 *.tsbuildinfo
 next-env.d.ts
 
-.vercel
+# Firebase debug logs
+firebase-debug.log*
+
+# Environment file backups
+.env*.backup*
+
+# Personal/Company documents
+*.pdf
+*.docx
+*.doc
+
+# Test files
+test-*.mjs
+test-*.js
+test-upload.txt
+
+# VS Code settings
+.vscode/
+
+# Development documentation (keep README.md)
+DEVELOPER_*.md
+OJT_DOCUMENTATION.md
+OPTIMIZATION_*.md
+PROJTRACK_PRESENTATION.md
+
+# Temporary/development files
+github-header-banner*.png

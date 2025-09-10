@@ -1,0 +1,28 @@
+🚀 Welcome to ProjTrack Portfolio Demo!
+========================================
+
+Hi there! 👋
+
+Thank you for exploring this engineering management dashboard demo. This portfolio project showcases modern project management capabilities for construction and engineering teams.
+
+📧 CONFIRM YOUR EMAIL:
+{{ .ConfirmationURL }}
+
+🎯 DEMO FEATURES:
+✓ Interactive project dashboard with real-time updates
+✓ Gantt chart visualization for project timelines  
+✓ Team collaboration and file management
+✓ Push notifications for deadline management
+✓ Progress tracking and reporting tools
+
+🔐 PORTFOLIO DEMO NOTICE:
+This is a demonstration environment with sample data. All projects and tasks are fictional examples created to showcase the application's capabilities.
+
+After confirming your email, you'll have full access to explore all features of this engineering management platform.
+
+---
+ProjTrack Portfolio Demo
+Built with Next.js, TypeScript, Supabase & Firebase
+
+This is a portfolio demonstration project.
+If you didn't request this, you can safely ignore this email.

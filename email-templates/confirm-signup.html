@@ -1,0 +1,193 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Welcome to ProjTrack Portfolio Demo</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+            line-height: 1.6;
+            color: #374151;
+            max-width: 600px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: #F9FAFB;
+        }
+        .container {
+            background: white;
+            border-radius: 12px;
+            padding: 40px;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+            border: 1px solid #E5E7EB;
+        }
+        .header {
+            text-align: center;
+            margin-bottom: 32px;
+            padding-bottom: 24px;
+            border-bottom: 2px solid #FF6B35;
+        }
+        .logo {
+            font-size: 28px;
+            font-weight: 700;
+            color: #FF6B35;
+            margin-bottom: 8px;
+        }
+        .subtitle {
+            color: #6C6C6C;
+            font-size: 16px;
+        }
+        .welcome-text {
+            font-size: 18px;
+            color: #2C2C2C;
+            margin-bottom: 24px;
+        }
+        .confirm-button {
+            display: inline-block;
+            background: linear-gradient(135deg, #FF6B35, #FF8C42);
+            color: white !important;
+            padding: 14px 32px;
+            text-decoration: none !important;
+            border-radius: 8px;
+            font-weight: 600;
+            font-size: 16px;
+            margin: 24px 0;
+            box-shadow: 0 4px 12px rgba(255, 107, 53, 0.3);
+            transition: transform 0.2s;
+        }
+        .confirm-button:hover {
+            transform: translateY(-1px);
+            background: linear-gradient(135deg, #FF8C42, #C2410C);
+        }
+        /* Email client specific overrides */
+        .confirm-button, .confirm-button:visited, .confirm-button:active, .confirm-button:hover {
+            color: white !important;
+            text-decoration: none !important;
+        }
+        /* Gmail specific overrides */
+        u + .body .confirm-button {
+            color: white !important;
+        }
+        /* Prevent Gmail from changing text colors */
+        * {
+            color: inherit !important;
+        }
+        p, span, div {
+            color: inherit !important;
+        }
+        /* Gmail link detection overrides */
+        a[x-apple-data-detectors] {
+            color: inherit !important;
+            text-decoration: none !important;
+        }
+        .features {
+            background: #F9FAFB;
+            border: 1px solid #E5E7EB;
+            border-radius: 8px;
+            padding: 24px;
+            margin: 24px 0;
+        }
+        .feature-item {
+            display: flex;
+            align-items: center;
+            margin-bottom: 12px;
+        }
+        .feature-icon {
+            color: #FF6B35;
+            margin-right: 12px;
+            font-weight: bold;
+        }
+        .footer {
+            text-align: center;
+            margin-top: 32px;
+            padding-top: 24px;
+            border-top: 1px solid #E5E7EB;
+            color: #6C6C6C;
+            font-size: 14px;
+        }
+        .security-note {
+            background: #FFF7ED;
+            border: 1px solid #FF6B35;
+            border-radius: 6px;
+            padding: 16px;
+            margin: 24px 0;
+            font-size: 14px;
+            color: #7C2D12;
+        }
+        .center-text {
+            text-align: center;
+        }
+        .features-title {
+            margin-top: 0;
+            color: #2C2C2C;
+        }
+        .footer-small {
+            margin-top: 16px;
+            font-size: 12px;
+        }
+        @media (max-width: 600px) {
+            body { padding: 10px; }
+            .container { padding: 24px; }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <div class="logo" style="color: #FF6B35 !important;">🚀 ProjTrack</div>
+            <div class="subtitle" style="color: #6C6C6C !important;">Engineering Management Portfolio Demo</div>
+        </div>
+
+        <div class="welcome-text">
+            <strong>Welcome to ProjTrack!</strong> 👋
+        </div>
+
+        <p style="color: #374151 !important;">Thank you for exploring this engineering management dashboard demo. This portfolio project showcases modern project management capabilities for construction and engineering teams.</p>
+
+        <div class="center-text">
+            <a href="{{ .ConfirmationURL }}" class="confirm-button" style="color: white !important; text-decoration: none !important;">
+                <span style="color: white !important;">✅ Confirm Your Email</span>
+            </a>
+        </div>
+
+        <div class="features">
+            <h3 class="features-title">🎯 Demo Features:</h3>
+            <div class="feature-item">
+                <span class="feature-icon">✓</span>
+                <span style="color: #374151 !important;">Interactive project dashboard with real-time updates</span>
+            </div>
+            <div class="feature-item">
+                <span class="feature-icon">✓</span>
+                <span style="color: #374151 !important;">Gantt chart visualization for project timelines</span>
+            </div>
+            <div class="feature-item">
+                <span class="feature-icon">✓</span>
+                <span style="color: #374151 !important;">Team collaboration and file management</span>
+            </div>
+            <div class="feature-item">
+                <span class="feature-icon">✓</span>
+                <span style="color: #374151 !important;">Push notifications for deadline management</span>
+            </div>
+            <div class="feature-item">
+                <span class="feature-icon">✓</span>
+                <span style="color: #374151 !important;">Progress tracking and reporting tools</span>
+            </div>
+        </div>
+
+        <div class="security-note">
+            <strong style="color: #7C2D12 !important;">🔐 Portfolio Demo Notice:</strong> <span style="color: #7C2D12 !important;">This is a demonstration environment with sample data. All projects and tasks are fictional examples created to showcase the application's capabilities.</span>
+        </div>
+
+        <p style="color: #374151 !important;">After confirming your email, you'll have full access to explore all features of this engineering management platform.</p>
+
+        <div class="footer">
+            <p style="color: #6C6C6C !important;"><strong style="color: #6C6C6C !important;">ProjTrack Portfolio Demo</strong></p>
+            <p style="color: #6C6C6C !important;">Built with Next.js, TypeScript, Supabase & Firebase</p>
+            <p class="footer-small" style="color: #6C6C6C !important;">
+                This is a portfolio demonstration project.<br>
+                If you didn't request this, you can safely ignore this email.
+            </p>
+        </div>
+    </div>
+</body>
+</html>

@@ -35,24 +35,24 @@ export function DeleteConfirmationDialog({
   useModalMobileHide(isOpen)
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className="sm:max-w-[450px] max-w-[95vw] w-[95vw] sm:w-auto p-0 overflow-hidden rounded-2xl shadow-2xl border-0">
-        <div className="bg-gradient-to-br from-red-50 to-orange-50 p-4 sm:p-6 border-b border-red-100">
+      <DialogContent className="sm:max-w-[450px] max-w-[90vw] w-full sm:w-auto p-0 overflow-hidden rounded-2xl shadow-2xl border-0 mx-auto min-h-0">
+        <div className="bg-gradient-to-br from-red-50 to-orange-50 p-4 sm:p-6 border-b border-red-100 min-w-0">
           <DialogHeader className="text-center space-y-3 sm:space-y-4">
-            <div className="mx-auto h-12 w-12 sm:h-16 sm:w-16 rounded-full bg-gradient-to-br from-red-100 to-red-200 flex items-center justify-center shadow-lg">
+            <div className="mx-auto h-12 w-12 sm:h-16 sm:w-16 rounded-full bg-gradient-to-br from-red-100 to-red-200 flex items-center justify-center shadow-lg flex-shrink-0">
               <AlertTriangle className="h-6 w-6 sm:h-8 sm:w-8 text-red-600" />
             </div>
-            <div className="space-y-2">
+            <div className="space-y-2 min-w-0">
               <DialogTitle className="text-lg sm:text-xl font-bold text-gray-900">
                 {title}
               </DialogTitle>
-              <DialogDescription className="text-gray-600 text-sm sm:text-base leading-relaxed">
+              <DialogDescription className="text-gray-600 text-sm sm:text-base leading-relaxed px-2">
                 {description}
               </DialogDescription>
             </div>
             {itemName && (
-              <div className="bg-white/80 backdrop-blur-sm rounded-xl p-3 sm:p-4 border border-red-200/50 shadow-sm">
+              <div className="bg-white/80 backdrop-blur-sm rounded-xl p-3 sm:p-4 border border-red-200/50 shadow-sm mx-2 sm:mx-0 min-w-0">
                 <p className="text-xs sm:text-sm text-gray-500 mb-1">Item to be deleted:</p>
-                <p className="font-semibold text-gray-900 text-sm sm:text-lg break-words">
+                <p className="font-semibold text-gray-900 text-sm sm:text-base break-all hyphens-auto overflow-wrap-anywhere max-w-full">
                   &ldquo;{itemName}&rdquo;
                 </p>
               </div>
@@ -61,10 +61,10 @@ export function DeleteConfirmationDialog({
         </div>
         
         <div className="p-4 sm:p-6 bg-white">
-          <div className="bg-yellow-50 border border-yellow-200 rounded-xl p-3 sm:p-4 mb-4 sm:mb-6">
+          <div className="bg-yellow-50 border border-yellow-200 rounded-xl p-3 sm:p-4 mb-4 sm:mb-6 mx-1 sm:mx-0">
             <div className="flex items-start space-x-2 sm:space-x-3">
               <AlertTriangle className="h-4 w-4 sm:h-5 sm:w-5 text-yellow-600 mt-0.5 flex-shrink-0" />
-              <div>
+              <div className="min-w-0 flex-1">
                 <h4 className="text-xs sm:text-sm font-semibold text-yellow-800 mb-1">
                   Warning: This action cannot be undone
                 </h4>
@@ -75,7 +75,7 @@ export function DeleteConfirmationDialog({
             </div>
           </div>
           
-          <DialogFooter className="flex flex-col sm:flex-row gap-2 sm:gap-3 sm:justify-end">
+          <DialogFooter className="flex flex-col sm:flex-row gap-2 sm:gap-3 sm:justify-end px-1 sm:px-0">
             <Button
               variant="outline"
               onClick={onClose}

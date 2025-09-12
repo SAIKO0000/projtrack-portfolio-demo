@@ -82,7 +82,7 @@ export function DocumentViewerWithNotesModal({
     try {
       // Try to get a signed URL for viewing
       const { data, error } = await supabase.storage
-        .from('project-reports')
+        .from('project-documents')
         .createSignedUrl(report.file_path, 3600) // 1 hour expiry
 
       if (error) throw error
@@ -162,7 +162,7 @@ export function DocumentViewerWithNotesModal({
     
     try {
       const { data, error } = await supabase.storage
-        .from('project-reports')
+        .from('project-documents')
         .download(report.file_path)
 
       if (error) throw error

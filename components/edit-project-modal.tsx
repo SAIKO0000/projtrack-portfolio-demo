@@ -42,7 +42,7 @@ import {
 } from "lucide-react"
 import { format } from "date-fns"
 import { cn } from "@/lib/utils"
-import { useProjects } from "@/lib/hooks/useProjects"
+import { useUpdateProject } from "@/lib/hooks/useProjectsOptimized"
 import type { Project } from "@/lib/supabase"
 import { useModalMobileHide } from "@/lib/modal-mobile-utils"
 
@@ -84,7 +84,8 @@ export function EditProjectModal({ project, open, onOpenChangeAction, onProjectU
   const [isLoadingLocations, setIsLoadingLocations] = useState(false)
   const [showLocationDropdown, setShowLocationDropdown] = useState(false)
   const locationTimeoutRef = useRef<NodeJS.Timeout | null>(null)
-  const { updateProject } = useProjects()
+  const updateProjectMutation = useUpdateProject()
+  const updateProject = updateProjectMutation.mutate
 
   const {
     register,
@@ -196,7 +197,10 @@ export function EditProjectModal({ project, open, onOpenChangeAction, onProjectU
         description: data.description || null,
       }
 
-      await updateProject(project.id, projectData)
+      updateProject({
+        id: project.id,
+        updates: projectData
+      })
       
       // Toast is handled in the hook
       onOpenChangeAction(false)

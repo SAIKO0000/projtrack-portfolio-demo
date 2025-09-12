@@ -1,7 +1,7 @@
 import { useMemo, useCallback } from "react"
 import { useAuth } from "@/lib/auth"
 import { usePersonnel } from "@/lib/hooks/usePersonnel"
-import { useReports } from "@/lib/hooks/useReports"
+import { useReportsOptimized } from "@/lib/hooks/useReportsOptimized"
 import { type Project } from "../types/project-types"
 
 export const useProjectPermissions = () => {
@@ -28,7 +28,7 @@ export const useProjectPermissions = () => {
 }
 
 export const useProjectReports = (projects: Project[]) => {
-  const { reports } = useReports()
+  const { data: reports = [] } = useReportsOptimized()
   const { currentUserPersonnel } = useProjectPermissions()
 
   // Memoize expensive computations to reduce re-renders

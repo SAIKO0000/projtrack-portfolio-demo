@@ -20,7 +20,7 @@ export async function GET(
 
     // Get the file from Supabase storage
     const { data: fileData, error: fileError } = await supabase.storage
-      .from('project-reports')
+      .from('project-documents')
       .download(report.file_path)
 
     if (fileError || !fileData) {

@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo, useCallback, useRef } from "react"
-import { useReports } from "@/lib/hooks/useReports"
+import { useReportsOptimized, useReportOperations } from "@/lib/hooks/useReportsOptimized"
 import { useSupabaseQuery } from "@/lib/hooks/useSupabaseQuery"
 import { usePersonnel } from "@/lib/hooks/usePersonnel"
 import { useAuth } from "@/lib/auth"
@@ -33,7 +33,59 @@ export function useReportsLogic() {
   //   console.log('reviewerNotesModal state changed:', reviewerNotesModal)
   // }, [reviewerNotesModal])
 
-  const { reports, loading, fetchReports, downloadReport, deleteReport, updateReport, getReportUrl } = useReports()
+  // Use optimized hooks for real-time functionality
+  const { data: reports = [], isLoading: loading } = useReportsOptimized()
+  const { deleteReport, updateReport } = useReportOperations()
+  
+  // Supabase storage functions for report operations
+  const downloadReport = useCallback(async (reportId: string) => {
+    try {
+      const report = reports.find(r => r.id === reportId)
+      if (!report) {
+        toast.error("Report not found")
+        return
+      }
+      
+      const { data } = await supabase.storage
+        .from('project-documents')
+        .download(report.file_path)
+        
+      if (data) {
+        const url = URL.createObjectURL(data)
+        const a = document.createElement('a')
+        a.href = url
+        a.download = report.file_name
+        document.body.appendChild(a)
+        a.click()
+        document.body.removeChild(a)
+        URL.revokeObjectURL(url)
+        toast.success("Download started")
+      } else {
+        toast.error("Failed to download file")
+      }
+    } catch (error) {
+      console.error('Download error:', error)
+      toast.error("Failed to download file")
+    }
+  }, [reports])
+  
+  const getReportUrl = useCallback((filePath: string) => {
+    try {
+      const { data } = supabase.storage
+        .from('project-documents')
+        .getPublicUrl(filePath)
+        
+      return data?.publicUrl || null
+    } catch (error) {
+      console.error('Error creating public URL:', error)
+      return null
+    }
+  }, [])
+  
+  const fetchReports = useCallback(() => {
+    // With optimized hooks, this is automatic
+    console.log('Reports auto-refresh via optimized hooks')
+  }, [])
   
   // Use centralized TanStack Query hooks
   const supabaseQuery = useSupabaseQuery()
@@ -64,7 +116,7 @@ export function useReportsLogic() {
       }
 
       try {
-        await fetchReports()
+        fetchReports()
         lastRefreshRef.current = now
         toast.success("Reports refreshed successfully")
       } catch (error) {
@@ -142,7 +194,7 @@ export function useReportsLogic() {
       if (status === 'approved' || status === 'revision' || status === 'rejected') {
         setReviewerNotesModal({
           open: true,
-          action: status as 'approved' | 'revision' | 'rejected',
+          action: status,
           reportId: reportId,
           reportName: report?.file_name || 'Unknown Report'
         })
@@ -150,7 +202,10 @@ export function useReportsLogic() {
       }
 
       // For other status updates (like pending), update directly
-      await updateReport(reportId, { status })
+      updateReport({
+        reportId,
+        updates: { status }
+      })
       toast.success(`Report ${status} successfully`)
       // Optimistic update is handled in the hook
     } catch (error) {
@@ -162,9 +217,12 @@ export function useReportsLogic() {
   // Handle reviewer notes submission
   const handleReviewerNotesSubmit = async (action: 'approved' | 'revision' | 'rejected', notes: string) => {
     try {
-      await updateReport(reviewerNotesModal.reportId, { 
-        status: action,
-        reviewer_notes: notes 
+      updateReport({
+        reportId: reviewerNotesModal.reportId,
+        updates: {
+          status: action,
+          reviewer_notes: notes 
+        }
       })
       toast.success(`Report ${action} successfully`)
       // Optimistic update is handled in the hook
@@ -183,7 +241,7 @@ export function useReportsLogic() {
   const handleView = async (report: EnhancedReport) => {
     try {
       const { data } = supabase.storage
-        .from('project-reports')
+        .from('project-documents')
         .getPublicUrl(report.file_path)
       
       if (data?.publicUrl) {
@@ -200,7 +258,7 @@ export function useReportsLogic() {
 
   const handleDownload = async (report: EnhancedReport) => {
     try {
-      await downloadReport(report)
+      await downloadReport(report.id)
       toast.success("Download started")
     } catch (error) {
       console.error("Download error:", error)
@@ -212,6 +270,11 @@ export function useReportsLogic() {
     try {
       const shareUrl = getReportUrl(report.file_path)
       
+      if (!shareUrl) {
+        toast.error("Unable to generate share link")
+        return
+      }
+      
       // Use the Web Share API if available
       if (navigator.share) {
         await navigator.share({
@@ -219,7 +282,7 @@ export function useReportsLogic() {
           text: `Report: ${report.title || report.file_name}`,
           url: shareUrl,
         })
-      } else if (navigator.clipboard && navigator.clipboard.writeText) {
+      } else if (navigator.clipboard?.writeText) {
         // Fallback: copy to clipboard if available
         await navigator.clipboard.writeText(shareUrl)
         toast.success("Share link copied to clipboard!")
@@ -235,11 +298,12 @@ export function useReportsLogic() {
         textArea.select()
         
         try {
-          document.execCommand('copy')
+          textArea.setSelectionRange(0, 99999) // For mobile devices
+          navigator.clipboard?.writeText(shareUrl)
           toast.success("Share link copied to clipboard!")
         } catch (err) {
           console.error('Fallback copy failed:', err)
-          toast.error("Unable to copy link. Please copy manually: " + shareUrl)
+          toast.error(`Unable to copy link. Please copy manually: ${shareUrl}`)
         }
         
         document.body.removeChild(textArea)
@@ -264,7 +328,7 @@ export function useReportsLogic() {
     setDeleteDialog(prev => ({ ...prev, isDeleting: true }))
     
     try {
-      await deleteReport(deleteDialog.report.id)
+      deleteReport(deleteDialog.report.id)
       toast.success("Document deleted successfully")
       setDeleteDialog({ open: false, report: null, isDeleting: false })
     } catch (error) {
@@ -304,7 +368,7 @@ export function useReportsLogic() {
   const uniqueProjects = [...new Set([
     ...projects.map((project) => project.name),
     ...enhancedReports.map((report) => report.projectName)
-  ])].sort()
+  ])].sort((a, b) => a.localeCompare(b))
   const uniqueCategories = [...new Set([
     "Financial Reports",
     "Progress Reports", 
@@ -313,7 +377,7 @@ export function useReportsLogic() {
     "Quality Reports",
     "Other",
     ...enhancedReports.map((report) => report.category).filter(Boolean)
-  ])].sort()
+  ])].sort((a, b) => (a || '').localeCompare(b || ''))
 
   return {
     // State

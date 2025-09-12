@@ -82,7 +82,7 @@ export function useSupabaseQuery() {
         const { data, error } = await supabase
           .from('tasks')
           .select(`
-            id, name, status, priority, due_date, created_at, updated_at, 
+            id, title, name, status, priority, due_date, created_at, updated_at, 
             project_id, assigned_to, description, progress,
             project:projects(id, name),
             assignee:personnel(id, name)

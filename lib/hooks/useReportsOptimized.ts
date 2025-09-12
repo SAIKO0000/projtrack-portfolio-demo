@@ -173,7 +173,7 @@ export function useReportOperations() {
 
       // Upload file to Supabase Storage
       const { error: uploadError } = await supabase.storage
-        .from('project-reports')
+        .from('project-documents')
         .upload(filePath, file, {
           contentType: file.type || 'application/octet-stream',
           upsert: false
@@ -328,7 +328,7 @@ export function useReportOperations() {
       // Delete from storage
       if (report.file_path) {
         const { error: storageError } = await supabase.storage
-          .from('project-reports')
+          .from('project-documents')
           .remove([report.file_path])
 
         if (storageError) {

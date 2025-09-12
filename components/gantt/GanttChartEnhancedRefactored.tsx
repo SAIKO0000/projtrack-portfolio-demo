@@ -3,7 +3,7 @@
 import { useState, useMemo, useEffect, useCallback } from "react"
 import { Card, CardContent } from "@/components/ui/card"
 import { RefreshCw, AlertTriangle, BarChart3 } from "lucide-react"
-import { useProjects } from "@/lib/hooks/useProjects"
+import { useProjectsQuery } from "@/lib/hooks/useProjectsOptimized"
 import { useGanttTasks } from "@/lib/hooks/useGanttTasks"
 import { useStructuredExport } from "@/lib/hooks/useStructuredExport"
 import { TaskEditModalOptimized } from "./TaskEditModal"
@@ -22,7 +22,7 @@ import { TaskRow } from "./TaskRow"
 import { GanttHeader } from "./GanttHeader"
 
 export function GanttChartEnhancedRefactored({ selectedProjectId }: GanttChartProps) {
-  const { projects, loading: projectsLoading, error: projectsError, fetchProjects } = useProjects()
+  const { data: projects = [], isLoading: projectsLoading, error: projectsError, refetch: fetchProjects } = useProjectsQuery()
   const { tasks, loading: tasksLoading, error: tasksError, refetch: refetchTasks, deleteTask, updateTaskStatus, updateTask } = useGanttTasks()
   
   // Transform tasks for export compatibility

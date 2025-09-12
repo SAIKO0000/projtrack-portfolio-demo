@@ -1,28 +1,14 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { useEffect } from 'react'
 import { supabase } from '@/lib/supabase'
+import type { Database } from '@/lib/supabase'
 import { queryKeys } from '@/lib/supabase-query'
 import { withAuthErrorHandling } from '@/lib/auth-utils'
-import { createSmartInvalidation } from '@/lib/hooks/useSmartInvalidation'
 import { toast } from 'react-hot-toast'
 
-export type Task = {
-  id: string
-  name: string
-  status: string
-  priority: string
-  due_date: string | null
-  created_at: string
-  updated_at: string
-  project_id: string | null
-  assigned_to: string | null
-  description: string | null
-  progress: number | null
-}
+export type Task = Database['public']['Tables']['tasks']['Row']
 
 export function useTasks() {
   const queryClient = useQueryClient()
-  const smartInvalidation = createSmartInvalidation(queryClient)
 
   // Main tasks query with aggressive caching
   const query = useQuery({
@@ -48,47 +34,6 @@ export function useTasks() {
     refetchOnMount: false,
   })
 
-  // Set up realtime subscription for tasks
-  useEffect(() => {
-    console.log('🔄 Setting up real-time task subscriptions...')
-    
-    const channel = supabase
-      .channel('tasks_changes')
-      .on(
-        'postgres_changes',
-        {
-          event: '*',
-          schema: 'public',
-          table: 'tasks'
-        },
-        (payload) => {
-          console.log('📝 Task change detected:', payload.eventType, payload)
-          
-          if (payload.eventType === 'INSERT' && payload.new) {
-            smartInvalidation.onTaskCreate(payload.new as Task)
-            console.log('✅ Task created - cache updated optimistically')
-          } else if (payload.eventType === 'UPDATE' && payload.new) {
-            smartInvalidation.onTaskUpdate(payload.new as Task)
-            console.log('✅ Task updated - cache refreshed')
-          } else if (payload.eventType === 'DELETE' && payload.old) {
-            const oldTask = payload.old as Task
-            smartInvalidation.onTaskDelete(oldTask.id, oldTask.project_id || '')
-            console.log('✅ Task deleted - cache cleaned up')
-          } else {
-            // Fallback: only invalidate dashboard stats for unknown changes
-            queryClient.invalidateQueries({ queryKey: queryKeys.dashboardStats(), exact: true })
-            console.log('⚠️ Unknown task change - invalidated dashboard stats')
-          }
-        }
-      )
-      .subscribe()
-
-    return () => {
-      console.log('🔄 Cleaning up task subscriptions...')
-      supabase.removeChannel(channel)
-    }
-  }, [queryClient, smartInvalidation])
-
   // Update task mutation
   const updateTaskMutation = useMutation({
     mutationFn: async ({ id, updates }: { id: string; updates: Partial<Task> }) => {
@@ -106,7 +51,7 @@ export function useTasks() {
 
         if (error) throw error
         return data
-      })
+      }, undefined)
     },
     onSuccess: (updatedTask) => {
       // Update cache with the updated task
@@ -132,7 +77,7 @@ export function useTasks() {
 
         if (error) throw error
         return taskId
-      })
+      }, undefined)
     },
     onSuccess: (deletedId) => {
       // Update cache by removing the deleted task
@@ -157,4 +102,47 @@ export function useTasks() {
     isUpdating: updateTaskMutation.isPending,
     isDeleting: deleteTaskMutation.isPending
   }
+}
+        throw fetchError;
+      }
+
+      const tasksData = data || [];
+      setTasks(tasksData);
+      setLastVersion(globalTasksVersion);
+      
+      // Update cache
+      cache.set(CACHE_KEYS.TASKS, tasksData);
+    } catch (err) {
+      console.error('Error fetching tasks:', err);
+      setError(err instanceof Error ? err.message : 'Failed to fetch tasks');
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  // Initial fetch
+  useEffect(() => {
+    fetchTasks();
+  }, [fetchTasks]);
+  // Watch for global cache invalidation - reduced frequency
+  useEffect(() => {
+    const watcher = () => {
+      if (lastVersion < globalTasksVersion) {
+        setLastVersion(globalTasksVersion);
+        fetchTasks(true); // Force refresh when version changes
+      }
+    };
+
+    versionWatchers.add(watcher);
+    return () => {
+      versionWatchers.delete(watcher);
+    };
+  }, [lastVersion, fetchTasks]);
+
+  return {
+    tasks,
+    loading,
+    error,
+    refetch: fetchTasks,
+  };
 }

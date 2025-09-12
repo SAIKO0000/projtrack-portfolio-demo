@@ -5,8 +5,8 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } f
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { useSupabaseQuery } from "@/lib/hooks/useSupabaseQuery"
-import { useProjects } from "@/lib/hooks/useProjects"
-import { useReports } from "@/lib/hooks/useReports"
+import { useDeleteProject, useUpdateProject } from "@/lib/hooks/useProjectsOptimized"
+import { useReportsOptimized, useReportOperations } from "@/lib/hooks/useReportsOptimized"
 import { ProjectFormModal } from "@/components/project-form-modal"
 import { ReportUploadModal } from "@/components/report-upload-modal"
 import { EditProjectModal } from "@/components/edit-project-modal"
@@ -65,11 +65,17 @@ export function Projects({ onProjectSelect }: ProjectsProps) {
       : []
   }, [projectsData])
   
-  // Get mutations from useProjects hook
-  const { deleteProject, updateProject } = useProjects()
+  // Get mutations from optimized hooks
+  const deleteProjectMutation = useDeleteProject()
+  const updateProjectMutation = useUpdateProject()
   
-  // Get reports and operations with manual refresh for immediate UI updates
-  const { reports, loading: reportsLoading, updateReport, deleteReport, fetchReports } = useReports()
+  // Extract mutate functions - use mutateAsync for proper promise handling
+  const deleteProject = deleteProjectMutation.mutateAsync
+  const updateProject = updateProjectMutation.mutateAsync
+  
+  // Get reports and operations with optimized hooks for immediate UI updates
+  const { data: reports = [], isLoading: reportsLoading } = useReportsOptimized()
+  const { updateReport, deleteReport } = useReportOperations()
   
   // Force re-render state for immediate UI updates
   const [forceRender, setForceRender] = useState(0)
@@ -80,8 +86,7 @@ export function Projects({ onProjectSelect }: ProjectsProps) {
     setForceRender(prev => prev + 1)
     setModalForceRender(prev => prev + 1) // Force modal data update
     
-    // Refresh both reports and projects data
-    fetchReports() // Immediate reports refresh
+    // Refresh projects data (reports will auto-refresh via optimized hooks)
     refetchProjects() // Immediate projects refresh
     
     // Additional force update after a short delay to ensure data propagation
@@ -89,7 +94,7 @@ export function Projects({ onProjectSelect }: ProjectsProps) {
       setForceRender(prev => prev + 1)
       console.log('🔄 Secondary UI update completed')
     }, 500)
-  }, [fetchReports, refetchProjects])
+  }, [refetchProjects])
   
   // Force re-render when reports change to ensure UI updates
   const reportsCount = useMemo(() => reports.length, [reports])
@@ -241,6 +246,7 @@ export function Projects({ onProjectSelect }: ProjectsProps) {
     }))
     
     try {
+      // Wait for the deletion to complete before updating UI
       await deleteProject(project.id)
       
       // IMMEDIATE UI UPDATE - Force refresh after project deletion
@@ -271,7 +277,7 @@ export function Projects({ onProjectSelect }: ProjectsProps) {
     }))
     
     try {
-      await deleteReport(report.id)
+      deleteReport(report.id)
       
       // IMMEDIATE UI UPDATE - Force refresh after deletion
       forceUIUpdate()
@@ -319,7 +325,7 @@ export function Projects({ onProjectSelect }: ProjectsProps) {
   // Handle project status update
   const handleStatusUpdate = useCallback(async (projectId: string, newStatus: string) => {
     try {
-      await updateProject(projectId, { status: newStatus })
+      updateProject({ id: projectId, updates: { status: newStatus } })
       
       // IMMEDIATE UI UPDATE - Force refresh after status change
       forceUIUpdate()
@@ -334,9 +340,12 @@ export function Projects({ onProjectSelect }: ProjectsProps) {
   // Handle reviewer notes submission
   const handleReviewerNotesSubmit = useCallback(async (action: 'approved' | 'revision' | 'rejected', notes: string) => {
     try {
-      await updateReport(modalState.reviewerNotesModal.reportId, { 
-        status: action,
-        reviewer_notes: notes 
+      updateReport({ 
+        reportId: modalState.reviewerNotesModal.reportId,
+        updates: { 
+          status: action,
+          reviewer_notes: notes 
+        }
       })
       
       // IMMEDIATE UI UPDATE - Force refresh after action
@@ -362,8 +371,11 @@ export function Projects({ onProjectSelect }: ProjectsProps) {
   // Handle simple notes submission (without status change)
   const handleSimpleNotesSubmit = useCallback(async (notes: string) => {
     try {
-      await updateReport(modalState.simpleNotesModal.reportId, { 
-        reviewer_notes: notes 
+      updateReport({ 
+        reportId: modalState.simpleNotesModal.reportId,
+        updates: { 
+          reviewer_notes: notes 
+        }
       })
       
       // IMMEDIATE UI UPDATE - Force refresh after action
@@ -389,7 +401,10 @@ export function Projects({ onProjectSelect }: ProjectsProps) {
   // Handler for document viewer with notes (both save notes and status changes)
   const handleDocumentViewerNotesSubmit = useCallback(async (reportId: string, notes: string) => {
     try {
-      await updateReport(reportId, { reviewer_notes: notes })
+      updateReport({ 
+        reportId,
+        updates: { reviewer_notes: notes }
+      })
       
       // IMMEDIATE UI UPDATE - Force refresh after action
       forceUIUpdate()
@@ -400,7 +415,10 @@ export function Projects({ onProjectSelect }: ProjectsProps) {
 
   const handleDocumentViewerStatusChange = useCallback(async (reportId: string, status: 'approved' | 'rejected' | 'revision', notes: string) => {
     try {
-      await updateReport(reportId, { status, reviewer_notes: notes })
+      updateReport({ 
+        reportId,
+        updates: { status, reviewer_notes: notes }
+      })
       
       // IMMEDIATE UI UPDATE - Force refresh after action
       forceUIUpdate()
@@ -620,7 +638,7 @@ export function Projects({ onProjectSelect }: ProjectsProps) {
                     onClick={async () => {
                       try {
                         const { data, error } = await supabase.storage
-                          .from('project-reports')
+                          .from('project-documents')
                           .download(report.file_path)
 
                         if (error) throw error

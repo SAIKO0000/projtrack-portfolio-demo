@@ -1,10 +1,10 @@
 import { useCallback } from "react"
 import { usePersonnel } from "@/lib/hooks/usePersonnel"
-import { useReports } from "@/lib/hooks/useReports"
+import { useReportsOptimized } from "@/lib/hooks/useReportsOptimized"
 
 export const useReportHelpers = () => {
   const { personnel } = usePersonnel()
-  const { reports } = useReports()
+  const { data: reports = [] } = useReportsOptimized()
 
   // Helper function to get uploader name and position
   const getUploaderInfo = useCallback((report: typeof reports[0]): { name: string; position: string } => {

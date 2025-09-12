@@ -250,7 +250,7 @@ export function useReports() {
       // Get uploader name and position from personnel table or user metadata
       let uploaderName = 'Unknown User'
       let uploaderPosition = 'Unknown Position'
-      if (currentUser?.email) {
+      if (currentUser && currentUser.email) {
         // Try to find user in personnel by email
         const { data: personnelData } = await supabase
           .from('personnel')
@@ -537,7 +537,7 @@ export function useReports() {
       // Get uploader name and position from personnel table or user metadata
       let uploaderName = 'Unknown User'
       let uploaderPosition = 'Unknown Position'
-      if (currentUser?.email) {
+      if (currentUser && currentUser.email) {
         // Try to find user in personnel by email
         const { data: personnelData } = await supabase
           .from('personnel')

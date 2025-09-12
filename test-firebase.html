@@ -1,0 +1,72 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Firebase FCM Test</title>
+</head>
+<body>
+    <h1>Firebase FCM Test</h1>
+    <button id="requestPermission">Request Notification Permission</button>
+    <button id="getToken">Get FCM Token</button>
+    <div id="output" style="margin-top: 20px; padding: 10px; background: #f0f0f0; white-space: pre-wrap;"></div>
+
+    <script type="module">
+        import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js';
+        import { getMessaging, getToken, onMessage } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-messaging.js';
+
+        // Your Firebase configuration
+        const firebaseConfig = {
+            apiKey: "AIzaSyDQuH68r81F1gwmK3VJs2BODKXdmRG-Zbs",
+            authDomain: "proj-tracker-demo.firebaseapp.com",
+            projectId: "proj-tracker-demo",
+            storageBucket: "proj-tracker-demo.firebasestorage.app",
+            messagingSenderId: "422442704375",
+            appId: "1:422442704375:web:cf181ddb53547acc3aa2f2"
+        };
+
+        const vapidKey = "BCYG93jA3gE5KiYpVKQBBMJRICJd5gpwGh1Yia14ZE5spllJdjJILAbHVlq6FWfHykOVvgopp39VoYnjdc-rSSk";
+
+        const app = initializeApp(firebaseConfig);
+        const messaging = getMessaging(app);
+        const output = document.getElementById('output');
+
+        function log(message) {
+            output.textContent += new Date().toLocaleTimeString() + ': ' + message + '\n';
+            console.log(message);
+        }
+
+        // Test Firebase initialization
+        log('✅ Firebase initialized successfully');
+        log('Project ID: ' + firebaseConfig.projectId);
+        log('Messaging Sender ID: ' + firebaseConfig.messagingSenderId);
+
+        document.getElementById('requestPermission').addEventListener('click', async () => {
+            try {
+                const permission = await Notification.requestPermission();
+                log('Permission result: ' + permission);
+            } catch (error) {
+                log('Error requesting permission: ' + error.message);
+            }
+        });
+
+        document.getElementById('getToken').addEventListener('click', async () => {
+            try {
+                const currentToken = await getToken(messaging, { vapidKey: vapidKey });
+                if (currentToken) {
+                    log('✅ FCM Token received:');
+                    log(currentToken);
+                } else {
+                    log('❌ No registration token available');
+                }
+            } catch (error) {
+                log('❌ Error getting token: ' + error.message);
+            }
+        });
+
+        // Listen for foreground messages
+        onMessage(messaging, (payload) => {
+            log('🔔 Message received:');
+            log(JSON.stringify(payload, null, 2));
+        });
+    </script>
+</body>
+</html>

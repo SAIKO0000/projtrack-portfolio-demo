@@ -1,4 +1,4 @@
-import { type ReportWithUploader } from "@/lib/hooks/useReports"
+import { type ReportWithUploader } from "@/lib/hooks/useReportsOptimized"
 
 export type Project = {
   id: string

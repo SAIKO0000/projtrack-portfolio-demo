@@ -7,6 +7,7 @@ import { ContentSkeleton } from "@/components/ui/content-skeleton"
 import { toast } from "react-hot-toast"
 import { useSupabaseQuery } from "@/lib/hooks/useSupabaseQuery"
 import { usePersonnel } from "@/lib/hooks/usePersonnel"
+import { useDashboardRealtime } from "@/lib/hooks/useDashboardRealtime"
 
 // Import refactored components
 import { DashboardHeader } from "./dashboard-header"
@@ -46,16 +47,11 @@ export function Dashboard() {
   const [editingProject, setEditingProject] = useState<Project | null>(null)
   const lastRefreshRef = useRef<number>(0)
 
+  // Set up comprehensive real-time subscriptions for dynamic updates
+  useDashboardRealtime()
+
   // Use refactored analytics hook
   const { stats, projectAnalytics, getProjectTaskProgress, getProjectTaskCounts } = useDashboardAnalytics(projects, tasks, personnel)
-
-  // Debug personnel data - check if data is loading properly
-  console.log('🔍 Dashboard Debug - Personnel data:', {
-    personnelCount: personnel?.length || 0,
-    personnelLoading,
-    statsPersonnel: stats?.totalPersonnel || 0,
-    firstPersonnel: personnel?.[0] || null
-  })
 
   // Use refactored chart data hook
   const { projectProgressData, statusData } = useChartData(projects, getProjectTaskProgress)

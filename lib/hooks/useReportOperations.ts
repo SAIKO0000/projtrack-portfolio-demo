@@ -19,7 +19,7 @@ export function useReportOperations() {
     
     // Upload to storage
     const { error: uploadError } = await supabase.storage
-      .from('report-attachments')
+      .from('project-documents')
       .upload(fileName, file, {
         cacheControl: '3600',
         upsert: false
@@ -31,7 +31,7 @@ export function useReportOperations() {
 
     // Get public URL
     const { data: urlData } = supabase.storage
-      .from('report-attachments')
+      .from('project-documents')
       .getPublicUrl(fileName)
 
     return {
@@ -82,7 +82,7 @@ export function useReportOperations() {
     mutationFn: async ({ reportId, filePath }: { reportId: string, filePath: string }) => {
       // Remove from storage
       const { error: storageError } = await supabase.storage
-        .from('report-attachments')
+        .from('project-documents')
         .remove([filePath])
 
       if (storageError) throw storageError

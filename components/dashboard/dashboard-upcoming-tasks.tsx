@@ -16,6 +16,8 @@ interface DashboardUpcomingTasksProps {
     isTomorrow?: boolean
     urgencyScore?: number
     daysUntilDue?: number
+    title?: string
+    name?: string
   }>
   getTaskUrgencyBadgePropsAction: (task: Task & { 
     isOverdue?: boolean
@@ -46,7 +48,7 @@ export function DashboardUpcomingTasks({
               <div key={task.id} className="flex items-start space-x-4 p-4 bg-gradient-to-r from-gray-50/80 to-white rounded-xl hover:from-blue-50/50 hover:to-blue-50/30 hover:shadow-md transition-all duration-200 border border-gray-100/50">
                 <div className="flex-1 min-w-0">
                   <div className="flex items-start justify-between mb-2">
-                    <h4 className="text-base font-bold text-gray-900 truncate pr-3">{task.title}</h4>
+                    <h4 className="text-base font-bold text-gray-900 truncate pr-3">{task.title || task.name || 'Untitled Task'}</h4>
                     <div className="flex items-center space-x-2 flex-shrink-0">
                       <Badge variant="outline" className="text-xs px-2 py-1 bg-blue-50 text-blue-700 border-blue-200">
                         {task.status || 'In Progress'}

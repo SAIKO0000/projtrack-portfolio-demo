@@ -3,7 +3,7 @@
 import { useState, useMemo, useEffect, useCallback } from "react"
 import { Card, CardContent } from "@/components/ui/card"
 import { RefreshCw, AlertTriangle, BarChart3 } from "lucide-react"
-import { useProjectsQuery } from "@/lib/hooks/useProjectsOptimized"
+import { useProjects } from "@/lib/hooks/useProjects"
 import { useGanttTasks } from "@/lib/hooks/useGanttTasks"
 import { useStructuredExport } from "@/lib/hooks/useStructuredExport"
 import { TaskEditModalOptimized } from "./TaskEditModal"
@@ -17,12 +17,11 @@ import { isOverdue, getDaysUntilDeadline, getEffectiveStatus } from "./utils"
 import { getTimelineMonths, navigatePeriod } from "./timeline-utils"
 import { GanttStatsCards } from "./GanttStatsCards"
 import { GanttFilters } from "./GanttFilters"
-import { TimelineHeader } from "./TimelineHeader"
-import { TaskRow } from "./TaskRow"
+import { UnifiedGanttChart } from "./UnifiedGanttChart"
 import { GanttHeader } from "./GanttHeader"
 
 export function GanttChartEnhancedRefactored({ selectedProjectId }: GanttChartProps) {
-  const { data: projects = [], isLoading: projectsLoading, error: projectsError, refetch: fetchProjects } = useProjectsQuery()
+  const { projects, loading: projectsLoading, error: projectsError, fetchProjects } = useProjects()
   const { tasks, loading: tasksLoading, error: tasksError, refetch: refetchTasks, deleteTask, updateTaskStatus, updateTask } = useGanttTasks()
   
   // Transform tasks for export compatibility
@@ -352,49 +351,35 @@ export function GanttChartEnhancedRefactored({ selectedProjectId }: GanttChartPr
         onTaskCreatedAction={handleTaskCreated}
       />
 
-      {/* Timeline Navigation */}
-      <TimelineHeader
+      {/* Unified Gantt Chart */}
+      <UnifiedGanttChart
+        tasks={filteredTasks}
         viewMode={viewMode}
         currentPeriod={currentPeriod}
         projectFilter={projectFilter}
         projects={projects}
-        filteredTasksLength={filteredTasks.length}
+        timelineMonths={timelineMonths}
         onNavigatePeriodAction={handleNavigatePeriod}
         onTaskCreatedAction={handleTaskCreated}
-        timelineMonths={timelineMonths}
+        onEditTaskAction={handleEditTask}
+        onDeleteTaskAction={handleDeleteTask}
+        onStatusUpdateAction={handleStatusUpdate}
+        onNotesSubmit={handleNotesUpdate}
         isExpanded={isExpanded}
         onToggleExpandAction={handleToggleExpand}
       />
 
-      {/* Task Rows */}
-      <Card className="dark:bg-gray-900 dark:border-gray-800">
-        <CardContent className="pt-3 px-3 sm:px-6">
-          <div className="space-y-3 sm:space-y-4">
-            {filteredTasks.map((task, index) => (
-              <TaskRow
-                key={task.id}
-                task={task}
-                index={index}
-                isExpanded={isExpanded}
-                timelineMonths={timelineMonths}
-                viewMode={viewMode}
-                onEditTaskAction={handleEditTask}
-                onDeleteTaskAction={handleDeleteTask}
-                onStatusUpdateAction={handleStatusUpdate}
-                onNotesSubmit={handleNotesUpdate}
-              />
-            ))}
-          </div>
-
-          {filteredTasks.length === 0 && (
+      {filteredTasks.length === 0 && (
+        <Card className="dark:bg-gray-900 dark:border-gray-800">
+          <CardContent className="pt-3 px-3 sm:px-6">
             <div className="text-center py-12">
               <BarChart3 className="h-12 w-12 text-gray-400 mx-auto mb-4" />
               <h3 className="text-lg font-medium text-gray-900 dark:text-white mb-2">No tasks found</h3>
               <p className="text-gray-600 dark:text-gray-400">Try adjusting your filters to see task timelines</p>
             </div>
-          )}
-        </CardContent>
-      </Card>
+          </CardContent>
+        </Card>
+      )}
 
       {/* Export Controls - Positioned at Bottom */}
       <StructuredExportControls

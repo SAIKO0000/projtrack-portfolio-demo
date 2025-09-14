@@ -4,6 +4,7 @@ export { GanttStatsCards } from './GanttStatsCards'
 export { GanttFilters } from './GanttFilters'
 export { TimelineHeader } from './TimelineHeader'
 export { TaskRow } from './TaskRow'
+export { UnifiedGanttChart } from './UnifiedGanttChart'
 export { GanttHeader } from './GanttHeader'
 
 // Export types

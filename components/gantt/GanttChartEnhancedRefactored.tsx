@@ -82,12 +82,24 @@ export function GanttChartEnhancedRefactored({ selectedProjectId }: GanttChartPr
       setCurrentPeriod(event.detail)
     }
 
+    const handleNavigateToTaskStart = (event: CustomEvent) => {
+      const taskStartDate = new Date(event.detail)
+      setCurrentPeriod(taskStartDate)
+      
+      // Automatically switch to daily view for more precise navigation
+      if (viewMode === "full" || viewMode === "yearly") {
+        setViewMode("daily")
+      }
+    }
+
     window.addEventListener('navigate-to-today', handleNavigateToToday as EventListener)
+    window.addEventListener('navigate-to-task-start', handleNavigateToTaskStart as EventListener)
     
     return () => {
       window.removeEventListener('navigate-to-today', handleNavigateToToday as EventListener)
+      window.removeEventListener('navigate-to-task-start', handleNavigateToTaskStart as EventListener)
     }
-  }, [])
+  }, [viewMode])
 
   // Generate alphabetical task keys per project
   const generateTaskKey = useCallback((tasks: EnhancedTask[], projectId: string) => {
@@ -266,6 +278,11 @@ export function GanttChartEnhancedRefactored({ selectedProjectId }: GanttChartPr
     setIsEditModalOpen(false)
   }, [refetchTasks])
 
+  const handleNavigateToTaskStart = useCallback((taskStartDate: string) => {
+    // Dispatch a custom event to navigate to task start date
+    window.dispatchEvent(new CustomEvent('navigate-to-task-start', { detail: taskStartDate }))
+  }, [])
+
   const handleTaskCreated = useCallback(() => {
     fetchProjects()
     refetchTasks()
@@ -360,6 +377,7 @@ export function GanttChartEnhancedRefactored({ selectedProjectId }: GanttChartPr
         onDeleteTaskAction={handleDeleteTask}
         onStatusUpdateAction={handleStatusUpdate}
         onNotesSubmit={handleNotesUpdate}
+        onNavigateToTaskStartAction={handleNavigateToTaskStart}
         isExpanded={isExpanded}
         onToggleExpandAction={handleToggleExpand}
       />

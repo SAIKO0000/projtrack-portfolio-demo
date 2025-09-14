@@ -6,7 +6,7 @@ import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { Calendar, Users, Clock, MoreVertical, Edit, Trash2, CheckCircle, Play, Pause, AlertTriangle, ChevronDown, ChevronUp, StickyNote, ChevronLeft, ChevronRight } from "lucide-react"
+import { Calendar, Users, Clock, MoreVertical, Edit, Trash2, CheckCircle, Play, Pause, AlertTriangle, ChevronDown, ChevronUp, StickyNote, ChevronLeft, ChevronRight, Navigation, ArrowRight } from "lucide-react"
 import { EnhancedTask, TimelineMonth, ViewMode } from "./types"
 import { getStatusColor, getStatusIconType, formatDate, getTaskPosition, getProjectBarColor } from "./utils"
 import { TaskFormModal } from "./TaskFormModal"
@@ -30,6 +30,7 @@ interface UnifiedGanttChartProps {
   onDeleteTaskAction: (task: EnhancedTask) => void
   onStatusUpdateAction?: (taskId: string, status: string) => void
   onNotesSubmit?: (taskId: string, notes: string) => Promise<void>
+  onNavigateToTaskStartAction?: (taskStartDate: string) => void
   isExpanded?: boolean
   onToggleExpandAction?: () => void
 }
@@ -115,6 +116,7 @@ export function UnifiedGanttChart({
   onDeleteTaskAction,
   onStatusUpdateAction,
   onNotesSubmit,
+  onNavigateToTaskStartAction,
   isExpanded = true,
   onToggleExpandAction
 }: UnifiedGanttChartProps) {
@@ -371,6 +373,7 @@ export function UnifiedGanttChart({
               onDeleteTaskAction={onDeleteTaskAction}
               onStatusUpdateAction={onStatusUpdateAction}
               onNotesSubmit={onNotesSubmit}
+              onNavigateToTaskStartAction={onNavigateToTaskStartAction}
               isExpanded={individualExpandedStates[task.id] ?? isExpanded}
               onToggleExpanded={() => toggleIndividualExpanded(task.id)}
               todayLine={todayLine}
@@ -547,6 +550,7 @@ interface TaskRowComponentProps {
   onDeleteTaskAction: (task: EnhancedTask) => void
   onStatusUpdateAction?: (taskId: string, status: string) => void
   onNotesSubmit?: (taskId: string, notes: string) => Promise<void>
+  onNavigateToTaskStartAction?: (taskStartDate: string) => void
   isExpanded: boolean
   onToggleExpanded: () => void
   todayLine: { position: number, visible: boolean }
@@ -561,6 +565,7 @@ function TaskRowComponent({
   onDeleteTaskAction,
   onStatusUpdateAction,
   onNotesSubmit,
+  onNavigateToTaskStartAction,
   isExpanded,
   onToggleExpanded,
   todayLine
@@ -681,6 +686,14 @@ function TaskRowComponent({
                 Task Notes
               </DropdownMenuItem>
               
+              {/* Navigate to Task Start Date */}
+              {task.start_date && onNavigateToTaskStartAction && (
+                <DropdownMenuItem onClick={() => onNavigateToTaskStartAction(task.start_date!)}>
+                  <Navigation className="h-4 w-4 mr-2" />
+                  Go to Start Date
+                </DropdownMenuItem>
+              )}
+              
               {/* Status Update Section */}
               <DropdownMenuItem asChild>
                 <div className="px-2 py-1.5">
@@ -756,6 +769,19 @@ function TaskRowComponent({
                   </Badge>
                 )}
                 <h3 className="text-sm font-medium text-gray-900 dark:text-white truncate">{task.title}</h3>
+                
+                {/* Navigation Button - Desktop */}
+                {task.start_date && onNavigateToTaskStartAction && (
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="h-6 w-6 p-0 text-blue-500 hover:text-blue-700 dark:text-blue-400 dark:hover:text-blue-300 ml-1"
+                    onClick={() => onNavigateToTaskStartAction(task.start_date!)}
+                    title={`Jump to start date: ${formatDate(task.start_date)}`}
+                  >
+                    <ArrowRight className="h-3 w-3" />
+                  </Button>
+                )}
               </div>
               <p className="text-xs text-gray-500 dark:text-gray-400 truncate">{task.project_name}</p>
             </div>
@@ -956,6 +982,19 @@ function TaskRowComponent({
                 </Badge>
               )}
               <h3 className="text-sm font-medium text-gray-900 dark:text-white break-words flex-1 min-w-0">{task.title}</h3>
+              
+              {/* Navigation Button - Mobile */}
+              {task.start_date && onNavigateToTaskStartAction && (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="h-6 w-6 p-0 text-blue-500 hover:text-blue-700 dark:text-blue-400 dark:hover:text-blue-300 shrink-0 ml-1"
+                  onClick={() => onNavigateToTaskStartAction(task.start_date!)}
+                  title={`Jump to start date: ${formatDate(task.start_date)}`}
+                >
+                  <ArrowRight className="h-3 w-3" />
+                </Button>
+              )}
             </div>
             {/* Status Badge Row */}
             <div className="flex items-center gap-2 mb-1 flex-wrap">
@@ -989,6 +1028,14 @@ function TaskRowComponent({
                 <StickyNote className="h-3 w-3 mr-2" />
                 Notes
               </DropdownMenuItem>
+              
+              {/* Navigate to Task Start Date - Mobile */}
+              {task.start_date && onNavigateToTaskStartAction && (
+                <DropdownMenuItem onClick={() => onNavigateToTaskStartAction(task.start_date!)} className="text-xs">
+                  <Navigation className="h-3 w-3 mr-2" />
+                  Go to Start
+                </DropdownMenuItem>
+              )}
               
               {/* Mobile Status Update */}
               <DropdownMenuItem asChild>

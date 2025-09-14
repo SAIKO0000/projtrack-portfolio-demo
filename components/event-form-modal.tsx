@@ -43,7 +43,7 @@ import {
 import { format } from "date-fns"
 import { cn } from "@/lib/utils"
 import { useEvents } from "@/lib/hooks/useEvents"
-import { useProjectsQuery } from "@/lib/hooks/useProjectsOptimized"
+import { useProjects } from "@/lib/hooks/useProjects"
 import { toast } from "react-hot-toast"
 import { LocationAutocomplete } from "@/components/location-autocomplete"
 import { useModalMobileHide } from "@/lib/modal-mobile-utils"
@@ -83,7 +83,7 @@ export function EventFormModal({ onEventCreated, selectedDate, trigger, eventToE
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [attendeeInput, setAttendeeInput] = useState("")
   const { createEvent, updateEvent } = useEvents()
-  const { data: projects = [] } = useProjectsQuery()
+  const { projects } = useProjects()
   
   const isEditing = !!eventToEdit
   

@@ -9,7 +9,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Calendar } from "@/components/ui/calendar-custom"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
-import { useProjectsQuery } from "@/lib/hooks/useProjectsOptimized"
+import { useProjects } from "@/lib/hooks/useProjects"
 import { useGanttTasks } from "@/lib/hooks/useGanttTasks"
 import { 
   Calendar as CalendarIcon, 
@@ -82,7 +82,7 @@ export function TaskEditModalOptimized({ task, open, onOpenChangeAction, onTaskU
   // Hide mobile header when modal is open
   useModalMobileHide(open)
   
-  const { data: projects = [] } = useProjectsQuery()
+  const { projects } = useProjects()
   const { updateTask } = useGanttTasks()
   const [loading, setLoading] = useState(false)
   const [selectedRole, setSelectedRole] = useState<string>("")

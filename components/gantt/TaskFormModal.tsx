@@ -9,7 +9,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { Calendar } from "@/components/ui/calendar-custom"
-import { useProjectsQuery } from "@/lib/hooks/useProjectsOptimized"
+import { useProjects } from "@/lib/hooks/useProjects"
 import { useGanttTasks } from "@/lib/hooks/useGanttTasks"
 import { 
   Plus, 
@@ -63,7 +63,7 @@ interface TaskFormModalProps {
 }
 
 export function TaskFormModal({ onTaskCreated, defaultProjectId }: TaskFormModalProps) {
-  const { data: projects = [] } = useProjectsQuery()
+  const { projects } = useProjects()
   const { createTask } = useGanttTasks()
   const [open, setOpen] = useState(false)
   

@@ -9,8 +9,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Textarea } from "@/components/ui/textarea"
 import { Progress } from "@/components/ui/progress"
 import { Edit, FileText, FolderOpen, Tag, Clock, FileType, Save, X, User } from "lucide-react"
-import { useReportOperations } from "@/lib/hooks/useReportsOptimized"
-import { useProjectsQuery } from "@/lib/hooks/useProjectsOptimized"
+import { useReports } from "@/lib/hooks/useReports"
+import { useProjects } from "@/lib/hooks/useProjects"
 import { usePersonnel } from "@/lib/hooks/usePersonnel"
 import { useAuth } from "@/lib/auth"
 import { toast } from "react-hot-toast"
@@ -40,13 +40,10 @@ export function EditReportModal({ report, open, onOpenChangeAction, onReportUpda
   const [description, setDescription] = useState("")
   const [assignedReviewer, setAssignedReviewer] = useState("")
 
-  const { updateReport, isUpdating } = useReportOperations()
-  const { data: projects = [] } = useProjectsQuery()
+  const { updateReport, uploading } = useReports()
+  const { projects } = useProjects()
   const { personnel } = usePersonnel()
   const { user } = useAuth()
-
-  // Map for backward compatibility
-  const uploading = isUpdating
 
   // Check if current user can approve this report (not their own report + has privileges)
   const userPosition = (user as { position?: string })?.position || ""
@@ -124,15 +121,12 @@ export function EditReportModal({ report, open, onOpenChangeAction, onReportUpda
     }
 
     try {
-      updateReport({
-        reportId: report.id,
-        updates: {
-          file_name: fileName.trim(),
-          project_id: projectId,
-          category,
-          status,
-          description: description.trim() || null
-        }
+      await updateReport(report.id, {
+        file_name: fileName.trim(),
+        project_id: projectId,
+        category,
+        status,
+        description: description.trim() || null
       })
       
       toast.success("Report updated successfully!")

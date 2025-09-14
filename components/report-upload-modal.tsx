@@ -9,8 +9,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Textarea } from "@/components/ui/textarea"
 import { Progress } from "@/components/ui/progress"
 import { Upload, X, FileText, FolderOpen, Tag, Clock, FileType, File, FileSpreadsheet, FileImage, Archive, Layers, Video, Music, FileCode, User } from "lucide-react"
-import { useReportOperations } from "@/lib/hooks/useReportsOptimized"
-import { useProjectsQuery } from "@/lib/hooks/useProjectsOptimized"
+import { useReports } from "@/lib/hooks/useReports"
+import { useProjects } from "@/lib/hooks/useProjects"
 import { usePersonnel } from "@/lib/hooks/usePersonnel"
 import { useAuth } from "@/lib/auth"
 import { toast } from "react-hot-toast"
@@ -37,14 +37,10 @@ export function ReportUploadModal({ children, onUploadComplete, preselectedProje
   const [description, setDescription] = useState("")
   const [assignedReviewer, setAssignedReviewer] = useState("")
 
-  const { uploadReport, isUploading } = useReportOperations()
-  const { data: projects = [] } = useProjectsQuery()
+  const { uploadReport, uploading, uploadProgress, replaceReport } = useReports()
+  const { projects } = useProjects()
   const { personnel } = usePersonnel()
   const { user } = useAuth()
-
-  // Since we don't have uploadProgress in optimized version, we'll use a simple boolean
-  const uploading = isUploading
-  const uploadProgress = uploading ? 50 : 0 // Simple placeholder
 
   // Set initial status when modal opens - always pending for uploads
   useEffect(() => {
@@ -125,28 +121,12 @@ export function ReportUploadModal({ children, onUploadComplete, preselectedProje
 
     try {
       if (replacingReportId) {
-        // For replace functionality, we'll use update later - for now, just upload new
-        uploadReport({
-          file: selectedFile,
-          projectId,
-          category,
-          status,
-          description,
-          assignedReviewer,
-          title
-        })
-        toast.success("Report uploaded successfully!")
+        // Replace existing report
+        await replaceReport(replacingReportId, selectedFile, category, status, description, title)
+        toast.success("Report replaced successfully!")
       } else {
         // Upload new report with single reviewer
-        uploadReport({
-          file: selectedFile,
-          projectId,
-          category,
-          status,
-          description,
-          assignedReviewer,
-          title
-        })
+        await uploadReport(selectedFile, projectId, category, status, description, assignedReviewer, title)
         // Success toast is handled by the hook
       }
       

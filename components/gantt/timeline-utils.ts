@@ -103,51 +103,6 @@ export const getTimelineMonths = (
         currentDate.setMonth(currentDate.getMonth() + 1)
       }
     }
-  } else if (viewMode === "weekly") {
-    // Weekly view - show all weeks in the current month
-    const currentMonth = currentPeriod.getMonth()
-    const currentYear = currentPeriod.getFullYear()
-    
-    // Get first day of the month
-    const firstDayOfMonth = new Date(currentYear, currentMonth, 1)
-    // Get last day of the month
-    const lastDayOfMonth = new Date(currentYear, currentMonth + 1, 0)
-    
-    // Find the Sunday of the week containing the first day of the month
-    const startOfFirstWeek = new Date(firstDayOfMonth)
-    startOfFirstWeek.setDate(firstDayOfMonth.getDate() - firstDayOfMonth.getDay())
-    
-    // Find the Saturday of the week containing the last day of the month
-    const endOfLastWeek = new Date(lastDayOfMonth)
-    endOfLastWeek.setDate(lastDayOfMonth.getDate() + (6 - lastDayOfMonth.getDay()))
-    
-    let weekCount = 1
-    const currentWeekStart = new Date(startOfFirstWeek)
-    
-    while (currentWeekStart <= endOfLastWeek) {
-      const weekStart = new Date(currentWeekStart)
-      weekStart.setHours(0, 0, 0, 0)
-      
-      const weekEnd = new Date(weekStart)
-      weekEnd.setDate(weekStart.getDate() + 6)
-      weekEnd.setHours(23, 59, 59, 999)
-      
-      // Get the week number within the month
-      const weekLabel = `Week ${weekCount}`
-      
-      months.push({
-        label: weekLabel,
-        date: new Date(weekStart),
-        endDate: new Date(weekEnd),
-        quarter: Math.floor(currentMonth / 3) + 1,
-        year: currentYear,
-        isQuarter: false,
-      })
-      
-      // Move to next week
-      currentWeekStart.setDate(currentWeekStart.getDate() + 7)
-      weekCount++
-    }
   } else if (viewMode === "monthly") {
     // Monthly view - show 6 months around current period
     const startDate = new Date(currentPeriod.getFullYear(), currentPeriod.getMonth() - 2, 1)
@@ -166,13 +121,33 @@ export const getTimelineMonths = (
         isQuarter: false,
       })
     }
+  } else if (viewMode === "yearly") {
+    // Yearly view - show 5 years around current period
+    const startYear = currentPeriod.getFullYear() - 2
+    
+    for (let i = 0; i < 5; i++) {
+      const year = startYear + i
+      const yearStart = new Date(year, 0, 1) // January 1st
+      const yearEnd = new Date(year, 11, 31, 23, 59, 59, 999) // December 31st
+      
+      months.push({
+        label: year.toString(),
+        date: new Date(yearStart),
+        endDate: new Date(yearEnd),
+        quarter: 1,
+        year: year,
+        isQuarter: false,
+      })
+    }
   } else if (viewMode === "daily") {
-    // Daily view - show 14 days (2 weeks) around current period
+    // Daily view - show 7 days (1 week) on mobile, 14 days (2 weeks) on desktop
+    // For simplicity, we'll default to 7 days to ensure mobile compatibility
+    const daysToShow = 7 // Reduced from 14 to prevent mobile overflow
     const startDate = new Date(currentPeriod)
-    startDate.setDate(startDate.getDate() - 7) // 1 week before current date
+    startDate.setDate(startDate.getDate() - Math.floor(daysToShow / 2)) // Center around current date
     startDate.setHours(0, 0, 0, 0)
     
-    for (let i = 0; i < 14; i++) { // Show 14 days
+    for (let i = 0; i < daysToShow; i++) {
       const dayDate = new Date(startDate)
       dayDate.setDate(startDate.getDate() + i)
       
@@ -200,12 +175,12 @@ export const navigatePeriod = (
   
   if (viewMode === "daily") {
     newPeriod.setDate(newPeriod.getDate() + (direction === "next" ? 1 : -1))
-  } else if (viewMode === "weekly") {
-    // Navigate by 4 weeks (28 days) to show the next/previous set of 4 weeks
-    newPeriod.setDate(newPeriod.getDate() + (direction === "next" ? 28 : -28))
   } else if (viewMode === "monthly") {
     // Navigate by 1 month to show the next/previous month
     newPeriod.setMonth(newPeriod.getMonth() + (direction === "next" ? 1 : -1))
+  } else if (viewMode === "yearly") {
+    // Navigate by 1 year to show the next/previous year
+    newPeriod.setFullYear(newPeriod.getFullYear() + (direction === "next" ? 1 : -1))
   }
   // For "full" mode, navigation is not applicable as it shows entire timeline
   

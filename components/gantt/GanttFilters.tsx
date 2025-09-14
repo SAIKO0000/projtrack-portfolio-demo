@@ -113,18 +113,6 @@ export function GanttFilters({
               Daily
             </Button>
             <Button
-              variant={viewMode === "weekly" ? "default" : "ghost"}
-              size="sm"
-              onClick={() => setViewModeAction("weekly")}
-              className={`h-7 text-xs px-2 whitespace-nowrap flex-1 transition-all duration-200 ${
-                viewMode === "weekly" 
-                  ? "bg-white dark:bg-gray-700 shadow-sm text-gray-900 dark:text-white hover:bg-white dark:hover:bg-gray-700" 
-                  : "text-gray-600 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white hover:bg-white/50 dark:hover:bg-gray-700/50 hover:shadow-none"
-              }`}
-            >
-              Weekly
-            </Button>
-            <Button
               variant={viewMode === "monthly" ? "default" : "ghost"}
               size="sm"
               onClick={() => setViewModeAction("monthly")}
@@ -135,6 +123,18 @@ export function GanttFilters({
               }`}
             >
               Monthly
+            </Button>
+            <Button
+              variant={viewMode === "yearly" ? "default" : "ghost"}
+              size="sm"
+              onClick={() => setViewModeAction("yearly")}
+              className={`h-7 text-xs px-2 whitespace-nowrap flex-1 transition-all duration-200 ${
+                viewMode === "yearly" 
+                  ? "bg-white dark:bg-gray-700 shadow-sm text-gray-900 dark:text-white hover:bg-white dark:hover:bg-gray-700" 
+                  : "text-gray-600 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white hover:bg-white/50 dark:hover:bg-gray-700/50 hover:shadow-none"
+              }`}
+            >
+              Yearly
             </Button>
             <Button
               variant={viewMode === "full" ? "default" : "ghost"}
@@ -209,18 +209,6 @@ export function GanttFilters({
               Daily
             </Button>
             <Button
-              variant={viewMode === "weekly" ? "default" : "ghost"}
-              size="sm"
-              onClick={() => setViewModeAction("weekly")}
-              className={`h-8 text-xs px-3 whitespace-nowrap transition-all duration-200 ${
-                viewMode === "weekly" 
-                  ? "bg-white dark:bg-gray-700 shadow-sm text-gray-900 dark:text-white hover:bg-white dark:hover:bg-gray-700" 
-                  : "text-gray-600 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white hover:bg-white/50 dark:hover:bg-gray-700/50 hover:shadow-none"
-              }`}
-            >
-              Weekly
-            </Button>
-            <Button
               variant={viewMode === "monthly" ? "default" : "ghost"}
               size="sm"
               onClick={() => setViewModeAction("monthly")}
@@ -231,6 +219,18 @@ export function GanttFilters({
               }`}
             >
               Monthly
+            </Button>
+            <Button
+              variant={viewMode === "yearly" ? "default" : "ghost"}
+              size="sm"
+              onClick={() => setViewModeAction("yearly")}
+              className={`h-8 text-xs px-3 whitespace-nowrap transition-all duration-200 ${
+                viewMode === "yearly" 
+                  ? "bg-white dark:bg-gray-700 shadow-sm text-gray-900 dark:text-white hover:bg-white dark:hover:bg-gray-700" 
+                  : "text-gray-600 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white hover:bg-white/50 dark:hover:bg-gray-700/50 hover:shadow-none"
+              }`}
+            >
+              Yearly
             </Button>
             <Button
               variant={viewMode === "full" ? "default" : "ghost"}

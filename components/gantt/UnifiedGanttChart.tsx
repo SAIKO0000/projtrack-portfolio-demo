@@ -137,8 +137,8 @@ export function UnifiedGanttChart({
     switch (viewMode) {
       case "daily":
         return `Daily - ${currentPeriod.toLocaleDateString("en-PH", { month: "short", day: "numeric" })}`
-      case "weekly":
-        return `Weekly - ${currentPeriod.toLocaleDateString("en-PH", { month: "short", day: "numeric" })}`
+      case "yearly":
+        return `Yearly - ${currentPeriod.toLocaleDateString("en-PH", { year: "numeric" })}`
       case "monthly":
         return `Monthly - ${currentPeriod.toLocaleDateString("en-PH", { month: "long", year: "numeric" })}`
       default:
@@ -174,22 +174,28 @@ export function UnifiedGanttChart({
     let todayPosition = 0
     let isTodayVisible = false
 
-    if (viewMode === "weekly") {
-      // For weekly view, find which week contains today
+    if (viewMode === "yearly") {
+      // For yearly view, find which year contains today
       for (let i = 0; i < timelineMonths.length; i++) {
-        const weekStart = new Date(timelineMonths[i].date)
-        weekStart.setHours(0, 0, 0, 0) // Start of day
-        const weekEnd = new Date(timelineMonths[i].endDate)
-        weekEnd.setHours(23, 59, 59, 999) // End of day
+        const yearStart = new Date(timelineMonths[i].date)
+        yearStart.setHours(0, 0, 0, 0) // Start of day
+        const yearEnd = new Date(timelineMonths[i].endDate)
+        yearEnd.setHours(23, 59, 59, 999) // End of day
         
-        // Check if today falls within this week
-        if (today >= weekStart && today <= weekEnd) {
-          // Today is in this week, position it in the center of the week column
-          const weekColumnWidth = 100 / timelineMonths.length // Each week takes up equal width
-          const weekStartPosition = i * weekColumnWidth
-          const weekCenterPosition = weekStartPosition + (weekColumnWidth / 2)
+        // Check if today falls within this year
+        if (today >= yearStart && today <= yearEnd) {
+          // Today is in this year, position it based on day of year
+          const yearColumnWidth = 100 / timelineMonths.length // Each year takes up equal width
+          const yearStartPosition = i * yearColumnWidth
           
-          todayPosition = weekCenterPosition
+          // Calculate position within the year
+          const yearStartTime = yearStart.getTime()
+          const yearEndTime = yearEnd.getTime()
+          const todayTime = today.getTime()
+          const yearProgress = (todayTime - yearStartTime) / (yearEndTime - yearStartTime)
+          const positionWithinYear = yearProgress * yearColumnWidth
+          
+          todayPosition = yearStartPosition + positionWithinYear
           isTodayVisible = true
           break
         }
@@ -284,14 +290,14 @@ export function UnifiedGanttChart({
               />
             </div>
             
-            <div className="flex items-center space-x-1 sm:space-x-2">
+            <div className="flex items-center space-x-1 sm:space-x-2 shrink-0">
               {viewMode !== "full" && (
                 <>
                   <Button
                     variant="outline"
                     size="sm"
                     onClick={() => onNavigatePeriodAction("prev")}
-                    className="h-8 w-8 sm:h-10 sm:w-10 p-0"
+                    className="h-8 w-8 sm:h-10 sm:w-10 p-0 shrink-0"
                   >
                     <ChevronLeft className="h-3 w-3 sm:h-4 sm:w-4" />
                   </Button>
@@ -299,16 +305,16 @@ export function UnifiedGanttChart({
                     variant="outline"
                     size="sm"
                     onClick={handleTodayClick}
-                    className="h-8 px-2 sm:h-10 sm:px-3 text-xs sm:text-sm"
+                    className="h-8 px-2 sm:h-10 sm:px-3 text-xs sm:text-sm shrink-0 min-w-0"
                     title="Go to current period (Philippines time)"
                   >
-                    Today
+                    <span className="truncate">Today</span>
                   </Button>
                   <Button
                     variant="outline"
                     size="sm"
                     onClick={() => onNavigatePeriodAction("next")}
-                    className="h-8 w-8 sm:h-10 sm:w-10 p-0"
+                    className="h-8 w-8 sm:h-10 sm:w-10 p-0 shrink-0"
                   >
                     <ChevronRight className="h-3 w-3 sm:h-4 sm:w-4" />
                   </Button>
@@ -318,7 +324,7 @@ export function UnifiedGanttChart({
           </div>
         </div>
       </CardHeader>
-      <CardContent className="pt-0 px-3 sm:px-6">
+      <CardContent className="pt-0 px-3 sm:px-6 overflow-hidden">
         {/* Timeline Headers */}
         <TimelineHeaders viewMode={viewMode} currentPeriod={currentPeriod} timelineMonths={timelineMonths} />
         
@@ -328,8 +334,8 @@ export function UnifiedGanttChart({
             <div className="text-sm font-medium text-gray-800 dark:text-gray-200">
               {viewMode === "daily" 
                 ? currentPeriod.toLocaleDateString("en-PH", { month: "short", day: "numeric" })
-                : viewMode === "weekly"
-                  ? `Week of ${currentPeriod.toLocaleDateString("en-PH", { month: "short", day: "numeric" })}`
+                : viewMode === "yearly"
+                  ? currentPeriod.toLocaleDateString("en-PH", { year: "numeric" })
                   : viewMode === "monthly"
                     ? currentPeriod.toLocaleDateString("en-PH", { month: "long", year: "numeric" })
                     : "Timeline Overview"
@@ -390,28 +396,28 @@ function TimelineHeaders({ viewMode, currentPeriod, timelineMonths }: {
                 Daily View - {currentPeriod.toLocaleDateString("en-PH", { year: "numeric", month: "long" })}
               </div>
               <div 
-                className="grid gap-1"
+                className="grid gap-1 overflow-hidden"
                 style={{ gridTemplateColumns: `repeat(${timelineMonths.length}, 1fr)` }}
               >
                 {timelineMonths.map((day, index) => (
-                  <div key={day.label + index} className="text-xs text-center text-gray-600 dark:text-gray-400 font-medium px-1">
+                  <div key={day.label + index} className="text-xs text-center text-gray-600 dark:text-gray-400 font-medium px-1 min-w-0">
                     <div className="truncate">{day.label}</div>
                   </div>
                 ))}
               </div>
             </>
-          ) : viewMode === "weekly" ? (
+          ) : viewMode === "yearly" ? (
             <>
               <div className="text-center text-base font-bold text-gray-800 dark:text-gray-200 mb-2">
-                Weekly View - {currentPeriod.toLocaleDateString("en-PH", { year: "numeric", month: "long" })}
+                Yearly View - {currentPeriod.toLocaleDateString("en-PH", { year: "numeric" })}
               </div>
               <div 
-                className="grid gap-1"
+                className="grid gap-1 overflow-hidden"
                 style={{ gridTemplateColumns: `repeat(${timelineMonths.length}, 1fr)` }}
               >
-                {timelineMonths.map((week, index) => (
-                  <div key={week.label + index} className="text-xs text-center text-gray-600 dark:text-gray-400 font-medium px-1">
-                    <div className="truncate">{week.label}</div>
+                {timelineMonths.map((year, index) => (
+                  <div key={year.label + index} className="text-xs text-center text-gray-600 dark:text-gray-400 font-medium px-1 min-w-0">
+                    <div className="truncate">{year.label}</div>
                   </div>
                 ))}
               </div>
@@ -422,11 +428,11 @@ function TimelineHeaders({ viewMode, currentPeriod, timelineMonths }: {
                 Monthly View - {currentPeriod.toLocaleDateString("en-PH", { year: "numeric" })}
               </div>
               <div 
-                className="grid gap-1"
+                className="grid gap-1 overflow-hidden"
                 style={{ gridTemplateColumns: `repeat(${timelineMonths.length}, 1fr)` }}
               >
                 {timelineMonths.map((month, index) => (
-                  <div key={month.label + index} className="text-xs text-center text-gray-600 dark:text-gray-400 font-medium px-1">
+                  <div key={month.label + index} className="text-xs text-center text-gray-600 dark:text-gray-400 font-medium px-1 min-w-0">
                     <div className="truncate">{month.label}</div>
                   </div>
                 ))}
@@ -495,29 +501,29 @@ function TimelineHeaders({ viewMode, currentPeriod, timelineMonths }: {
         <div className="col-span-8">
           {viewMode === "daily" ? (
             <div 
-              className="grid gap-1"
+              className="grid gap-1 overflow-hidden"
               style={{ gridTemplateColumns: `repeat(${timelineMonths.length}, 1fr)` }}
             >
               {timelineMonths.map((day, index) => (
-                <div key={day.label + index} className="h-4 border-l border-gray-300 dark:border-gray-600 opacity-30"></div>
+                <div key={day.label + index} className="h-4 border-l border-gray-300 dark:border-gray-600 opacity-30 min-w-0"></div>
               ))}
             </div>
-          ) : viewMode === "weekly" ? (
+          ) : viewMode === "yearly" ? (
             <div 
-              className="grid gap-1"
+              className="grid gap-1 overflow-hidden"
               style={{ gridTemplateColumns: `repeat(${timelineMonths.length}, 1fr)` }}
             >
-              {timelineMonths.map((week, index) => (
-                <div key={week.label + index} className="h-4 border-l border-gray-300 dark:border-gray-600 opacity-30"></div>
+              {timelineMonths.map((year, index) => (
+                <div key={year.label + index} className="h-4 border-l border-gray-300 dark:border-gray-600 opacity-30 min-w-0"></div>
               ))}
             </div>
           ) : (
             <div 
-              className="grid gap-1"
+              className="grid gap-1 overflow-hidden"
               style={{ gridTemplateColumns: `repeat(${timelineMonths.length}, 1fr)` }}
             >
               {timelineMonths.map((_, index) => (
-                <div key={index} className="h-4 border-l border-gray-300 dark:border-gray-600 opacity-30"></div>
+                <div key={index} className="h-4 border-l border-gray-300 dark:border-gray-600 opacity-30 min-w-0"></div>
               ))}
             </div>
           )}

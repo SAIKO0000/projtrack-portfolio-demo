@@ -58,7 +58,7 @@ export function GanttChartEnhancedRefactored({ selectedProjectId }: GanttChartPr
   const [statusFilter, setStatusFilter] = useState("all")
   const [projectFilter, setProjectFilter] = useState("all")
   const [currentPeriod, setCurrentPeriod] = useState(new Date())
-  const [viewMode, setViewMode] = useState<ViewMode>("weekly")
+  const [viewMode, setViewMode] = useState<ViewMode>("monthly")
   const [searchTerm, setSearchTerm] = useState("")
   const [editingTask, setEditingTask] = useState<EnhancedTask | null>(null)
   const [isEditModalOpen, setIsEditModalOpen] = useState(false)

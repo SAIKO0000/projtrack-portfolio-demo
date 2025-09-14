@@ -14,6 +14,7 @@ import {
   Users,
   Calendar,
   AlertCircle,
+  AlertTriangle,
   ChevronDown,
   ChevronUp
 } from "lucide-react"
@@ -58,7 +59,7 @@ export function StructuredExportControls({
   const [includeResourceAnalysis, setIncludeResourceAnalysis] = useState(true)
   const [includeTimeline, setIncludeTimeline] = useState(true)
   const [includeTechnicalSpecs, setIncludeTechnicalSpecs] = useState(true)
-  const [isCollapsed, setIsCollapsed] = useState(false)
+  const [isCollapsed, setIsCollapsed] = useState(true)
   const [isDialogOpen, setIsDialogOpen] = useState(false)
 
   const handleExport = () => {
@@ -142,6 +143,10 @@ export function StructuredExportControls({
         <p className="text-sm text-gray-600 dark:text-gray-400">
           Generate structured engineering reports with comprehensive project data and technical analysis
         </p>
+        <div className="flex items-center gap-2 text-xs text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-900/20 p-2 rounded-lg border border-amber-200 dark:border-amber-800">
+          <AlertTriangle className="h-4 w-4 shrink-0" />
+          <span>⚠️ This feature is currently under development and may not be fully functional</span>
+        </div>
       </CardHeader>
 
       {!isCollapsed && (

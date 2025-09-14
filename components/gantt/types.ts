@@ -68,4 +68,4 @@ export interface OverallStats {
   delayed: number
 }
 
-export type ViewMode = "daily" | "weekly" | "monthly" | "full"
+export type ViewMode = "daily" | "monthly" | "yearly" | "full"

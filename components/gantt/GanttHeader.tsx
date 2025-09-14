@@ -1,13 +1,8 @@
 "use client"
 
-import { Button } from "@/components/ui/button"
-import { BarChart3, RefreshCw } from "lucide-react"
+import { BarChart3 } from "lucide-react"
 
-interface GanttHeaderProps {
-  onRefreshAction: () => void
-}
-
-export function GanttHeader({ onRefreshAction }: GanttHeaderProps) {
+export function GanttHeader() {
   return (
     <div className="bg-white/95 backdrop-blur-sm p-3 sm:p-5 lg:p-7 rounded-xl shadow-lg border border-gray-200/50">
       {/* Header - Desktop layout */}
@@ -24,17 +19,8 @@ export function GanttHeader({ onRefreshAction }: GanttHeaderProps) {
               </p>
             </div>
           </div>
-          {/* Enhanced Live Updates indicator and Refresh button */}
+          {/* Enhanced Live Updates indicator */}
           <div className="flex items-center space-x-4">
-            <Button
-              variant="outline"
-              size="default"
-              onClick={onRefreshAction}
-              className="flex items-center gap-2 h-10 px-5 border-gray-300 hover:border-gray-400 hover:shadow-md transition-all duration-200"
-            >
-              <RefreshCw className="h-3 w-3" />
-              Refresh
-            </Button>
             <div className="flex items-center px-4 py-2 bg-gradient-to-r from-emerald-50 to-blue-50 rounded-xl border border-emerald-200/50">
               <div className="flex h-2 w-2 rounded-full bg-emerald-500 animate-pulse mr-2"></div>
               <span className="text-sm font-medium text-emerald-700">Live Updates</span>
@@ -53,15 +39,12 @@ export function GanttHeader({ onRefreshAction }: GanttHeaderProps) {
             <h1 className="text-2xl font-bold text-gray-900">Gantt Chart</h1>
           </div>
           <p className="text-base text-gray-600 mb-3">Manage project timelines, track progress, and coordinate tasks</p>
-          <Button
-            variant="outline"
-            size="default"
-            onClick={onRefreshAction}
-            className="flex items-center gap-2 h-10 px-5 mx-auto border-gray-300 hover:border-gray-400 hover:shadow-md transition-all duration-200"
-          >
-            <RefreshCw className="h-3 w-3" />
-            Refresh
-          </Button>
+          <div className="flex items-center justify-center">
+            <div className="flex items-center px-3 py-1.5 bg-gradient-to-r from-emerald-50 to-blue-50 rounded-lg border border-emerald-200/50">
+              <div className="flex h-1.5 w-1.5 rounded-full bg-emerald-500 animate-pulse mr-1.5"></div>
+              <span className="text-xs font-medium text-emerald-700">Live Updates</span>
+            </div>
+          </div>
         </div>
       </div>
     </div>

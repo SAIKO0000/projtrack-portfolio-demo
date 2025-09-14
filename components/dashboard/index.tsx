@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useMemo, useCallback, useRef } from "react"
+import { useState, useCallback } from "react"
 import { type Project } from "@/lib/supabase"
 import { EditProjectModal } from "@/components/edit-project-modal"
 import { ContentSkeleton } from "@/components/ui/content-skeleton"
@@ -15,7 +15,6 @@ import { DashboardRecentProjects } from "./dashboard-recent-projects"
 import { DashboardUpcomingTasks } from "./dashboard-upcoming-tasks"
 
 // Import refactored hooks and utilities
-import { createThrottledFunction } from "./dashboard-utils"
 import { useDashboardAnalytics } from "./dashboard-analytics"
 import { useChartData } from "./dashboard-chart-data"
 import { useTaskManagement } from "./dashboard-task-management"
@@ -32,18 +31,15 @@ export function Dashboard() {
   
   const { 
     data: personnel = [], 
-    isLoading: personnelLoading,
-    refetch: refetchPersonnel 
+    isLoading: personnelLoading
   } = supabaseQuery.usePersonnelQuery()
   
   const { 
     data: tasks = [], 
-    isLoading: tasksLoading,
-    refetch: refetchTasks 
+    isLoading: tasksLoading
   } = supabaseQuery.useTasksQuery()
 
   const [editingProject, setEditingProject] = useState<Project | null>(null)
-  const lastRefreshRef = useRef<number>(0)
 
   // Use refactored analytics hook
   const { stats, projectAnalytics, getProjectTaskProgress, getProjectTaskCounts } = useDashboardAnalytics(projects, tasks, personnel)
@@ -57,35 +53,6 @@ export function Dashboard() {
   const handleProjectCreated = useCallback(() => {
     // TanStack Query will automatically update the cache
   }, [])
-
-  // Throttled refresh function
-  const throttledRefresh = useMemo(() => 
-    createThrottledFunction(async () => {
-      const now = Date.now()
-      if (now - lastRefreshRef.current < 30000) { // 30 seconds
-        toast.success("Data is already up to date")
-        return
-      }
-
-      try {
-        await Promise.all([
-          refetchProjects(),
-          refetchPersonnel(),
-          refetchTasks()
-        ])
-        lastRefreshRef.current = now
-        toast.success("Dashboard refreshed successfully")
-      } catch (error) {
-        console.error('Error refreshing dashboard:', error)
-        toast.error("Failed to refresh dashboard")
-      }
-    }, 3000), // 3 second throttle
-    [refetchProjects, refetchPersonnel, refetchTasks]
-  )
-
-  const handleRefresh = useCallback(() => {
-    throttledRefresh()
-  }, [throttledRefresh])
 
   const handleDeleteProject = useCallback(async (projectId: string, projectName: string) => {
     if (confirm(`Are you sure you want to delete the project "${projectName}"? This action cannot be undone.`)) {
@@ -133,7 +100,6 @@ export function Dashboard() {
     <div className="p-2 sm:p-4 md:p-6 lg:p-8 xl:p-10 2xl:p-12 space-y-3 sm:space-y-4 md:space-y-5 lg:space-y-6 xl:space-y-7 2xl:space-y-8 overflow-y-auto h-full bg-gradient-to-br from-gray-50 via-white to-gray-100/50">
       {/* Modern Header with Glassmorphism */}
       <DashboardHeader 
-        onRefreshAction={handleRefresh}
         onProjectCreatedAction={handleProjectCreated}
       />
 

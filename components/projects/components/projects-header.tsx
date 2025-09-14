@@ -1,17 +1,13 @@
 import { FileText } from "lucide-react"
 
 interface ProjectsHeaderProps {
-  onRefresh: () => void
   onProjectCreated: () => void
   ProjectFormModal: React.ComponentType<{ onProjectCreated: () => void }>
-  RefreshButton: React.ComponentType<{ onRefresh: () => void }>
 }
 
 export function ProjectsHeader({ 
-  onRefresh, 
   onProjectCreated, 
-  ProjectFormModal, 
-  RefreshButton 
+  ProjectFormModal
 }: ProjectsHeaderProps) {
   return (
     <div className="bg-white/95 backdrop-blur-sm p-3 sm:p-4 md:p-5 lg:p-6 xl:p-7 2xl:p-8 rounded-xl shadow-lg border border-gray-200/50">
@@ -29,7 +25,6 @@ export function ProjectsHeader({
           </div>
         </div>
         <div className="flex items-center space-x-3">
-          <RefreshButton onRefresh={onRefresh} />
           <ProjectFormModal onProjectCreated={onProjectCreated} />
         </div>
       </div>
@@ -46,7 +41,7 @@ export function ProjectsHeader({
         </div>
         <p className="text-sm text-gray-600 mb-3">Manage and track all your electrical engineering projects</p>
         <div className="flex justify-center">
-          <RefreshButton onRefresh={onRefresh} />
+          <ProjectFormModal onProjectCreated={onProjectCreated} />
         </div>
       </div>
     </div>

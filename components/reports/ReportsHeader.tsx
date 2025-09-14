@@ -1,13 +1,12 @@
 import { Button } from "@/components/ui/button"
-import { FileText, RefreshCw, Upload } from "lucide-react"
+import { FileText, Upload } from "lucide-react"
 import { ReportUploadModal } from "../report-upload-modal"
 
 interface ReportsHeaderProps {
-  onRefresh: () => void
   onUploadComplete: () => void
 }
 
-export function ReportsHeader({ onRefresh, onUploadComplete }: ReportsHeaderProps) {
+export function ReportsHeader({ onUploadComplete }: ReportsHeaderProps) {
   return (
     <div className="bg-white/95 backdrop-blur-sm p-4 sm:p-5 lg:p-7 rounded-xl shadow-lg border border-gray-200/50">
       {/* Desktop layout */}
@@ -24,15 +23,6 @@ export function ReportsHeader({ onRefresh, onUploadComplete }: ReportsHeaderProp
           </div>
         </div>
         <div className="flex items-center space-x-3">
-          <Button
-            variant="outline"
-            size="default"
-            onClick={onRefresh}
-            className="flex items-center gap-2 h-10 px-5 py-2 border-gray-300 hover:border-gray-400 hover:shadow-md transition-all duration-200"
-          >
-            <RefreshCw className="h-4 w-4" />
-            Refresh
-          </Button>
           <ReportUploadModal onUploadComplete={onUploadComplete}>
             <Button className="bg-gradient-to-r from-orange-500 to-orange-600 hover:from-orange-600 hover:to-orange-700 w-full sm:w-auto h-10 px-5 py-2">
               <Upload className="h-4 w-4 mr-2" />
@@ -54,15 +44,6 @@ export function ReportsHeader({ onRefresh, onUploadComplete }: ReportsHeaderProp
         </div>
         <p className="text-sm text-gray-600 mb-3">Manage project documents, reports, and files</p>
         <div className="flex gap-2 justify-center">
-          <Button
-            variant="outline"
-            size="default"
-            onClick={onRefresh}
-            className="flex items-center gap-2 h-10 px-4"
-          >
-            <RefreshCw className="h-4 w-4" />
-            Refresh
-          </Button>
           <ReportUploadModal onUploadComplete={onUploadComplete}>
             <Button className="bg-gradient-to-r from-orange-500 to-orange-600 hover:from-orange-600 hover:to-orange-700 h-10 px-4">
               <Upload className="h-4 w-4 mr-2" />

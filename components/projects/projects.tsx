@@ -22,7 +22,6 @@ import { FileText } from "lucide-react"
 // Import our organized components
 import {
   ProjectsHeader,
-  RefreshButton,
   ProjectFiltersComponent,
   ProjectStats,
   AssignedReportsNotification,
@@ -39,7 +38,6 @@ import {
 } from "./hooks"
 
 import {
-  createThrottledFunction,
   useCapitalizeWords,
   useGetReportStatusColor,
   useFormatDate
@@ -189,30 +187,6 @@ export function Projects({ onProjectSelect }: ProjectsProps) {
     }
   })
 
-  // Throttled refresh function
-  const throttledRefresh = useMemo(() => 
-    createThrottledFunction(async () => {
-      try {
-        // Only refresh if really needed
-        const shouldRefresh = Date.now() - (window.lastRefreshTime || 0) > 30000 // 30 seconds
-        if (!shouldRefresh) {
-          toast.success("Data is already up to date")
-          return
-        }
-
-        await refetchProjects()
-        // IMMEDIATE UI UPDATE - Force refresh after manual refresh
-        forceUIUpdate()
-        window.lastRefreshTime = Date.now()
-        toast.success("Projects refreshed successfully")
-      } catch (error) {
-        console.error('Error refreshing projects:', error)
-        toast.error("Failed to refresh projects")
-      }
-    }, 2000), // 2 second throttle
-    [refetchProjects, forceUIUpdate]
-  )
-
   // Event handlers
   const handleProjectCreated = useCallback(() => {
     // IMMEDIATE UI UPDATE - Force refresh after project creation
@@ -221,10 +195,6 @@ export function Projects({ onProjectSelect }: ProjectsProps) {
       forceUIUpdate()
     }, 100) // Small delay to prevent race conditions
   }, [refetchProjects, forceUIUpdate])
-
-  const handleRefresh = useCallback(() => {
-    throttledRefresh()
-  }, [throttledRefresh])
 
   const handleDeleteProject = useCallback(async (projectId: string) => {
     const project = projects.find(p => p.id === projectId)
@@ -483,10 +453,8 @@ export function Projects({ onProjectSelect }: ProjectsProps) {
     <div className="p-3 sm:p-5 lg:p-9 space-y-4 sm:space-y-5 lg:space-y-7 overflow-y-auto h-full bg-gradient-to-br from-gray-50 via-white to-gray-100/50 max-w-full">
       {/* Modern Header with Glassmorphism */}
       <ProjectsHeader
-        onRefresh={handleRefresh}
         onProjectCreated={handleProjectCreated}
         ProjectFormModal={ProjectFormModal}
-        RefreshButton={RefreshButton}
       />
 
       {/* Mobile and Desktop Filters */}

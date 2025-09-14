@@ -1,15 +1,13 @@
 "use client"
 
-import { Button } from "@/components/ui/button"
-import { RefreshCw, TrendingUp } from "lucide-react"
+import { TrendingUp } from "lucide-react"
 import { ProjectFormModal } from "@/components/project-form-modal"
 
 interface DashboardHeaderProps {
-  onRefreshAction: () => void
   onProjectCreatedAction: () => void
 }
 
-export function DashboardHeader({ onRefreshAction, onProjectCreatedAction }: DashboardHeaderProps) {
+export function DashboardHeader({ onProjectCreatedAction }: DashboardHeaderProps) {
   return (
     <div className="bg-white/95 backdrop-blur-sm p-3 sm:p-4 md:p-5 lg:p-6 xl:p-7 2xl:p-8 rounded-xl shadow-lg border border-gray-200/50">
       {/* Desktop layout */}
@@ -26,15 +24,6 @@ export function DashboardHeader({ onRefreshAction, onProjectCreatedAction }: Das
           </div>
         </div>
         <div className="flex items-center space-x-3">
-          <Button
-            variant="outline"
-            size="default"
-            onClick={onRefreshAction}
-            className="flex items-center gap-2 h-10 px-5 py-2 border-gray-300 hover:border-gray-400 hover:shadow-md transition-all duration-200"
-          >
-            <RefreshCw className="h-4 w-4" />
-            Refresh
-          </Button>
           <ProjectFormModal onProjectCreated={onProjectCreatedAction} />
         </div>
       </div>
@@ -51,15 +40,6 @@ export function DashboardHeader({ onRefreshAction, onProjectCreatedAction }: Das
         </div>
         <p className="text-sm text-gray-600 mb-3">Welcome! Stay updated with reports and tasks</p>
         <div className="flex justify-center gap-2">
-          <Button
-            variant="outline"
-            size="default"
-            onClick={onRefreshAction}
-            className="flex items-center gap-2 h-10 px-4"
-          >
-            <RefreshCw className="h-4 w-4" />
-            Refresh
-          </Button>
           <ProjectFormModal onProjectCreated={onProjectCreatedAction} />
         </div>
       </div>

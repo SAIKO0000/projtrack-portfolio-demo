@@ -41,7 +41,6 @@ export function ReportsRefactored({ onTabChangeAction }: ReportsProps = {}) {
     setIsEditModalOpen,
     setReviewerNotesModal,
     setDeleteDialog,
-    handleRefresh,
     handleUploadComplete,
     handleReportStatusUpdate,
     handleReviewerNotesSubmit,
@@ -61,7 +60,6 @@ export function ReportsRefactored({ onTabChangeAction }: ReportsProps = {}) {
   return (
     <div className="p-3 sm:p-5 lg:p-9 space-y-4 sm:space-y-5 lg:space-y-7 overflow-y-auto h-full bg-gradient-to-br from-gray-50 via-white to-gray-100/50 max-w-full">
       <ReportsHeader 
-        onRefresh={handleRefresh}
         onUploadComplete={handleUploadComplete}
       />
 

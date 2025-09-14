@@ -33,7 +33,6 @@ import {
   ArrowRight,
   Edit,
   Search,
-  RefreshCw,
 } from "lucide-react"
 import { EventFormModal } from "./event-form-modal"
 import { DeleteEventDialog } from "./delete-event-dialog"
@@ -43,25 +42,34 @@ import { useSupabaseQuery } from "@/lib/hooks/useSupabaseQuery"
 import { usePhotosOptimized, usePhotoCountsByDate, usePhotosForDate, usePhotoOperations } from "@/lib/hooks/usePhotosOptimized"
 import { toast } from "@/lib/toast-manager"
 
-// Add throttling utility
-const createThrottledFunction = <T extends unknown[]>(func: (...args: T) => void, delay: number) => {
-  let timeoutId: NodeJS.Timeout | null = null
-  let lastExecTime = 0
+// Custom hook for throttling with proper cleanup
+const useThrottledFunction = <T extends unknown[]>(func: (...args: T) => void, delay: number) => {
+  const timeoutIdRef = useRef<NodeJS.Timeout | null>(null)
+  const lastExecTimeRef = useRef(0)
   
-  return (...args: T) => {
+  // Cleanup on unmount
+  useEffect(() => {
+    return () => {
+      if (timeoutIdRef.current) {
+        clearTimeout(timeoutIdRef.current)
+      }
+    }
+  }, [])
+  
+  return useCallback((...args: T) => {
     const currentTime = Date.now()
     
-    if (currentTime - lastExecTime > delay) {
+    if (currentTime - lastExecTimeRef.current > delay) {
       func(...args)
-      lastExecTime = currentTime
+      lastExecTimeRef.current = currentTime
     } else {
-      if (timeoutId) clearTimeout(timeoutId)
-      timeoutId = setTimeout(() => {
+      if (timeoutIdRef.current) clearTimeout(timeoutIdRef.current)
+      timeoutIdRef.current = setTimeout(() => {
         func(...args)
-        lastExecTime = Date.now()
-      }, delay - (currentTime - lastExecTime))
+        lastExecTimeRef.current = Date.now()
+      }, delay - (currentTime - lastExecTimeRef.current))
     }
-  }
+  }, [func, delay])
 }
 
 // Simple interfaces for type safety
@@ -152,9 +160,6 @@ export function Calendar() {
     isDeleting: false
   })
   
-  // Refs for throttling
-  const lastRefreshRef = useRef<number>(0)
-  
   // Use optimized hooks - single data fetch instead of hundreds of requests
   const { events, loading: eventsLoading, fetchEvents, deleteEvent } = useEvents()
   
@@ -177,31 +182,6 @@ export function Calendar() {
     // Remove search filtering for calendar display - only show suggestions
     return dayPhotosFromHook
   }, [dayPhotosFromHook, selectedDay]) // Remove searchQuery dependency
-
-  // Throttled refresh function
-  const throttledRefresh = useMemo(() => 
-    createThrottledFunction(async () => {
-      const now = Date.now()
-      if (now - lastRefreshRef.current < 30000) { // 30 seconds
-        toast.success("Calendar is already up to date")
-        return
-      }
-
-      try {
-        await fetchEvents()
-        lastRefreshRef.current = now
-        toast.success("Calendar refreshed successfully")
-      } catch (error) {
-        console.error('Error refreshing calendar:', error)
-        toast.error("Failed to refresh calendar")
-      }
-    }, 3000), // 3 second throttle
-    [fetchEvents]
-  )
-
-  const handleRefresh = useCallback(async () => {
-    throttledRefresh()
-  }, [throttledRefresh])
 
   // Handle navigation from notifications
   useEffect(() => {
@@ -696,17 +676,6 @@ export function Calendar() {
             <h1 className="text-2xl font-bold text-gray-900">Calendar</h1>
           </div>
           <p className="text-base text-gray-600">Schedule and track project activities</p>
-          <div className="flex justify-center mt-3">
-            <Button
-              variant="outline"
-              size="default"
-              onClick={handleRefresh}
-              className="flex items-center gap-2 h-10 px-5 py-2 border-gray-300 hover:border-gray-400 hover:shadow-md transition-all duration-200"
-            >
-              <RefreshCw className="h-4 w-4" />
-              Refresh
-            </Button>
-          </div>
         </div>
         
         {/* Desktop Layout: Enhanced header */}
@@ -723,15 +692,6 @@ export function Calendar() {
             </div>
           </div>
           <div className="flex items-center space-x-4">
-            <Button
-              variant="outline"
-              size="default"
-              onClick={handleRefresh}
-              className="flex items-center gap-2 h-10 px-5 py-2 border-gray-300 hover:border-gray-400 hover:shadow-md transition-all duration-200"
-            >
-              <RefreshCw className="h-4 w-4" />
-              Refresh
-            </Button>
             <EventFormModal onEventCreated={handleEventCreated} />
           </div>
         </div>

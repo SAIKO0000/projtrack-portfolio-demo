@@ -185,11 +185,6 @@ export function GanttChartEnhancedRefactored({ selectedProjectId }: GanttChartPr
   }, [filteredTasks])
 
   // Event handlers
-  const handleRefresh = useCallback(() => {
-    refetchTasks()
-    fetchProjects()
-  }, [refetchTasks, fetchProjects])
-
   const handleToggleExpand = useCallback(() => {
     setIsExpanded(prev => !prev)
   }, [])
@@ -332,7 +327,7 @@ export function GanttChartEnhancedRefactored({ selectedProjectId }: GanttChartPr
   return (
     <div className="p-2 sm:p-4 md:p-6 space-y-1 sm:space-y-2 md:space-y-3 overflow-y-auto h-full bg-gray-50 dark:bg-gray-950">
       {/* Header */}
-      <GanttHeader onRefreshAction={handleRefresh} />
+      <GanttHeader />
 
       {/* Stats Cards */}
       <GanttStatsCards stats={overallStats} />

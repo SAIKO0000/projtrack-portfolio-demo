@@ -15,9 +15,19 @@ import { useAuth } from "@/lib/auth"
 import { useAutoNotifications } from "@/lib/hooks/useAutoNotifications"
 import { useNotificationManager } from "@/lib/hooks/useNotificationManager"
 import { useDynamicTitle } from "@/lib/hooks/useDynamicTitle"
+import { ErrorBoundary } from "@/components/ErrorBoundary"
 
 export default function Home() {
+  // Initialize activeTab with default value, then load from localStorage in useEffect
   const [activeTab, setActiveTab] = useState("dashboard")
+
+  // Load saved tab from localStorage after component mounts (client-side only)
+  useEffect(() => {
+    const savedTab = localStorage.getItem('activeTab')
+    if (savedTab) {
+      setActiveTab(savedTab)
+    }
+  }, [])
   const [selectedProjectId, setSelectedProjectId] = useState<string | null>(null)
   const { user, loading } = useAuth()
   const router = useRouter()
@@ -42,6 +52,7 @@ export default function Home() {
     const handleNotificationTaskClick = (event: CustomEvent) => {
       const { taskId } = event.detail;
       setActiveTab("gantt");
+      localStorage.setItem('activeTab', "gantt");
       // You could set selectedProjectId based on the task if needed
       console.log('Navigating to task from notification:', taskId);
     };
@@ -62,10 +73,14 @@ export default function Home() {
   const handleProjectSelect = (projectId: string) => {
     setSelectedProjectId(projectId)
     setActiveTab("gantt")
+    // Save the selected tab to localStorage for persistence
+    localStorage.setItem('activeTab', "gantt")
   }
 
   const handleTabChange = (tab: string) => {
     setActiveTab(tab)
+    // Save the selected tab to localStorage for persistence
+    localStorage.setItem('activeTab', tab)
     // Clear project selection when navigating away from gantt or when going to gantt without project selection
     if (tab !== "gantt") {
       setSelectedProjectId(null)
@@ -75,21 +90,21 @@ export default function Home() {
   const renderContent = () => {
     switch (activeTab) {
       case "dashboard":
-        return <Dashboard />
+        return <Dashboard key="dashboard" />
       case "projects":
-        return <Projects onProjectSelect={handleProjectSelect} />
+        return <Projects key="projects" onProjectSelect={handleProjectSelect} />
       case "gantt":
-        return <GanttChartEnhancedRefactored selectedProjectId={selectedProjectId} />
+        return <GanttChartEnhancedRefactored key="gantt" selectedProjectId={selectedProjectId} />
       case "calendar":
-        return <Calendar />
+        return <Calendar key="calendar" />
       case "team":
-        return <TeamRefactored />
+        return <TeamRefactored key="team" />
       case "notifications":
-        return <NotificationsRefactored onTabChangeAction={handleTabChange} />
+        return <NotificationsRefactored key="notifications" onTabChangeAction={handleTabChange} />
       case "reports":
-        return <ReportsRefactored onTabChangeAction={handleTabChange} />
+        return <ReportsRefactored key="reports" onTabChangeAction={handleTabChange} />
       default:
-        return <Dashboard />
+        return <Dashboard key="dashboard-default" />
     }
   }
 
@@ -115,7 +130,9 @@ export default function Home() {
       <SidebarRefactored activeTab={activeTab} onTabChangeAction={handleTabChange} />
       <main className="flex-1 overflow-hidden">
         <div className="h-full overflow-y-auto pt-20 lg:pt-0">
-          {renderContent()}
+          <ErrorBoundary>
+            {renderContent()}
+          </ErrorBoundary>
         </div>
       </main>
       
@@ -128,6 +145,7 @@ export default function Home() {
         onViewAllClick={() => {
           dismissPopup();
           setActiveTab("gantt");
+          localStorage.setItem('activeTab', "gantt");
         }}
       />
       

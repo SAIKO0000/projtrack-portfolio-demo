@@ -1,14 +1,12 @@
 "use client"
 
 import { Button } from "@/components/ui/button"
-import { Bell, RefreshCw, Clock, CheckSquare, Square, Trash2 } from "lucide-react"
+import { Bell, Clock, CheckSquare, Square, Trash2 } from "lucide-react"
 import { SelectionState } from './types'
 
 interface NotificationHeaderProps {
-  isRefreshing: boolean
   filteredNotificationsLength: number
   selectionState: SelectionState
-  onRefreshAction: () => void
   onToggleDeadlinesAction: () => void
   onEnterSelectionModeAction: () => void
   onExitSelectionModeAction: () => void
@@ -17,10 +15,8 @@ interface NotificationHeaderProps {
 }
 
 export function NotificationHeader({ 
-  isRefreshing,
   filteredNotificationsLength,
   selectionState,
-  onRefreshAction,
   onToggleDeadlinesAction,
   onEnterSelectionModeAction,
   onExitSelectionModeAction,
@@ -93,16 +89,6 @@ export function NotificationHeader({
               </Button>
               <Button 
                 variant="outline" 
-                onClick={onRefreshAction}
-                disabled={isRefreshing}
-                size="default"
-                className="h-10 px-5 py-2 border-gray-300 hover:border-gray-400 hover:shadow-md transition-all duration-200"
-              >
-                <RefreshCw className={`h-4 w-4 mr-2 ${isRefreshing ? 'animate-spin' : ''}`} />
-                {isRefreshing ? 'Refreshing...' : 'Refresh'}
-              </Button>
-              <Button 
-                variant="outline" 
                 onClick={onToggleDeadlinesAction}
                 size="default"
                 className="h-10 px-4 py-2 border-gray-300 hover:border-gray-400 hover:shadow-md transition-all duration-200"
@@ -172,16 +158,6 @@ export function NotificationHeader({
               >
                 <CheckSquare className="h-4 w-4 mr-2" />
                 Select
-              </Button>
-              <Button 
-                variant="outline" 
-                onClick={onRefreshAction}
-                disabled={isRefreshing}
-                size="default"
-                className="h-10 px-4"
-              >
-                <RefreshCw className={`h-4 w-4 mr-2 ${isRefreshing ? 'animate-spin' : ''}`} />
-                Sync
               </Button>
               <Button 
                 variant="outline" 

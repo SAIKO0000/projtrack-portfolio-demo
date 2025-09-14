@@ -60,9 +60,9 @@ export function ProjectCard({
   return (
     <Card className="border-l-4 border-l-orange-500 bg-white/95 backdrop-blur-sm hover:shadow-xl transition-all duration-300 overflow-hidden w-full flex flex-col border border-gray-200/50 shadow-lg hover:scale-[1.02] transform">
       <CardHeader className="pb-3 sm:pb-4">
-        <div className="flex items-start justify-between gap-3 sm:gap-4">
-          <div className="flex-1 min-w-0">
-            <CardTitle className="text-lg sm:text-xl mb-2 break-words leading-tight">{project.name}</CardTitle>
+        <div className="flex flex-col space-y-3 sm:space-y-0 sm:flex-row sm:items-start sm:justify-between">
+          <div className="flex-1 min-w-0 pr-2">
+            <CardTitle className="text-base sm:text-lg lg:text-xl mb-2 break-words leading-tight">{project.name}</CardTitle>
             <CardDescription className="text-xs sm:text-sm mb-2 sm:mb-3 text-gray-600 line-clamp-2">
               {project.description}
             </CardDescription>
@@ -83,75 +83,83 @@ export function ProjectCard({
               )}
             </div>
           </div>
-          <div className="flex items-start flex-col gap-2 flex-shrink-0">
-            {isAdmin ? (
-              <DropdownMenu>
-                <DropdownMenuTrigger asChild>
-                  <Badge 
-                    className={`${getStatusColor(project.status)} cursor-pointer hover:opacity-80 hover:scale-105 transition-all duration-200 shadow-sm hover:shadow-md select-none text-xs`}
-                    title="Click to change status"
-                  >
-                    {getStatusIcon(project.status)}
-                    <span className="ml-1">{capitalizeWords(project.status) || "Unknown"}</span>
-                    <span className="ml-1 text-xs opacity-70">▼</span>
-                  </Badge>
-                </DropdownMenuTrigger>
-                <DropdownMenuContent align="end">
-                  <DropdownMenuItem 
-                    onClick={() => onStatusUpdate(project.id, "planning")}
-                    className="cursor-pointer"
-                  >
-                    <Clock className="h-4 w-4 mr-2" />
-                    Planning
-                  </DropdownMenuItem>
-                  <DropdownMenuItem 
-                    onClick={() => onStatusUpdate(project.id, "in-progress")}
-                    className="cursor-pointer"
-                  >
-                    <Play className="h-4 w-4 mr-2" />
-                    In-Progress
-                  </DropdownMenuItem>
-                  <DropdownMenuItem 
-                    onClick={() => onStatusUpdate(project.id, "on-hold")}
-                    className="cursor-pointer"
-                  >
-                    <Pause className="h-4 w-4 mr-2" />
-                    On-Hold
-                  </DropdownMenuItem>
-                  <DropdownMenuItem 
-                    onClick={() => onStatusUpdate(project.id, "completed")}
-                    className="cursor-pointer"
-                  >
-                    <CheckCircle className="h-4 w-4 mr-2" />
-                    Completed
-                  </DropdownMenuItem>
-                </DropdownMenuContent>
-              </DropdownMenu>
-            ) : (
-              <Badge 
-                className={`${getStatusColor(project.status)} cursor-default text-xs`}
-                title="Status (read-only)"
-              >
-                {getStatusIcon(project.status)}
-                <span className="ml-1">{capitalizeWords(project.status) || "Unknown"}</span>
-              </Badge>
-            )}
+          
+          {/* Mobile-first Status and Menu Section */}
+          <div className="flex items-center justify-between sm:justify-end gap-2 sm:gap-3 flex-shrink-0 sm:flex-col sm:items-end">
+            {/* Status Badge */}
+            <div className="flex-1 sm:flex-none">
+              {isAdmin ? (
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <Badge 
+                      className={`${getStatusColor(project.status)} cursor-pointer hover:opacity-80 hover:scale-105 transition-all duration-200 shadow-sm hover:shadow-md select-none text-xs whitespace-nowrap`}
+                      title="Click to change status"
+                    >
+                      {getStatusIcon(project.status)}
+                      <span className="ml-1">{capitalizeWords(project.status) || "Unknown"}</span>
+                      <span className="ml-1 text-xs opacity-70">▼</span>
+                    </Badge>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="end">
+                    <DropdownMenuItem 
+                      onClick={() => onStatusUpdate(project.id, "planning")}
+                      className="cursor-pointer"
+                    >
+                      <Clock className="h-4 w-4 mr-2" />
+                      Planning
+                    </DropdownMenuItem>
+                    <DropdownMenuItem 
+                      onClick={() => onStatusUpdate(project.id, "in-progress")}
+                      className="cursor-pointer"
+                    >
+                      <Play className="h-4 w-4 mr-2" />
+                      In-Progress
+                    </DropdownMenuItem>
+                    <DropdownMenuItem 
+                      onClick={() => onStatusUpdate(project.id, "on-hold")}
+                      className="cursor-pointer"
+                    >
+                      <Pause className="h-4 w-4 mr-2" />
+                      On-Hold
+                    </DropdownMenuItem>
+                    <DropdownMenuItem 
+                      onClick={() => onStatusUpdate(project.id, "completed")}
+                      className="cursor-pointer"
+                    >
+                      <CheckCircle className="h-4 w-4 mr-2" />
+                      Completed
+                    </DropdownMenuItem>
+                  </DropdownMenuContent>
+                </DropdownMenu>
+              ) : (
+                <Badge 
+                  className={`${getStatusColor(project.status)} cursor-default text-xs whitespace-nowrap`}
+                  title="Status (read-only)"
+                >
+                  {getStatusIcon(project.status)}
+                  <span className="ml-1 hidden xs:inline">{capitalizeWords(project.status) || "Unknown"}</span>
+                  <span className="ml-1 xs:hidden">{(capitalizeWords(project.status) || "Unknown").charAt(0)}</span>
+                </Badge>
+              )}
+            </div>
+            
+            {/* Menu Button */}
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
-                <Button variant="ghost" size="sm" className="h-6 w-6 p-0">
-                  <MoreHorizontal className="h-3 w-3" />
+                <Button variant="ghost" size="sm" className="h-8 w-8 p-0 hover:bg-gray-100 dark:hover:bg-gray-800">
+                  <MoreHorizontal className="h-4 w-4" />
                 </Button>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end">
                 <DropdownMenuItem onClick={() => onEditProject(project.id)}>
-                  <Edit className="h-3 w-3 mr-2" />
+                  <Edit className="h-4 w-4 mr-2" />
                   Edit Project
                 </DropdownMenuItem>
                 <DropdownMenuItem 
                   onClick={() => onDeleteProject(project.id, project.name)}
                   className="text-red-600 focus:text-red-600"
                 >
-                  <Trash2 className="h-3 w-3 mr-2" />
+                  <Trash2 className="h-4 w-4 mr-2" />
                   Delete Project
                 </DropdownMenuItem>
               </DropdownMenuContent>
@@ -199,31 +207,32 @@ export function ProjectCard({
               <Button
                 variant="outline"
                 size="default"
-                className="h-8 sm:h-10 px-3 sm:px-5 text-xs sm:text-sm text-gray-600 hover:text-gray-800 border-gray-300"
+                className="h-9 sm:h-10 px-3 sm:px-5 text-xs sm:text-sm text-gray-600 hover:text-gray-800 border-gray-300 min-w-0"
                 onClick={() => onViewReports(project.id, project.name)}
               >
-                <FileText className="h-3 w-3 sm:h-4 sm:w-4 mr-1 sm:mr-2" />
-                View All {reportsCount} Reports →
+                <FileText className="h-3 w-3 sm:h-4 sm:w-4 mr-1 sm:mr-2 flex-shrink-0" />
+                <span className="truncate">View All {reportsCount} Reports →</span>
               </Button>
             </div>
           )}
 
-          {/* Action buttons - always at bottom */}
-          <div className="flex flex-row items-center gap-2 sm:gap-3 pt-3 sm:pt-4 mt-auto border-t border-gray-100">
+          {/* Action buttons - responsive layout */}
+          <div className="flex flex-col sm:flex-row items-stretch gap-2 sm:gap-3 pt-3 sm:pt-4 mt-auto border-t border-gray-100">
             <Button
               size="default"
-              className="bg-gradient-to-r from-orange-500 to-orange-600 hover:from-orange-600 hover:to-orange-700 h-8 sm:h-10 px-3 sm:px-5 text-xs sm:text-sm flex-1"
+              className="bg-gradient-to-r from-orange-500 to-orange-600 hover:from-orange-600 hover:to-orange-700 h-9 sm:h-10 px-3 sm:px-5 text-xs sm:text-sm flex-1 min-w-0"
               onClick={() => onProjectSelect?.(project.id)}
             >
-              View Schedule
+              <Calendar className="h-3 w-3 sm:h-4 sm:w-4 mr-1 sm:mr-2 flex-shrink-0" />
+              <span className="truncate">View Schedule</span>
             </Button>
             <ReportUploadModal 
               preselectedProjectId={project.id}
               onUploadComplete={onReportUploaded}
             >
-              <Button variant="outline" size="default" className="h-8 sm:h-10 px-3 sm:px-5 text-xs sm:text-sm flex-1">
-                <FileText className="h-3 w-3 sm:h-4 sm:w-4 mr-1 sm:mr-2" />
-                Attach Report
+              <Button variant="outline" size="default" className="h-9 sm:h-10 px-3 sm:px-5 text-xs sm:text-sm flex-1 min-w-0">
+                <FileText className="h-3 w-3 sm:h-4 sm:w-4 mr-1 sm:mr-2 flex-shrink-0" />
+                <span className="truncate">Attach Report</span>
               </Button>
             </ReportUploadModal>
           </div>

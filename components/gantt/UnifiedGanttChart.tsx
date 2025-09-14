@@ -249,8 +249,8 @@ export function UnifiedGanttChart({
   return (
     <Card className="dark:bg-gray-900 dark:border-gray-800">
       <CardHeader className="pb-3 px-3 sm:px-6">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-          <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:space-x-3 min-w-0">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:space-x-3 min-w-0 flex-1">
             <CardTitle className="dark:text-white text-sm sm:text-lg truncate">
               {getTimelineTitle()}
             </CardTitle>
@@ -258,69 +258,73 @@ export function UnifiedGanttChart({
               {tasks.length} tasks
             </Badge>
           </div>
-          <div className="flex items-center justify-between gap-2">
-            {/* Expand/Collapse Controls */}
-            {onToggleExpandAction && (
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={onToggleExpandAction}
-                className="h-8 px-2 sm:h-10 sm:px-3 text-xs sm:text-sm"
-                title={isExpanded ? "Collapse All" : "Expand All"}
-              >
-                {isExpanded ? (
-                  <>
-                    <ChevronUp className="h-3 w-3 sm:h-4 sm:w-4 mr-1" />
-                    Collapse All
-                  </>
-                ) : (
-                  <>
-                    <ChevronDown className="h-3 w-3 sm:h-4 sm:w-4 mr-1" />
-                    Expand All
-                  </>
-                )}
-              </Button>
-            )}
-            
-            {/* Desktop Add Task Button */}
-            <div className="hidden sm:block">
-              <TaskFormModal 
-                onTaskCreated={onTaskCreatedAction} 
-                defaultProjectId={projectFilter !== "all" ? projectFilter : undefined}
-              />
-            </div>
-            
-            <div className="flex items-center space-x-1 sm:space-x-2 shrink-0">
-              {viewMode !== "full" && (
-                <>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => onNavigatePeriodAction("prev")}
-                    className="h-8 w-8 sm:h-10 sm:w-10 p-0 shrink-0"
-                  >
-                    <ChevronLeft className="h-3 w-3 sm:h-4 sm:w-4" />
-                  </Button>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={handleTodayClick}
-                    className="h-8 px-2 sm:h-10 sm:px-3 text-xs sm:text-sm shrink-0 min-w-0"
-                    title="Go to current period (Philippines time)"
-                  >
-                    <span className="truncate">Today</span>
-                  </Button>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => onNavigatePeriodAction("next")}
-                    className="h-8 w-8 sm:h-10 sm:w-10 p-0 shrink-0"
-                  >
-                    <ChevronRight className="h-3 w-3 sm:h-4 sm:w-4" />
-                  </Button>
-                </>
+          
+          {/* Controls Section - Stack vertically on mobile */}
+          <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:gap-2 flex-shrink-0">
+            {/* Top row: Expand/Collapse and Add Task */}
+            <div className="flex items-center justify-between sm:justify-end gap-2">
+              {/* Expand/Collapse Controls */}
+              {onToggleExpandAction && (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={onToggleExpandAction}
+                  className="h-8 px-2 sm:h-10 sm:px-3 text-xs sm:text-sm"
+                  title={isExpanded ? "Collapse All" : "Expand All"}
+                >
+                  {isExpanded ? (
+                    <>
+                      <ChevronUp className="h-3 w-3 sm:h-4 sm:w-4 mr-1" />
+                      <span className="hidden sm:inline">Collapse All</span>
+                    </>
+                  ) : (
+                    <>
+                      <ChevronDown className="h-3 w-3 sm:h-4 sm:w-4 mr-1" />
+                      <span className="hidden sm:inline">Expand All</span>
+                    </>
+                  )}
+                </Button>
               )}
+              
+              {/* Desktop Add Task Button */}
+              <div className="hidden sm:block">
+                <TaskFormModal 
+                  onTaskCreated={onTaskCreatedAction} 
+                  defaultProjectId={projectFilter !== "all" ? projectFilter : undefined}
+                />
+              </div>
             </div>
+            
+            {/* Navigation Controls - Always give full width */}
+            {viewMode !== "full" && (
+              <div className="flex items-center justify-center gap-1 sm:gap-2 w-full sm:w-auto">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => onNavigatePeriodAction("prev")}
+                  className="h-8 w-8 sm:h-10 sm:w-10 p-0 flex-shrink-0"
+                >
+                  <ChevronLeft className="h-3 w-3 sm:h-4 sm:w-4" />
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={handleTodayClick}
+                  className="h-8 px-2 sm:h-10 sm:px-3 text-xs sm:text-sm flex-1 sm:flex-none min-w-0 max-w-[120px] sm:max-w-none"
+                  title="Go to current period (Philippines time)"
+                >
+                  <span className="truncate">Today</span>
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => onNavigatePeriodAction("next")}
+                  className="h-8 w-8 sm:h-10 sm:w-10 p-0 flex-shrink-0"
+                >
+                  <ChevronRight className="h-3 w-3 sm:h-4 sm:w-4" />
+                </Button>
+              </div>
+            )}
           </div>
         </div>
       </CardHeader>

@@ -389,16 +389,15 @@ function TimelineHeaders({ viewMode, currentPeriod, timelineMonths }: {
               <div className="text-center text-base font-bold text-gray-800 dark:text-gray-200 mb-2">
                 Daily View - {currentPeriod.toLocaleDateString("en-PH", { year: "numeric", month: "long" })}
               </div>
-              <div className="overflow-x-auto">
-                <div className="grid grid-cols-14 gap-1 min-w-max" style={{ minWidth: '800px' }}>
-                  {timelineMonths.map((day, index) => (
-                    <div key={day.label + index} className={`text-xs text-center text-gray-600 dark:text-gray-400 font-medium px-1 ${
-                      index < timelineMonths.length - 1 ? 'border-r border-gray-400 dark:border-gray-500' : ''
-                    }`} style={{ minWidth: '55px' }}>
-                      <div className="truncate">{day.label}</div>
-                    </div>
-                  ))}
-                </div>
+              <div 
+                className="grid gap-1"
+                style={{ gridTemplateColumns: `repeat(${timelineMonths.length}, 1fr)` }}
+              >
+                {timelineMonths.map((day, index) => (
+                  <div key={day.label + index} className="text-xs text-center text-gray-600 dark:text-gray-400 font-medium px-1">
+                    <div className="truncate">{day.label}</div>
+                  </div>
+                ))}
               </div>
             </>
           ) : viewMode === "weekly" ? (
@@ -406,16 +405,15 @@ function TimelineHeaders({ viewMode, currentPeriod, timelineMonths }: {
               <div className="text-center text-base font-bold text-gray-800 dark:text-gray-200 mb-2">
                 Weekly View - {currentPeriod.toLocaleDateString("en-PH", { year: "numeric", month: "long" })}
               </div>
-              <div className="overflow-x-auto">
-                <div className="flex gap-1 min-w-max" style={{ minWidth: '600px' }}>
-                  {timelineMonths.map((week, index) => (
-                    <div key={week.label + index} className={`text-xs text-center text-gray-600 dark:text-gray-400 font-medium px-1 ${
-                      index < timelineMonths.length - 1 ? 'border-r border-gray-400 dark:border-gray-500' : ''
-                    }`} style={{ minWidth: '140px', flex: '1' }}>
-                      <div className="truncate">{week.label}</div>
-                    </div>
-                  ))}
-                </div>
+              <div 
+                className="grid gap-1"
+                style={{ gridTemplateColumns: `repeat(${timelineMonths.length}, 1fr)` }}
+              >
+                {timelineMonths.map((week, index) => (
+                  <div key={week.label + index} className="text-xs text-center text-gray-600 dark:text-gray-400 font-medium px-1">
+                    <div className="truncate">{week.label}</div>
+                  </div>
+                ))}
               </div>
             </>
           ) : viewMode === "monthly" ? (
@@ -423,16 +421,15 @@ function TimelineHeaders({ viewMode, currentPeriod, timelineMonths }: {
               <div className="text-center text-base font-bold text-gray-800 dark:text-gray-200 mb-2">
                 Monthly View - {currentPeriod.toLocaleDateString("en-PH", { year: "numeric" })}
               </div>
-              <div className="overflow-x-auto">
-                <div className="grid grid-cols-6 gap-1 min-w-max" style={{ minWidth: '720px' }}>
-                  {timelineMonths.map((month, index) => (
-                    <div key={month.label + index} className={`text-xs text-center text-gray-600 dark:text-gray-400 font-medium px-2 py-1 ${
-                      index < timelineMonths.length - 1 ? 'border-r border-gray-400 dark:border-gray-500' : ''
-                    }`} style={{ minWidth: '120px' }}>
-                      <div className="truncate">{month.label}</div>
-                    </div>
-                  ))}
-                </div>
+              <div 
+                className="grid gap-1"
+                style={{ gridTemplateColumns: `repeat(${timelineMonths.length}, 1fr)` }}
+              >
+                {timelineMonths.map((month, index) => (
+                  <div key={month.label + index} className="text-xs text-center text-gray-600 dark:text-gray-400 font-medium px-1">
+                    <div className="truncate">{month.label}</div>
+                  </div>
+                ))}
               </div>
             </>
           ) : (
@@ -445,22 +442,23 @@ function TimelineHeaders({ viewMode, currentPeriod, timelineMonths }: {
               </div>
 
               {timelineMonths.length > 0 && (
-                <div className="overflow-x-auto">
+                <>
                   {/* Year headers */}
                   <div 
-                    className="grid gap-1 mb-1 min-w-max" 
-                    style={{ gridTemplateColumns: `repeat(${timelineMonths.length}, minmax(60px, 1fr))`, minWidth: `${timelineMonths.length * 60}px` }}
+                    className="grid gap-0 mb-2"
+                    style={{ gridTemplateColumns: `repeat(${timelineMonths.length}, 1fr)` }}
                   >
                     {timelineMonths.reduce((acc: React.ReactElement[], month, index) => {
-                      // Show year only at the start of each new year or first month
-                      const showYear = index === 0 || month.year !== timelineMonths[index - 1].year;
-                      if (showYear) {
-                        const yearSpan = timelineMonths.filter(m => m.year === month.year).length;
+                      const prevMonth = timelineMonths[index - 1]
+                      const isNewYear = !prevMonth || prevMonth.year !== month.year
+                      
+                      if (isNewYear) {
+                        const yearMonths = timelineMonths.filter(m => m.year === month.year)
                         acc.push(
                           <div 
                             key={`year-${month.year}`} 
-                            className="text-xs text-center text-gray-700 dark:text-gray-300 font-bold border-r-2 border-gray-500 dark:border-gray-400 py-1"
-                            style={{ gridColumn: `span ${yearSpan}` }}
+                            className="text-sm font-bold text-gray-800 dark:text-gray-200 text-center border-r border-gray-300 dark:border-gray-600"
+                            style={{ gridColumn: `span ${yearMonths.length}` }}
                           >
                             {month.year}
                           </div>
@@ -472,21 +470,19 @@ function TimelineHeaders({ viewMode, currentPeriod, timelineMonths }: {
                   
                   {/* Month/Quarter headers */}
                   <div 
-                    className="grid gap-1 mb-1 min-w-max" 
-                    style={{ gridTemplateColumns: `repeat(${timelineMonths.length}, minmax(60px, 1fr))`, minWidth: `${timelineMonths.length * 60}px` }}
+                    className="grid gap-1"
+                    style={{ gridTemplateColumns: `repeat(${timelineMonths.length}, 1fr)` }}
                   >
                     {timelineMonths.map((month, index) => (
                       <div 
                         key={month.label + month.date.getFullYear()} 
-                        className={`text-xs text-center text-gray-600 dark:text-gray-400 font-medium px-1 py-1 ${
-                          index < timelineMonths.length - 1 ? 'border-r border-gray-400 dark:border-gray-500' : ''
-                        }`}
+                        className="text-xs text-center text-gray-600 dark:text-gray-400 font-medium px-1"
                       >
                         <div className="truncate" title={month.label}>{month.label}</div>
                       </div>
                     ))}
                   </div>
-                </div>
+                </>
               )}
             </>
           )}
@@ -498,31 +494,31 @@ function TimelineHeaders({ viewMode, currentPeriod, timelineMonths }: {
         <div className="col-span-4"></div>
         <div className="col-span-8">
           {viewMode === "daily" ? (
-            <div className="overflow-x-auto">
-              <div className="grid grid-cols-14 gap-1 min-w-max" style={{ minWidth: '800px' }}>
-                {timelineMonths.map((day, index) => (
-                  <div key={day.label + index} className="h-4 border-l border-gray-300 dark:border-gray-600 opacity-30" style={{ minWidth: '55px' }}></div>
-                ))}
-              </div>
+            <div 
+              className="grid gap-1"
+              style={{ gridTemplateColumns: `repeat(${timelineMonths.length}, 1fr)` }}
+            >
+              {timelineMonths.map((day, index) => (
+                <div key={day.label + index} className="h-4 border-l border-gray-300 dark:border-gray-600 opacity-30"></div>
+              ))}
             </div>
           ) : viewMode === "weekly" ? (
-            <div className="overflow-x-auto">
-              <div className="flex gap-1 min-w-max" style={{ minWidth: '600px' }}>
-                {timelineMonths.map((week, index) => (
-                  <div key={week.label + index} className="h-4 border-l border-gray-300 dark:border-gray-600 opacity-30" style={{ minWidth: '140px', flex: '1' }}></div>
-                ))}
-              </div>
+            <div 
+              className="grid gap-1"
+              style={{ gridTemplateColumns: `repeat(${timelineMonths.length}, 1fr)` }}
+            >
+              {timelineMonths.map((week, index) => (
+                <div key={week.label + index} className="h-4 border-l border-gray-300 dark:border-gray-600 opacity-30"></div>
+              ))}
             </div>
           ) : (
-            <div className="overflow-x-auto">
-              <div 
-                className="grid gap-1 min-w-max"
-                style={{ gridTemplateColumns: `repeat(${timelineMonths.length}, minmax(60px, 1fr))`, minWidth: `${timelineMonths.length * 60}px` }}
-              >
-                {timelineMonths.map((_, index) => (
-                  <div key={index} className="h-4 border-l border-gray-300 dark:border-gray-600 opacity-30"></div>
-                ))}
-              </div>
+            <div 
+              className="grid gap-1"
+              style={{ gridTemplateColumns: `repeat(${timelineMonths.length}, 1fr)` }}
+            >
+              {timelineMonths.map((_, index) => (
+                <div key={index} className="h-4 border-l border-gray-300 dark:border-gray-600 opacity-30"></div>
+              ))}
             </div>
           )}
         </div>
@@ -897,34 +893,26 @@ function TaskRowComponent({
 
         {/* Timeline - Desktop */}
         <div className="col-span-8">
-          <div className="overflow-x-auto">
-            <div className="relative h-8 bg-gray-100 dark:bg-gray-800 rounded-lg overflow-hidden" 
-                 style={{ 
-                   minWidth: viewMode === "daily" ? '800px' : 
-                            viewMode === "weekly" ? '600px' : 
-                            viewMode === "monthly" ? '720px' :
-                            `${timelineMonths.length * 60}px` 
-                 }}>
-              {position.isVisible && (
-                <div
-                  className={`absolute top-1 bottom-1 rounded-md transition-all border ${getProjectBarColor(task.status, overdue)}`}
-                  style={{
-                    left: position.left,
-                    width: position.width,
-                  }}
-                >
-                </div>
-              )}
+          <div className="relative h-8 bg-gray-100 dark:bg-gray-800 rounded-lg overflow-hidden">
+            {position.isVisible && (
+              <div
+                className={`absolute top-1 bottom-1 rounded-md transition-all border ${getProjectBarColor(task.status, overdue)}`}
+                style={{
+                  left: position.left,
+                  width: position.width,
+                }}
+              >
+              </div>
+            )}
 
-              {/* Today line */}
-              {todayLine.visible && (
-                <div
-                  className="absolute top-0 bottom-0 w-0.5 bg-red-600 z-30"
-                  style={{ left: `${todayLine.position}%` }}
-                  title={`Today - ${new Date().toLocaleDateString("en-PH")}`}
-                />
-              )}
-            </div>
+            {/* Today line */}
+            {todayLine.visible && (
+              <div
+                className="absolute top-0 bottom-0 w-0.5 bg-red-600 z-30"
+                style={{ left: `${todayLine.position}%` }}
+                title={`Today - ${new Date().toLocaleDateString("en-PH")}`}
+              />
+            )}
           </div>
         </div>
       </div>
